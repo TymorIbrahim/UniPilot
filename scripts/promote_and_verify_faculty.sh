@@ -10,8 +10,10 @@ API_BASE="${API_BASE:-http://localhost:8000}"
 
 if [[ "$FACULTY" == "dds" ]]; then
   CATALOG_PATH="data/generated/technion/catalog/catalog_reviewed.json"
+  READINESS_PATH="data/generated/technion/catalog/catalog_phase8_readiness_check.json"
 else
   CATALOG_PATH="data/generated/technion/${FACULTY}/catalog_reviewed.json"
+  READINESS_PATH="data/generated/technion/${FACULTY}/catalog_phase8_readiness_check.json"
 fi
 
 run_de() {
@@ -20,7 +22,7 @@ run_de() {
 
 echo "========== promote ${FACULTY} =========="
 run_de export-vault-catalog --faculty "$FACULTY"
-run_de import-dds-catalog-staging --catalog-path "$CATALOG_PATH"
+run_de import-dds-catalog-staging --catalog-path "$CATALOG_PATH" --readiness-path "$READINESS_PATH"
 run_de validate-dds-staging-quality --faculty "$FACULTY"
 run_de promote-dds-to-production \
   --faculty "$FACULTY" \

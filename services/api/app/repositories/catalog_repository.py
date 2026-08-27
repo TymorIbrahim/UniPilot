@@ -891,9 +891,9 @@ async def list_faculties(
     settings: Settings | None = None,
 ) -> list[str]:
     settings = settings or get_settings()
-    collection = database[settings.courses_collection]
+    collection = database[settings.catalog_faculties_collection]
     values = await collection.distinct(
-        "faculty",
-        {**PUBLISHED_STATUS_FILTER, "faculty": {"$exists": True, "$nin": [None, ""]}},
+        "nameHe",
+        {**PUBLISHED_STATUS_FILTER, "nameHe": {"$exists": True, "$nin": [None, ""]}},
     )
     return sorted(str(value).strip() for value in values if str(value).strip())

@@ -47,15 +47,17 @@ for faculty in "${FACULTIES[@]}"; do
   echo "========== $faculty ==========" | tee -a "$RUN_LOG"
   if [[ "$faculty" == "dds" ]]; then
     catalog_path="data/generated/technion/catalog/catalog_reviewed.json"
+    readiness_path="data/generated/technion/catalog/catalog_phase8_readiness_check.json"
   else
     catalog_path="data/generated/technion/${faculty}/catalog_reviewed.json"
+    readiness_path="data/generated/technion/${faculty}/catalog_phase8_readiness_check.json"
   fi
 
   echo "[export] $faculty" | tee -a "$RUN_LOG"
   run_de export-vault-catalog --faculty "$faculty" 2>&1 | tee -a "$RUN_LOG"
 
   echo "[staging import] $faculty" | tee -a "$RUN_LOG"
-  run_de import-dds-catalog-staging --catalog-path "$catalog_path" 2>&1 | tee -a "$RUN_LOG"
+  run_de import-dds-catalog-staging --catalog-path "$catalog_path" --readiness-path "$readiness_path" 2>&1 | tee -a "$RUN_LOG"
 
   echo "[staging quality] $faculty" | tee -a "$RUN_LOG"
   run_de validate-dds-staging-quality --faculty "$faculty" 2>&1 | tee -a "$RUN_LOG"
