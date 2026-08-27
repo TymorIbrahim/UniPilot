@@ -112,6 +112,43 @@ export type CatalogPathOption = {
   totalCreditsRequired?: string
 }
 
+export type ParsedTranscriptCourse = {
+  courseNumber: string
+  semesterCode: string
+  grade: number
+  creditsEarned: number
+  attempt?: number | null
+  title?: string | null
+  confidence: number
+  warnings: string[]
+}
+
+export type TranscriptParsePreview = {
+  courses: ParsedTranscriptCourse[]
+  studentId?: string | null
+  studentName?: string | null
+  warnings: string[]
+  parseMetadata: {
+    pageCount: number
+    extractor: string
+    pipelineVersion: string
+    textCharCount: number
+    ocrUsed: boolean
+    transcriptFormat?: string
+    showsAllAttempts?: boolean
+  }
+}
+
+export type TranscriptImportResult = {
+  created: CompletedCourse[]
+  skippedDuplicates: string[]
+  unresolved: Array<{ courseNumber: string; semesterCode: string; reason: string }>
+  createdCount: number
+  skippedCount: number
+  unresolvedCount: number
+  replacedCount?: number
+}
+
 export type CompletedCourse = {
   id: string
   courseId: string
@@ -119,9 +156,17 @@ export type CompletedCourse = {
   courseTitle?: string
   semesterCode: string
   grade: string
+  gradePoints?: number | null
   creditsEarned: number
   attempt: number
   source: string
+  recordedAt?: string
+  metadata?: {
+    passGrade?: boolean
+    exemption?: boolean
+    importSource?: string
+    importedTitle?: string
+  }
 }
 
 export type CourseProgressEntry = {

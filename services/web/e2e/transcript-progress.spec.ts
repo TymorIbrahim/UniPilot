@@ -1,16 +1,22 @@
 import { expect, test } from './fixtures/test'
 import { E2E_DNE_ELECTIVE_COURSE } from './helpers/planner'
 
+function parseCompletedCredits(summaryText: string): number {
+  const match = summaryText.match(/([\d.]+)\s*\/\s*([\d.]+)/)
+  return match ? Number.parseFloat(match[1]!) : 0
+}
+
 test.describe('Transcript ↔ Graduation progress E2E', () => {
   test('adding a completed course updates progress summary and pool counts', async ({
     progressPage,
     transcriptPage,
     page,
   }) => {
+    await transcriptPage.removeCompletedCourseIfPresent(E2E_DNE_ELECTIVE_COURSE)
+
     await progressPage.gotoProgress()
     const summaryBefore = await progressPage.summaryCard.innerText()
 
-    await transcriptPage.gotoTranscript()
     await transcriptPage.addCompletedCourse(E2E_DNE_ELECTIVE_COURSE, '2020-2')
 
     const progressRefresh = page.waitForResponse(
@@ -20,7 +26,7 @@ test.describe('Transcript ↔ Graduation progress E2E', () => {
     await progressPage.gotoProgress()
     await progressRefresh
     const summaryAfter = await progressPage.summaryCard.innerText()
-    expect(summaryAfter).not.toEqual(summaryBefore)
+    expect(parseCompletedCredits(summaryAfter)).toBeGreaterThan(parseCompletedCredits(summaryBefore))
 
     await expect(
       page.getByText(/add completed courses on your transcript|הוסף קורסים שהושלמו/i),

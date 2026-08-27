@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { BasePage } from './BasePage'
+import { waitForApiResponse } from '../helpers/api'
 
 export class TranscriptPage extends BasePage {
   readonly addForm = this.page.getByTestId('transcript-add-form')
@@ -10,11 +11,31 @@ export class TranscriptPage extends BasePage {
     await expect(this.addForm).toBeVisible({ timeout: 15_000 })
   }
 
-  async addCompletedCourse(courseNumber: string, semesterCode: string) {
-    const existingRow = this.page.getByTestId(`transcript-row-${courseNumber}`)
-    if (await existingRow.isVisible().catch(() => false)) {
+  async removeCompletedCourseIfPresent(courseNumber: string) {
+    await this.gotoTranscript()
+    const row = this.page.getByTestId(`transcript-row-${courseNumber}`)
+    if (!(await row.isVisible().catch(() => false))) {
       return
     }
+
+    await row.getByRole('button', { name: /remove|הסר/i }).click()
+    const deleteResponse = waitForApiResponse(this.page, /\/completed-courses\//, {
+      method: 'DELETE',
+      status: 200,
+    })
+    await row.getByRole('button', { name: /^remove$|^הסר$/i }).click()
+    await deleteResponse
+    await expect(this.page.getByTestId(`transcript-row-${courseNumber}`)).toHaveCount(0)
+  }
+
+  async addCompletedCourse(
+    courseNumber: string,
+    semesterCode: string,
+    options?: { grade?: number; creditsEarned?: number },
+  ) {
+    await this.gotoTranscript()
+    await expect(this.courseSearch).toBeVisible({ timeout: 15_000 })
+    await expect(this.courseSearch).toBeEnabled()
 
     const catalogSearch = this.page.waitForResponse(
       (response) =>
@@ -36,6 +57,14 @@ export class TranscriptPage extends BasePage {
     }
 
     await this.page.getByTestId('transcript-semester-custom').fill(semesterCode)
+
+    if (options?.grade != null) {
+      await this.addForm.getByLabel(/grade|ציון/i).fill(String(options.grade))
+    }
+    if (options?.creditsEarned != null) {
+      await this.addForm.getByLabel(/credits earned|נק״ז|נק"ז/i).fill(String(options.creditsEarned))
+    }
+
     const createResponse = this.page.waitForResponse(
       (response) =>
         response.url().includes('/completed-courses') &&

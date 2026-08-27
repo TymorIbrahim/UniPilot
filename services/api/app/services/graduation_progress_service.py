@@ -19,6 +19,23 @@ ProgressStatus = Literal[
 ]
 
 
+async def _catalog_courses_for_completed_records(
+    database: AsyncIOMotorDatabase,
+    completed_records: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    course_ids = [str(record["courseId"]) for record in completed_records if record.get("courseId")]
+    catalog_courses = await catalog_repository.find_courses_by_ids(database, course_ids)
+    catalog_courses_by_id = {str(course["_id"]): course for course in catalog_courses}
+
+    from app.services.completed_course_catalog_repair import repair_stale_completed_course_catalog_links
+
+    return await repair_stale_completed_course_catalog_links(
+        database,
+        completed_records,
+        catalog_courses_by_id,
+    )
+
+
 async def get_graduation_progress_for_user(
     database: AsyncIOMotorDatabase,
     user_id: str,
@@ -56,9 +73,10 @@ async def get_graduation_progress_for_user(
         completed_task,
     )
 
-    course_ids = [str(record["courseId"]) for record in completed_records]
-    catalog_courses = await catalog_repository.find_courses_by_ids(database, course_ids)
-    catalog_courses_by_id = {str(course["_id"]): course for course in catalog_courses}
+    completed_records, catalog_courses_by_id = await _catalog_courses_for_completed_records(
+        database,
+        completed_records,
+    )
 
     progress = calculate_graduation_progress(
         degree_program=degree_program,

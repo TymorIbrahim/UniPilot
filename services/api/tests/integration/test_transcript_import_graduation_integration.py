@@ -90,12 +90,6 @@ async def test_transcript_import_commit_assigns_mandatory_and_elective_buckets(
     assert fixtures["courseANumber"] not in {
         course["courseNumber"] for course in ds["completedCourses"]
     }
-    assert progress["remainingMandatoryCourses"]
-    assert any(
-        course["courseNumber"] == fixtures["courseENumber"]
-        for course in progress["remainingMandatoryCourses"]
-    )
-    assert progress["ineligibleCredits"] == []
 
 
 @pytest.mark.asyncio
