@@ -12,6 +12,7 @@ import app.middleware.auth_rate_limiter as rl_module
 from app.config import Settings, get_settings
 from app.middleware.auth_rate_limiter import (
     AI_RATE_LIMIT_PREFIX,
+    JOB_RATE_LIMIT_PREFIX,
     PROGRESS_RATE_LIMIT_PREFIX,
     RATE_LIMIT_PREFIX,
     InMemoryRateLimitStore,
@@ -20,6 +21,7 @@ from app.middleware.auth_rate_limiter import (
     build_rate_limit_key,
     enforce_ai_rate_limit,
     enforce_auth_rate_limits,
+    enforce_job_rate_limit,
     enforce_progress_rate_limit,
     reset_in_memory_rate_limit_store,
     resolve_rate_limit_store,
@@ -418,3 +420,51 @@ async def test_enforce_progress_rate_limit_uses_user_id_in_key(monkeypatch) -> N
 
     assert len(captured_keys) == 1
     assert captured_keys[0].startswith(f"{PROGRESS_RATE_LIMIT_PREFIX}student_42:")
+
+
+# ---------------------------------------------------------------------------
+# enforce_job_rate_limit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_enforce_job_rate_limit_raises_429_after_exceeding_max(monkeypatch) -> None:
+    monkeypatch.setattr(rl_module, "_store_override", None)
+    monkeypatch.setattr(
+        rl_module, "get_settings",
+        lambda: _settings(
+            environment="test",
+            redis_url=None,
+            job_rate_limit_max=1,
+            job_rate_limit_window_ms=60_000,
+        ),
+    )
+    reset_in_memory_rate_limit_store()
+    req = _fake_request(path="/ai-jobs")
+
+    await enforce_job_rate_limit(req, user_id="user_123")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await enforce_job_rate_limit(req, user_id="user_123")
+    assert exc_info.value.status_code == 429
+    assert "AI job" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_enforce_job_rate_limit_uses_user_id_in_key(monkeypatch) -> None:
+    captured_keys: list[str] = []
+
+    async def fake_enforce(*, key, window_ms, max_requests, detail):
+        captured_keys.append(key)
+
+    monkeypatch.setattr(rl_module, "_enforce_rate_limit", fake_enforce)
+    monkeypatch.setattr(
+        rl_module, "get_settings",
+        lambda: _settings(environment="test", redis_url=None),
+    )
+
+    req = _fake_request(path="/ai-jobs")
+    await enforce_job_rate_limit(req, user_id="student_42")
+
+    assert len(captured_keys) == 1
+    assert captured_keys[0].startswith(f"{JOB_RATE_LIMIT_PREFIX}student_42:")

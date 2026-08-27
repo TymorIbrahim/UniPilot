@@ -558,7 +558,7 @@ Required and currently implemented:
 - Deterministic academic risk analyzer (`POST /academic-risks/analyze`) and analysis history (`GET /academic-risks`, `GET /academic-risks/:id`).
 
 Still pending for next phases:
-- AI endpoint rate limiting (implement with AI/RAG phase).
+- Rate limiting on a real model-backed AI endpoint, once one exists (`POST /ai-jobs` enqueue rate limiting is implemented today via `rl:job:`).
 - Validate `StudentProfile.degreeId` against profile `institutionId` and `catalogYear` once catalog selection UX and multi-catalog support exist (see `docs/planning/FEATURE_BACKLOG.md` → Future TODOs).
 
 ## 9) Development Roadmap
@@ -577,7 +577,7 @@ Implemented: auth (JWT + Google OAuth + remember-me), profile, catalog (`/catalo
 
 ### Still pending
 
-- Async AI pipeline (worker + ai stubs exist; enqueue/rate-limit on AI endpoints not implemented)
+- Real (non-deterministic, model-backed) AI recommendation logic — `worker`/`ai` now run a real Redis-queued async pipeline (`POST /ai-jobs`, rate-limited), but `ai`'s compute step is deterministic (`academic_risk_narrative` jobType), not a real model call
 - Full Technion ingestion automation beyond current DDS subset
 - Simulation features
 - Hardening docs: risk assessment, test report, final project report

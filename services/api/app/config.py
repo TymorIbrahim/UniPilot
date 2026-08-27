@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     ai_rate_limit_max: int = 10
     progress_rate_limit_window_ms: int = 60_000
     progress_rate_limit_max: int = 60
+    job_rate_limit_window_ms: int = 60_000
+    job_rate_limit_max: int = 10
     cors_allowed_origins: str = ",".join(DEFAULT_CORS_ORIGINS)
     internal_service_token: str | None = None
     courses_collection: str = "courses"
@@ -64,6 +66,8 @@ class Settings(BaseSettings):
     completed_courses_collection: str = "completed_courses"
     semester_plans_collection: str = "semester_plans"
     academic_risks_collection: str = "academic_risks"
+    ai_jobs_collection: str = "ai_jobs"
+    worker_queue_name: str = "ai_jobs"
     web_app_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
@@ -157,6 +161,11 @@ class Settings(BaseSettings):
         if self.ai_rate_limit_max > 10:
             raise RuntimeError(
                 "AI_RATE_LIMIT_MAX must be <= 10 in production (recommended: 5)."
+            )
+
+        if self.job_rate_limit_max > 10:
+            raise RuntimeError(
+                "JOB_RATE_LIMIT_MAX must be <= 10 in production (recommended: 5)."
             )
 
         internal_token = (self.internal_service_token or "").strip()

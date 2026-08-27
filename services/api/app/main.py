@@ -19,6 +19,7 @@ from app.routes.completed_courses import router as completed_courses_router
 from app.routes.graduation_progress import router as graduation_progress_router
 from app.routes.health import router as health_router
 from app.routes.academic_risks import router as academic_risks_router
+from app.routes.ai_jobs import router as ai_jobs_router
 from app.routes.semester_plans import router as semester_plans_router
 from app.routes.student_profile import router as student_profile_router
 from app.config import get_settings
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(graduation_progress_router)
     app.include_router(semester_plans_router)
     app.include_router(academic_risks_router)
+    app.include_router(ai_jobs_router)
     return app
 
 

@@ -186,6 +186,20 @@ def test_validate_production_settings_rejects_high_ai_rate_limit() -> None:
         settings.validate_production_settings()
 
 
+def test_validate_production_settings_rejects_high_job_rate_limit() -> None:
+    settings = Settings(
+        environment="production",
+        jwt_secret="x" * 32,
+        mongo_root_password="strong-production-mongo-password",
+        internal_service_token="y" * 32,
+        auth_rate_limit_max=5,
+        ai_rate_limit_max=5,
+        job_rate_limit_max=30,
+    )
+    with pytest.raises(RuntimeError, match="JOB_RATE_LIMIT_MAX"):
+        settings.validate_production_settings()
+
+
 def test_validate_production_settings_requires_internal_service_token() -> None:
     settings = Settings(
         environment="production",

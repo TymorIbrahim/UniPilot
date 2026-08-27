@@ -82,6 +82,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'risks',
+      testMatch: /risks\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'critical-paths',
       testMatch: /(critical-paths|civil-critical-path)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },

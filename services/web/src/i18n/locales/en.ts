@@ -767,4 +767,11 @@ export const en: TranslationTree = {
     graduatePrograms: 'Additional graduate programs',
     multiSelectHint: 'Tap to add or remove optional paths.',
   },
+  risks: {
+    explain: 'Explain in plain language',
+    explainingStatusPending: 'Queued for explanation…',
+    explainingStatusProcessing: 'Generating explanation…',
+    narrativeTitle: 'Plain-language explanation',
+    tryAgain: 'Try again',
+  },
 }

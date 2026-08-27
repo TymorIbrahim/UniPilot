@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { plansApi, risksApi } from '../api/endpoints'
+import { ExplainRiskAnalysisButton } from '../components/risks/ExplainRiskAnalysisButton'
 import { Button } from '../components/ui/Button'
 import { Badge, Card, EmptyState, PageHeader, Spinner } from '../components/ui/Card'
 
@@ -57,12 +58,16 @@ export function RisksPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-primary)]">
             Latest analysis
           </p>
-          <p className="mt-2 text-sm">{latest.summary ?? 'Analysis complete'}</p>
+          <p className="mt-2 text-sm">
+            {latest.summary
+              ? `${latest.summary.totalRisks} risk(s) found${latest.summary.highestSeverity ? ` — highest severity: ${latest.summary.highestSeverity}` : ''}`
+              : 'Analysis complete'}
+          </p>
           {latest.risks?.length ? (
             <ul className="mt-4 space-y-3">
               {latest.risks.map((risk, index) => (
                 <li
-                  key={risk.ruleId ?? index}
+                  key={`${risk.riskType ?? 'risk'}-${index}`}
                   className="rounded-xl bg-[var(--color-surface-muted)] px-4 py-3"
                 >
                   <div className="flex items-center gap-2">
@@ -79,13 +84,17 @@ export function RisksPage() {
                     </Badge>
                     <span className="text-sm font-medium">{risk.title ?? 'Finding'}</span>
                   </div>
-                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">{risk.message}</p>
+                  <p className="mt-1 text-sm text-[var(--color-text-muted)]">{risk.explanation}</p>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="mt-3 text-sm text-[var(--color-success)]">No significant risks detected.</p>
           )}
+
+          <div className="mt-4">
+            <ExplainRiskAnalysisButton analysisId={latest.id} />
+          </div>
         </Card>
       ) : null}
 
@@ -99,7 +108,9 @@ export function RisksPage() {
           <div className="divide-y divide-[var(--color-border)]">
             {analyses.map((analysis) => (
               <div key={analysis.id} className="py-3 first:pt-0 last:pb-0">
-                <p className="text-sm">{analysis.summary ?? 'Risk analysis'}</p>
+                <p className="text-sm">
+                  {analysis.summary ? `${analysis.summary.totalRisks} risk(s) found` : 'Risk analysis'}
+                </p>
                 <p className="text-xs text-[var(--color-text-muted)]">
                   {analysis.semesterCode ?? '—'} · {analysis.status}
                 </p>

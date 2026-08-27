@@ -6,9 +6,10 @@ UniPilot AI is an AI-powered academic decision support platform. The **FastAPI**
 - Production Technion DDS catalog (`/catalog/*`)
 - Graduation progress, semester planning (auto + manual + weekly schedule + versioning)
 - Deterministic academic risk analysis
-- Docker-first deployment with MongoDB, Redis, worker, and AI stubs
+- Async AI job pipeline (`/ai-jobs`) — Redis queue + worker consumer + deterministic `ai` compute service
+- Docker-first deployment with MongoDB, Redis, worker, and AI services
 
-Simulation and async AI recommendation features are not implemented yet.
+Simulation and real (non-deterministic, model-backed) AI recommendation features are not implemented yet — the async pipeline is in place, but `ai` currently computes deterministic results rather than calling a real model.
 
 ## Services
 
@@ -17,8 +18,8 @@ Simulation and async AI recommendation features are not implemented yet.
 | `web` | React SPA — **primary UI** (proxies `/api` to backend) | `WEB_PORT` (default **3000**) |
 | `api` | FastAPI REST API | `API_PORT` (default **8000**) |
 | `data-engineering` | Internal staging / promotion CLI | none |
-| `worker` | Internal async job stub | none |
-| `ai` | Internal inference stub | none |
+| `worker` | Internal async job consumer (Redis-queued) | none |
+| `ai` | Internal deterministic AI compute service | none |
 | `mongo` | Persistence (`mongo_data` volume) | none |
 | `redis` | Rate limits / future queue | none |
 
@@ -162,6 +163,7 @@ The web UI defaults to **Hebrew** (RTL) with an in-app language switcher (Hebrew
 | Progress | `GET /graduation-progress`, `GET /graduation-progress/curriculum-graph` |
 | Plans | `POST /semester-plans/generate`, `POST /semester-plans/suggest-courses`, `POST /semester-plans/suggest-schedule`, `POST/PUT/DELETE /semester-plans`, `POST /semester-plans/:id/versions` |
 | Risks | `POST /academic-risks/analyze`, `GET /academic-risks`, `GET /academic-risks/:id` |
+| AI Jobs | `POST /ai-jobs` (async, deterministic compute), `GET /ai-jobs`, `GET /ai-jobs/:id` |
 
 Full contract: `docs/API_SPEC.md`. API version **1.0.0**.
 
@@ -227,7 +229,7 @@ See `services/data-engineering/README.md` and `docs/data-sources/TECHNION_DDS_SO
 - Progress rate limit: `PROGRESS_RATE_LIMIT_MAX` (default **60**/min) on `GET /graduation-progress` and `/graduation-progress/curriculum-graph`.
 - Auth and progress rate limiting via Redis.
 - Replace dev secrets in `.env` before non-local deployment.
-- Worker and AI remain internal stubs for a future async AI phase.
+- Worker consumes the `ai_jobs` Redis queue and calls the internal `ai` service; `ai` runs deterministic compute today (no real model call yet).
 
 ## Documentation
 

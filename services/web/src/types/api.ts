@@ -481,13 +481,37 @@ export type SemesterPlan = {
 
 export type AcademicRiskAnalysis = {
   id: string
-  summary?: string
-  status?: string
+  planId?: string | null
   semesterCode?: string
+  analyzerType?: string
+  analysisSource?: string
+  status?: string
+  summary?: {
+    totalRisks: number
+    highestSeverity: string | null
+    counts: { low: number; medium: number; high: number }
+  }
   risks?: Array<{
-    ruleId?: string
+    riskType?: string
     severity?: string
     title?: string
-    message?: string
+    explanation?: string
   }>
+}
+
+export type AiJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type AiJobType = 'academic_risk_narrative'
+export type AiJob = {
+  id: string
+  jobType: AiJobType
+  status: AiJobStatus
+  input: Record<string, unknown>
+  result: { narrative: string; stats: Record<string, unknown> } | null
+  error: { code: string; message: string } | null
+  attempts: number
+  queuedAt: string
+  startedAt: string | null
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
 }

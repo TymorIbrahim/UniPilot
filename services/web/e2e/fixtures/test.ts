@@ -3,6 +3,7 @@ import { AuthPage } from '../pages/AuthPage'
 import { CatalogPage } from '../pages/CatalogPage'
 import { PlannerPage } from '../pages/PlannerPage'
 import { ProgressPage } from '../pages/ProgressPage'
+import { RisksPage } from '../pages/RisksPage'
 import { TranscriptPage } from '../pages/TranscriptPage'
 import { ensureWorkerAuthState } from '../helpers/worker-auth'
 
@@ -11,6 +12,7 @@ type E2EFixtures = {
   catalogPage: CatalogPage
   plannerPage: PlannerPage
   progressPage: ProgressPage
+  risksPage: RisksPage
   transcriptPage: TranscriptPage
 }
 
@@ -42,6 +44,9 @@ export const test = base.extend<E2EFixtures, WorkerFixtures>({
   },
   progressPage: async ({ page }, use) => {
     await use(new ProgressPage(page))
+  },
+  risksPage: async ({ page }, use) => {
+    await use(new RisksPage(page))
   },
   transcriptPage: async ({ page }, use) => {
     await use(new TranscriptPage(page))

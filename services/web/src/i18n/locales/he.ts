@@ -765,4 +765,11 @@ export const he = {
     graduatePrograms: 'תוכניות מתקדמות נוספות',
     multiSelectHint: 'לחץ כדי להוסיף או להסיר מסלולים אופציונליים.',
   },
+  risks: {
+    explain: 'הסבר בשפה פשוטה',
+    explainingStatusPending: 'ממתין להסבר…',
+    explainingStatusProcessing: 'יוצר הסבר…',
+    narrativeTitle: 'הסבר בשפה פשוטה',
+    tryAgain: 'נסה שוב',
+  },
 } satisfies TranslationTree

@@ -1,6 +1,8 @@
 import { apiRequest, getApiBaseUrl } from '../lib/api'
 import type {
   AcademicRiskAnalysis,
+  AiJob,
+  AiJobType,
   AuthPayload,
   CatalogFaculty,
   CatalogPathOption,
@@ -271,4 +273,13 @@ export const risksApi = {
     }),
   get: (id: string) =>
     apiRequest<{ academicRiskAnalysis: AcademicRiskAnalysis }>(`/academic-risks/${id}`),
+}
+
+export const aiJobsApi = {
+  create: (jobType: AiJobType, analysisId: string) =>
+    apiRequest<{ aiJob: AiJob }>('/ai-jobs', {
+      method: 'POST',
+      body: { jobType, analysisId },
+    }),
+  get: (id: string) => apiRequest<{ aiJob: AiJob }>(`/ai-jobs/${id}`),
 }

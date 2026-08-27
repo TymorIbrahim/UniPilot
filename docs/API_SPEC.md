@@ -903,7 +903,88 @@ Soft-deletes by setting `status` to `archived`.
 
 ---
 
-## 4.9 AI Advisor (Later)
+## 4.9 AI Jobs (async AI pipeline — deterministic compute, no LLM yet)
+
+### Implemented endpoints
+- `POST /ai-jobs` (protected) — enqueue an AI job; persists `status=pending` and pushes the job id onto the Redis queue (`WORKER_QUEUE_NAME`, default `ai_jobs`)
+- `GET /ai-jobs` (protected) — list own job history (`?page=1&limit=50`)
+- `GET /ai-jobs/:id` (protected) — get one owned job's status/result by id
+
+Processing is asynchronous: `worker` consumes the queue, calls the internal `ai` service (`POST /infer`, deterministic per-`jobType` compute — no real model call yet), and writes the terminal status back to MongoDB. Poll `GET /ai-jobs/:id` until `status` is `completed` or `failed`.
+
+### POST /ai-jobs
+
+```json
+{
+  "jobType": "academic_risk_narrative",
+  "analysisId": "665f2b0f2a3f7b2a1a9a7fff"
+}
+```
+
+- `analysisId` must reference an existing, owned `academic_risks` analysis (see §4.8).
+- `jobType` is currently restricted to `academic_risk_narrative`.
+- Unknown fields rejected (`extra=forbid`).
+
+**Response `202`:**
+```json
+{
+  "success": true,
+  "data": {
+    "aiJob": {
+      "id": "...",
+      "jobType": "academic_risk_narrative",
+      "status": "pending",
+      "input": {
+        "analysisId": "...",
+        "semesterCode": "2025-2",
+        "summary": { "totalRisks": 2, "highestSeverity": "high", "counts": { "low": 0, "medium": 1, "high": 1 } },
+        "risks": [{ "riskType": "unmet_prerequisites", "severity": "high", "title": "Unmet prerequisites" }]
+      },
+      "result": null,
+      "error": null,
+      "attempts": 0,
+      "queuedAt": "...",
+      "startedAt": null,
+      "completedAt": null,
+      "createdAt": "...",
+      "updatedAt": "..."
+    }
+  },
+  "error": null
+}
+```
+
+**Response `202` (`status: "completed"` after polling `GET /ai-jobs/:id`):**
+```json
+{
+  "result": {
+    "narrative": "Academic risk analysis for 2025-2 found 2 risk(s), with the highest severity being high. Breakdown: 0 low, 1 medium, 1 high severity. Key concerns: Unmet prerequisites; ... Risk types: unmet_prerequisites (1), ...",
+    "stats": {
+      "totalRisks": 2,
+      "highestSeverity": "high",
+      "counts": { "low": 0, "medium": 1, "high": 1 },
+      "riskTypeBreakdown": { "unmet_prerequisites": 1, "...": 1 }
+    }
+  }
+}
+```
+
+### Rules
+- Jobs are user-owned; `userId` is set server-side from JWT (`token.sub`).
+- Cross-user access returns `404` on `GET /ai-jobs/:id` and on enqueueing against a foreign `analysisId`.
+- If the Redis push fails after the job is persisted, the job is immediately marked `failed` (`error.code: "queue_unavailable"`) and the request returns `503` — a job is never left `pending` with nothing able to process it.
+- `worker` validates the shape of every `ai` result before marking a job `completed`; a malformed/missing result is treated as a job failure (`error.code: "invalid_result"`), never persisted as-is.
+- One retry on transient `ai` failures (network error, timeout, `5xx`); permanent failures (`4xx`, e.g. unsupported `jobType`) are not retried.
+
+### Errors
+- `404` — referenced `analysisId` not found or not owned, or job not found/not owned.
+- `400` — invalid payload, unsupported `jobType`, or malformed id.
+- `429` — job rate limit exceeded (`JOB_RATE_LIMIT_MAX`, default 10/min).
+- `503` — AI job queue temporarily unavailable.
+
+---
+
+## 4.10 AI Decision Features (Later)
 
 ### Not in MVP
 - `POST /ai/recommendations`
@@ -911,13 +992,13 @@ Soft-deletes by setting `status` to `archived`.
 - `GET /ai/recommendations/:id`
 
 ### Design intent
-- Async processing through worker/queue.
+- Course/path recommendation and "what-if" scenario analysis (`DEC-1`/`DEC-2` in the feature backlog), built on top of the `POST /ai-jobs` pipeline (§4.9) once a real model/provider is wired into the `ai` service.
 - Result artifacts persisted and user-owned.
 - Rate limiting mandatory.
 
 ---
 
-## 4.10 Simulation (Later)
+## 4.11 Simulation (Later)
 
 ### Not in MVP
 - `POST /simulations/scenarios`
@@ -944,8 +1025,8 @@ Soft-deletes by setting `status` to `archived`.
 
 ## 7) Rate Limiting Policy
 
-- Auth endpoints: enforced now.
-- AI and simulation endpoints: mandatory when implemented.
+- Auth, `/academic-risks/analyze`, `/graduation-progress*`, and `/ai-jobs` endpoints: enforced now.
+- Simulation endpoints: mandatory when implemented.
 - Return `429` with generic retry-later message.
 
 ## 8) MVP Non-Goals
