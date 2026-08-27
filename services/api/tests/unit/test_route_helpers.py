@@ -72,6 +72,24 @@ def test_handle_analysis_context_error_degree_not_found():
 
 
 # ---------------------------------------------------------------------------
+# routes/ai_jobs.py: _handle_enqueue_ai_job_error
+# ---------------------------------------------------------------------------
+
+def test_handle_enqueue_ai_job_error_degree_not_found():
+    from app.routes.ai_jobs import _handle_enqueue_ai_job_error
+
+    with pytest.raises(HTTPException) as exc_info:
+        _handle_enqueue_ai_job_error({"status": "degree_not_found"})
+    assert exc_info.value.status_code == 400
+
+
+def test_handle_enqueue_ai_job_error_returns_none_for_ok():
+    from app.routes.ai_jobs import _handle_enqueue_ai_job_error
+
+    assert _handle_enqueue_ai_job_error({"status": "ok", "job": {}}) is None
+
+
+# ---------------------------------------------------------------------------
 # routes/student_profile.py: profile not found in update path
 # ---------------------------------------------------------------------------
 

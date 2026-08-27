@@ -580,7 +580,7 @@ Implemented: auth (JWT + Google OAuth + remember-me), profile, catalog (`/catalo
 - Real (non-deterministic, model-backed) AI recommendation logic — `worker`/`ai` now run a real Redis-queued async pipeline (`POST /ai-jobs`, rate-limited), but `ai`'s compute step is deterministic (`academic_risk_narrative` jobType), not a real model call
 - Full Technion ingestion automation beyond current DDS subset
 - Simulation features
-- Hardening docs: risk assessment, test report, final project report
+- Final project report (risk assessment and test report are done — see `docs/reports/RISK_ASSESSMENT.md` and `docs/reports/TEST_REPORT.md`)
 
 ## 10) What Has Already Been Implemented
 

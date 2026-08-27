@@ -62,6 +62,15 @@ test("validateInferResponse accepts a well-shaped academic_risk_narrative result
   assert.equal(outcome.result.narrative, "Some narrative");
 });
 
+test("validateInferResponse accepts a well-shaped course_recommendation_narrative result", () => {
+  const body = {
+    data: { result: { narrative: "Take these next", stats: { mandatoryCount: 2 } } },
+  };
+  const outcome = validateInferResponse("course_recommendation_narrative", body);
+  assert.equal(outcome.ok, true);
+  assert.equal(outcome.result.narrative, "Take these next");
+});
+
 test("validateInferResponse rejects an unsupported jobType", () => {
   const outcome = validateInferResponse("unsupported_type", { data: { result: {} } });
   assert.equal(outcome.ok, false);

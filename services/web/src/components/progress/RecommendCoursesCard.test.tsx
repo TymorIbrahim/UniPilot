@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as endpoints from '../../api/endpoints'
 import { ApiError } from '../../lib/api'
 import { I18nProvider } from '../../i18n'
-import { ExplainRiskAnalysisButton } from './ExplainRiskAnalysisButton'
+import { RecommendCoursesCard } from './RecommendCoursesCard'
 
 vi.mock('../../api/endpoints', () => ({
   aiJobsApi: {
@@ -14,13 +14,13 @@ vi.mock('../../api/endpoints', () => ({
   },
 }))
 
-function renderWithProviders(analysisId = 'analysis-1') {
+function renderWithProviders() {
   localStorage.setItem('unipilot_locale', 'en')
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nProvider>
       <QueryClientProvider client={queryClient}>
-        <ExplainRiskAnalysisButton analysisId={analysisId} pollIntervalMs={10} />
+        <RecommendCoursesCard pollIntervalMs={10} />
       </QueryClientProvider>
     </I18nProvider>,
   )
@@ -29,7 +29,7 @@ function renderWithProviders(analysisId = 'analysis-1') {
 function baseJob(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 'job-1',
-    jobType: 'academic_risk_narrative',
+    jobType: 'course_recommendation_narrative',
     status: 'pending',
     input: {},
     result: null,
@@ -44,7 +44,7 @@ function baseJob(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
-describe('ExplainRiskAnalysisButton', () => {
+describe('RecommendCoursesCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
@@ -63,28 +63,25 @@ describe('ExplainRiskAnalysisButton', () => {
       .mockResolvedValue({
         aiJob: baseJob({
           status: 'completed',
-          result: { narrative: 'You have one low-severity risk.', stats: {} },
+          result: { narrative: 'Take Algebra next.', stats: {} },
         }),
       })
 
     renderWithProviders()
 
-    await user.click(screen.getByTestId('explain-risk-button'))
+    await user.click(screen.getByTestId('recommend-courses-button'))
 
     await waitFor(() =>
-      expect(endpoints.aiJobsApi.create).toHaveBeenCalledWith('academic_risk_narrative', {
-        analysisId: 'analysis-1',
-      }),
+      expect(endpoints.aiJobsApi.create).toHaveBeenCalledWith('course_recommendation_narrative'),
     )
-    // The first poll is still in flight — status should be visible and the trigger disabled.
-    expect(await screen.findByTestId('explain-risk-status')).toBeInTheDocument()
-    expect(screen.getByTestId('explain-risk-button')).toBeDisabled()
+    expect(await screen.findByTestId('recommend-courses-status')).toBeInTheDocument()
+    expect(screen.getByTestId('recommend-courses-button')).toBeDisabled()
 
     resolveFirstPoll({ aiJob: baseJob({ status: 'pending' }) })
 
-    const narrative = await screen.findByTestId('explain-risk-narrative')
-    expect(narrative).toHaveTextContent('You have one low-severity risk.')
-    expect(screen.queryByTestId('explain-risk-status')).not.toBeInTheDocument()
+    const narrative = await screen.findByTestId('recommend-courses-narrative')
+    expect(narrative).toHaveTextContent('Take Algebra next.')
+    expect(screen.queryByTestId('recommend-courses-status')).not.toBeInTheDocument()
   })
 
   it('shows an error and allows retry when the job itself fails', async () => {
@@ -95,25 +92,25 @@ describe('ExplainRiskAnalysisButton', () => {
     })
 
     renderWithProviders()
-    await user.click(screen.getByTestId('explain-risk-button'))
+    await user.click(screen.getByTestId('recommend-courses-button'))
 
-    const error = await screen.findByTestId('explain-risk-error')
+    const error = await screen.findByTestId('recommend-courses-error')
     expect(error).toHaveTextContent('AI service timed out')
-    expect(screen.getByTestId('explain-risk-button')).toHaveTextContent('Try again')
-    expect(screen.queryByTestId('explain-risk-status')).not.toBeInTheDocument()
+    expect(screen.getByTestId('recommend-courses-button')).toHaveTextContent('Try again')
+    expect(screen.queryByTestId('recommend-courses-status')).not.toBeInTheDocument()
   })
 
-  it('shows an error when enqueueing itself fails (e.g. 429/503) without ever polling', async () => {
+  it('shows an error when enqueueing itself fails (e.g. 404 no profile) without ever polling', async () => {
     const user = userEvent.setup()
     vi.mocked(endpoints.aiJobsApi.create).mockRejectedValue(
-      new ApiError('Too many AI job requests. Please try again later.', 429),
+      new ApiError('Student profile not found', 404),
     )
 
     renderWithProviders()
-    await user.click(screen.getByTestId('explain-risk-button'))
+    await user.click(screen.getByTestId('recommend-courses-button'))
 
-    const error = await screen.findByTestId('explain-risk-error')
-    expect(error).toHaveTextContent('Too many AI job requests')
+    const error = await screen.findByTestId('recommend-courses-error')
+    expect(error).toHaveTextContent('Student profile not found')
     expect(endpoints.aiJobsApi.get).not.toHaveBeenCalled()
   })
 })

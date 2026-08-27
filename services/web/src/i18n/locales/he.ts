@@ -518,6 +518,15 @@ export const he = {
       in_progress: 'בתהליך',
       not_started: 'לא התחיל',
     },
+    recommendations: {
+      title: 'המלצות קורסים',
+      recommend: 'המלץ על קורסים',
+      recommendingStatusPending: 'ממתין להמלצות…',
+      recommendingStatusProcessing: 'יוצר המלצות…',
+      tryAgain: 'נסה שוב',
+      mandatoryLabel: 'חובה',
+      electiveLabel: 'בחירה',
+    },
     electiveExplorer: {
       title: 'סייר בריכות בחירה',
       catalogTitle: 'בריכות בחירה ושרשראות',

@@ -2,6 +2,7 @@ const express = require("express");
 
 const { requireInternalServiceToken } = require("./internalAuth");
 const { computeAcademicRiskNarrative } = require("./jobTypes/academicRiskNarrative");
+const { computeCourseRecommendationNarrative } = require("./jobTypes/courseRecommendationNarrative");
 
 const app = express();
 const port = Number(process.env.AI_SERVICE_PORT) || 3001;
@@ -9,6 +10,7 @@ const internalServiceToken = process.env.INTERNAL_SERVICE_TOKEN || "";
 
 const JOB_COMPUTE_REGISTRY = {
   academic_risk_narrative: computeAcademicRiskNarrative,
+  course_recommendation_narrative: computeCourseRecommendationNarrative,
 };
 
 app.use(express.json());

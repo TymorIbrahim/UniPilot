@@ -59,6 +59,28 @@ def validate_job_id_param(job_id: str) -> str:
     return job_id
 
 
+def _handle_enqueue_ai_job_error(result: dict[str, Any]) -> None:
+    if result["status"] == "analysis_not_found":
+        raise HTTPException(status_code=404, detail="Academic risk analysis not found")
+    if result["status"] == "profile_not_found":
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    if result["status"] == "degree_not_selected":
+        raise HTTPException(
+            status_code=400,
+            detail="A degree must be selected on the student profile before requesting an AI job",
+        )
+    if result["status"] == "degree_not_found":
+        raise HTTPException(
+            status_code=400,
+            detail="Referenced degree was not found in the catalog",
+        )
+    if result["status"] == "queue_unavailable":
+        raise HTTPException(
+            status_code=503,
+            detail="AI job queue is temporarily unavailable",
+        )
+
+
 @router.post("", status_code=202)
 async def enqueue_ai_job_route(
     request: Request,
@@ -70,14 +92,7 @@ async def enqueue_ai_job_route(
     database = await get_database()
 
     result = await enqueue_ai_job(database, auth.user_id, payload.model_dump())
-
-    if result["status"] == "analysis_not_found":
-        raise HTTPException(status_code=404, detail="Academic risk analysis not found")
-    if result["status"] == "queue_unavailable":
-        raise HTTPException(
-            status_code=503,
-            detail="AI job queue is temporarily unavailable",
-        )
+    _handle_enqueue_ai_job_error(result)
 
     return success_response({"aiJob": to_public_ai_job(result["job"])})
 

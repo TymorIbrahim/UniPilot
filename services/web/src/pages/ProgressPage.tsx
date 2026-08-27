@@ -12,6 +12,7 @@ import { CurriculumGraphSection } from '../components/progress/CurriculumGraphSe
 import { ElectivePoolsPanel } from '../components/progress/ElectivePoolsPanel'
 import { ElectivePoolsPanelSkeleton } from '../components/progress/ElectivePoolsPanelSkeleton'
 import { ProgressSummaryCard } from '../components/progress/ProgressSummaryCard'
+import { RecommendCoursesCard } from '../components/progress/RecommendCoursesCard'
 import { Card, EmptyState, PageHeader, Spinner } from '../components/ui/Card'
 import { useTranslation } from '../i18n'
 import {
@@ -133,6 +134,8 @@ export function ProgressPage() {
       {showTranscriptHint ? <ProgressEmptyTranscriptHint t={t} /> : null}
 
       <ProgressSummaryCard progress={progress} statusLabel={statusLabel} t={t} />
+
+      <RecommendCoursesCard />
 
       {curriculumQuery.data?.curriculumGraph ? (
         <CurriculumGraphSection graph={curriculumQuery.data.curriculumGraph} t={t} />

@@ -78,8 +78,8 @@ Legend — Priority: P0 (must), P1 (should), P2 (nice). Status: `todo` / `in-pro
 | QA-3 | Coverage ≥ 80% across suites | P0 | 5 | in-progress |
 | QA-4 | Docker E2E verify script | P1 | — | done |
 | DOC-1 | README run + test instructions | P0 | 6 | done |
-| DOC-2 | Final risk assessment | P0 | 6 | todo |
-| DOC-3 | Test report | P0 | 6 | todo |
+| DOC-2 | Final risk assessment | P0 | 6 | done |
+| DOC-3 | Test report | P0 | 6 | done |
 | DOC-4 | Final project report | P0 | 6 | todo |
 
 ## Acceptance Criteria Template (per feature)

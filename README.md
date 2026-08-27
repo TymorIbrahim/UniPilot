@@ -6,7 +6,7 @@ UniPilot AI is an AI-powered academic decision support platform. The **FastAPI**
 - Production Technion DDS catalog (`/catalog/*`)
 - Graduation progress, semester planning (auto + manual + weekly schedule + versioning)
 - Deterministic academic risk analysis
-- Async AI job pipeline (`/ai-jobs`) — Redis queue + worker consumer + deterministic `ai` compute service
+- Async AI job pipeline (`/ai-jobs`) — Redis queue + worker consumer + deterministic `ai` compute service, with two job types: **plain-language risk explanations** ("Explain in plain language" on the Risks page) and **course recommendations** ("Recommend courses" on the Progress page)
 - Docker-first deployment with MongoDB, Redis, worker, and AI services
 
 Simulation and real (non-deterministic, model-backed) AI recommendation features are not implemented yet — the async pipeline is in place, but `ai` currently computes deterministic results rather than calling a real model.
@@ -163,13 +163,22 @@ The web UI defaults to **Hebrew** (RTL) with an in-app language switcher (Hebrew
 | Progress | `GET /graduation-progress`, `GET /graduation-progress/curriculum-graph` |
 | Plans | `POST /semester-plans/generate`, `POST /semester-plans/suggest-courses`, `POST /semester-plans/suggest-schedule`, `POST/PUT/DELETE /semester-plans`, `POST /semester-plans/:id/versions` |
 | Risks | `POST /academic-risks/analyze`, `GET /academic-risks`, `GET /academic-risks/:id` |
-| AI Jobs | `POST /ai-jobs` (async, deterministic compute), `GET /ai-jobs`, `GET /ai-jobs/:id` |
+| AI Jobs | `POST /ai-jobs` (async, deterministic compute — `jobType: academic_risk_narrative \| course_recommendation_narrative`), `GET /ai-jobs`, `GET /ai-jobs/:id` |
 
 Full contract: `docs/API_SPEC.md`. API version **1.0.0**.
 
 ### Quick start flow
 
 Register via the web UI at `/register`, complete onboarding with a degree program, then explore catalog, transcript, progress, plans, and risks from the sidebar.
+
+### AI job features
+
+Two UI entry points into the async `/ai-jobs` pipeline, both poll until the job completes and render the result inline:
+
+- **Risks page** — after running an analysis, click **"Explain in plain language"** to enqueue an `academic_risk_narrative` job and get a plain-language summary of the detected risks.
+- **Progress page** — click **"Recommend courses"** to enqueue a `course_recommendation_narrative` job; it reuses the deterministic planner's own eligibility logic to suggest up to 5 takeable mandatory and 5 elective courses, with a narrative explanation and count badges.
+
+Both job types are deterministic today (no real model call yet — see `docs/reports/RISK_ASSESSMENT.md` for the AI-risk register).
 
 ### Manual semester planner
 
@@ -227,7 +236,8 @@ See `services/data-engineering/README.md` and `docs/data-sources/TECHNION_DDS_SO
 - Passwords: bcrypt; JWT from env (`JWT_SECRET` required at startup — dev default in `.env.example`; production needs a unique 32+ char secret).
 - Auth rate limit: `AUTH_RATE_LIMIT_MAX` defaults to **30** in development (Docker); set **5** for production.
 - Progress rate limit: `PROGRESS_RATE_LIMIT_MAX` (default **60**/min) on `GET /graduation-progress` and `/graduation-progress/curriculum-graph`.
-- Auth and progress rate limiting via Redis.
+- AI job rate limit: `JOB_RATE_LIMIT_MAX` (default **10**/min) on `POST /ai-jobs`, independent of the deterministic risk analyzer's own `AI_RATE_LIMIT_MAX`.
+- Auth, progress, and AI job rate limiting via Redis.
 - Replace dev secrets in `.env` before non-local deployment.
 - Worker consumes the `ai_jobs` Redis queue and calls the internal `ai` service; `ai` runs deterministic compute today (no real model call yet).
 
@@ -243,3 +253,5 @@ Full index: **[docs/README.md](docs/README.md)**
 | Architecture | [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) |
 | Data ingestion | [docs/DATA_INGESTION_ARCHITECTURE.md](docs/DATA_INGESTION_ARCHITECTURE.md) |
 | Data-engineering CLI | [services/data-engineering/README.md](services/data-engineering/README.md) |
+| Risk assessment | [docs/reports/RISK_ASSESSMENT.md](docs/reports/RISK_ASSESSMENT.md) |
+| Test report | [docs/reports/TEST_REPORT.md](docs/reports/TEST_REPORT.md) |

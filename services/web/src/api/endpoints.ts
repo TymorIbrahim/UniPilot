@@ -276,10 +276,10 @@ export const risksApi = {
 }
 
 export const aiJobsApi = {
-  create: (jobType: AiJobType, analysisId: string) =>
+  create: (jobType: AiJobType, body: Record<string, unknown> = {}) =>
     apiRequest<{ aiJob: AiJob }>('/ai-jobs', {
       method: 'POST',
-      body: { jobType, analysisId },
+      body: { jobType, ...body },
     }),
   get: (id: string) => apiRequest<{ aiJob: AiJob }>(`/ai-jobs/${id}`),
 }

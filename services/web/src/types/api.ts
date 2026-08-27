@@ -500,7 +500,7 @@ export type AcademicRiskAnalysis = {
 }
 
 export type AiJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
-export type AiJobType = 'academic_risk_narrative'
+export type AiJobType = 'academic_risk_narrative' | 'course_recommendation_narrative'
 export type AiJob = {
   id: string
   jobType: AiJobType

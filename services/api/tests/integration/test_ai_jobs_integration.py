@@ -236,3 +236,100 @@ async def test_list_ai_jobs_returns_400_for_unknown_query_param(auth_client, mon
 
     assert response.status_code == 400
     assert "Unknown query parameter" in response.json()["error"]
+
+
+# ---------------------------------------------------------------------------
+# course_recommendation_narrative — no analysisId needed, derives from progress
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_enqueue_course_recommendation_happy_path(auth_client, mongo_database):
+    fixtures = await seed_graduation_progress_fixtures(mongo_database)
+    token = await register_access_token(auth_client, "ai-job-course-rec@example.com")
+    await auth_client.post(
+        "/student-profile",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "institutionId": "technion",
+            "programType": "BSc",
+            "degreeId": fixtures["programId"],
+            "catalogYear": 2025,
+            "currentSemesterCode": "2025-1",
+        },
+    )
+
+    response = await auth_client.post(
+        "/ai-jobs",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"jobType": "course_recommendation_narrative"},
+    )
+
+    assert response.status_code == 202
+    job = response.json()["data"]["aiJob"]
+    assert job["status"] == "pending"
+    assert job["jobType"] == "course_recommendation_narrative"
+    assert "recommendedMandatoryCourses" in job["input"]
+    assert "recommendedElectiveCourses" in job["input"]
+    assert job["input"]["degreeCode"] is not None
+
+    queue_store = get_in_memory_ai_job_queue_store()
+    assert job["id"] in queue_store.enqueued
+
+
+@pytest.mark.asyncio
+async def test_enqueue_course_recommendation_rejects_analysis_id(auth_client, mongo_database):
+    token = await register_access_token(auth_client, "ai-job-course-rec-bad-body@example.com")
+
+    response = await auth_client.post(
+        "/ai-jobs",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "jobType": "course_recommendation_narrative",
+            "analysisId": "665f2b0f2a3f7b2a1a9a7fff",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_enqueue_course_recommendation_returns_404_when_profile_missing(
+    auth_client, mongo_database
+):
+    token = await register_access_token(auth_client, "ai-job-course-rec-no-profile@example.com")
+
+    response = await auth_client.post(
+        "/ai-jobs",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"jobType": "course_recommendation_narrative"},
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_enqueue_course_recommendation_returns_400_when_degree_not_selected(
+    auth_client, mongo_database
+):
+    token = await register_access_token(auth_client, "ai-job-course-rec-no-degree@example.com")
+    await auth_client.post(
+        "/student-profile",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "institutionId": "technion",
+            "programType": "BSc",
+            "catalogYear": 2025,
+            "currentSemesterCode": "2025-1",
+        },
+    )
+
+    response = await auth_client.post(
+        "/ai-jobs",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"jobType": "course_recommendation_narrative"},
+    )
+
+    assert response.status_code == 400
+
+

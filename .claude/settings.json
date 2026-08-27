@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log *)",
+      "Bash(./.venv/Scripts/python.exe -c \"from app.services.ai_job_service import enqueue_ai_job, build_course_recommendation_input; from app.routes.ai_jobs import router; from app.schemas.ai_job import EnqueueAiJobRequest; print\\('imports OK'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_ai_job_service.py tests/unit/test_schemas_ai_job.py -q)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/integration/test_ai_jobs_integration.py -q)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_ai_job_service.py tests/unit/test_schemas_ai_job.py tests/integration/test_ai_jobs_integration.py tests/security/test_ai_jobs_security.py -q)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/integration/test_ai_jobs_integration.py::test_enqueue_course_recommendation_returns_400_when_degree_not_found -q --no-cov)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_ai_job_service.py tests/unit/test_schemas_ai_job.py tests/unit/test_route_helpers.py tests/integration/test_ai_jobs_integration.py tests/security/test_ai_jobs_security.py -q --no-cov)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_schemas_ai_job.py --cov=app.schemas.ai_job --cov-report=term-missing -q)",
+      "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_schemas_ai_job.py -q)",
+      "Bash(node \"C:/Users/User/AppData/Local/Temp/claude/c--Users-User-OneDrive---Technion-Documents-UniPilot-UniPilot/0dc4168d-912e-44d1-9812-9b7257448e7b/scratchpad/check_recommend_courses.mjs\")",
+      "Bash(node check_recommend_courses.mjs)",
+      "Bash(node check_visual_polish.mjs)"
+    ]
+  }
+}

@@ -40,3 +40,25 @@ class TestEnqueueAiJobRequest:
                     "extra": "field",
                 }
             )
+
+    def test_course_recommendation_without_analysis_id_accepted(self):
+        req = EnqueueAiJobRequest(jobType="course_recommendation_narrative")
+        assert req.jobType == "course_recommendation_narrative"
+        assert req.analysisId is None
+
+    def test_course_recommendation_with_explicit_none_analysis_id_accepted(self):
+        req = EnqueueAiJobRequest(jobType="course_recommendation_narrative", analysisId=None)
+        assert req.analysisId is None
+
+    def test_course_recommendation_with_analysis_id_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueAiJobRequest(
+                jobType="course_recommendation_narrative",
+                analysisId=VALID_ANALYSIS_ID,
+            )
+        assert "not used for jobType=course_recommendation_narrative" in str(exc_info.value)
+
+    def test_academic_risk_narrative_without_analysis_id_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            EnqueueAiJobRequest(jobType="academic_risk_narrative")
+        assert "required for jobType=academic_risk_narrative" in str(exc_info.value)

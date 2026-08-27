@@ -520,6 +520,15 @@ export const en: TranslationTree = {
       in_progress: 'In progress',
       not_started: 'Not started',
     },
+    recommendations: {
+      title: 'Course recommendations',
+      recommend: 'Recommend courses',
+      recommendingStatusPending: 'Queued for recommendations…',
+      recommendingStatusProcessing: 'Generating recommendations…',
+      tryAgain: 'Try again',
+      mandatoryLabel: 'mandatory',
+      electiveLabel: 'elective',
+    },
     electiveExplorer: {
       title: 'Elective pool explorer',
       catalogTitle: 'Elective pools & chains',

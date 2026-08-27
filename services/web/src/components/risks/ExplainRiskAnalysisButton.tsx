@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { AlertTriangle, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import { aiJobsApi } from '../../api/endpoints'
 import { useAiJobPolling } from '../../hooks/useAiJobPolling'
@@ -17,7 +18,7 @@ export function ExplainRiskAnalysisButton({ analysisId, pollIntervalMs }: Explai
   const [jobId, setJobId] = useState<string | null>(null)
 
   const createMutation = useMutation({
-    mutationFn: () => aiJobsApi.create('academic_risk_narrative', analysisId),
+    mutationFn: () => aiJobsApi.create('academic_risk_narrative', { analysisId }),
     onSuccess: (data) => setJobId(data.aiJob.id),
   })
 
@@ -52,15 +53,16 @@ export function ExplainRiskAnalysisButton({ analysisId, pollIntervalMs }: Explai
         onClick={handleClick}
         data-testid="explain-risk-button"
       >
+        <Sparkles className="h-4 w-4" />
         {displayError ? t('risks.tryAgain') : t('risks.explain')}
       </Button>
 
       {inFlight ? (
         <div
-          className="mt-3 flex items-center gap-2 text-sm text-[var(--color-text-muted)]"
+          className="mt-3 inline-flex items-center gap-2 rounded-full bg-[var(--color-surface-muted)] px-3 py-1.5 text-sm text-[var(--color-text-muted)]"
           data-testid="explain-risk-status"
         >
-          <Spinner className="h-4 w-4" />
+          <Spinner className="h-3.5 w-3.5" />
           {job?.status === 'processing'
             ? t('risks.explainingStatusProcessing')
             : t('risks.explainingStatusPending')}
@@ -68,17 +70,25 @@ export function ExplainRiskAnalysisButton({ analysisId, pollIntervalMs }: Explai
       ) : null}
 
       {displayError ? (
-        <p className="mt-3 text-sm text-[var(--color-danger)]" data-testid="explain-risk-error">
-          {displayError}
-        </p>
+        <div
+          className="mt-3 flex items-start gap-2 text-sm text-[var(--color-danger)]"
+          data-testid="explain-risk-error"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{displayError}</span>
+        </div>
       ) : null}
 
       {job?.status === 'completed' && job.result ? (
-        <Card className="mt-3 border-[var(--color-primary)]/20" data-testid="explain-risk-narrative">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-primary)]">
+        <Card
+          className="animate-fade-in mt-3 border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5"
+          data-testid="explain-risk-narrative"
+        >
+          <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--color-primary)]">
+            <Sparkles className="h-3.5 w-3.5" />
             {t('risks.narrativeTitle')}
-          </p>
-          <p className="mt-2 text-sm">{job.result.narrative}</p>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed">{job.result.narrative}</p>
         </Card>
       ) : null}
     </div>

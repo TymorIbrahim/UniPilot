@@ -1,13 +1,16 @@
 "use strict";
 
+const isNarrativeStatsResult = (result) =>
+  typeof result === "object" &&
+  result !== null &&
+  typeof result.narrative === "string" &&
+  result.narrative.length > 0 &&
+  typeof result.stats === "object" &&
+  result.stats !== null;
+
 const RESULT_VALIDATORS = {
-  academic_risk_narrative: (result) =>
-    typeof result === "object" &&
-    result !== null &&
-    typeof result.narrative === "string" &&
-    result.narrative.length > 0 &&
-    typeof result.stats === "object" &&
-    result.stats !== null,
+  academic_risk_narrative: isNarrativeStatsResult,
+  course_recommendation_narrative: isNarrativeStatsResult,
 };
 
 function buildInferRequest(job) {
