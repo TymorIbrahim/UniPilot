@@ -116,9 +116,14 @@ def resolve_planner_semester_codes(
     raw_dir: Path | None,
     mongo_codes: list[str] | None = None,
 ) -> list[str]:
-    """When raw Technion JSON is mounted, only on-disk semester files are used."""
+    """Prefer on-disk raw Technion JSON when it actually yields semester codes;
+    fall back to seeded Mongo offering data, then to the committed embedded
+    manifest. A configured-but-empty raw_dir (e.g. the default mount with no
+    courses_YYYY_20X.json files present) must not starve out real data."""
     if raw_dir is not None:
-        return discover_planner_semester_codes_from_raw_dir(raw_dir)
+        codes = discover_planner_semester_codes_from_raw_dir(raw_dir)
+        if codes:
+            return codes
 
     if mongo_codes:
         return _sort_plan_semester_codes(mongo_codes)

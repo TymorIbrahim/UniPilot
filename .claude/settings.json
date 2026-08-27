@@ -13,7 +13,18 @@
       "Bash(./.venv/Scripts/python.exe -m pytest tests/unit/test_schemas_ai_job.py -q)",
       "Bash(node \"C:/Users/User/AppData/Local/Temp/claude/c--Users-User-OneDrive---Technion-Documents-UniPilot-UniPilot/0dc4168d-912e-44d1-9812-9b7257448e7b/scratchpad/check_recommend_courses.mjs\")",
       "Bash(node check_recommend_courses.mjs)",
-      "Bash(node check_visual_polish.mjs)"
+      "Bash(node check_visual_polish.mjs)",
+      "Bash(gh --version)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -sL -o /tmp/security_log.txt \"https://api.github.com/repos/TymorIbrahim/UniPilot/actions/jobs/98530228382/logs\" -w \"HTTP_STATUS:%{http_code}\\\\n\")",
+      "Read(//tmp/**)",
+      "Bash(./.venv/Scripts/python.exe -m pip show bandit pip-audit)",
+      "Bash(./.venv/Scripts/python.exe -m pip install -q bandit pip-audit)",
+      "Bash(./.venv/Scripts/python.exe -m bandit -q -r app -x tests -ll)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(./.venv/Scripts/python.exe -m pip_audit -r requirements.txt)",
+      "Bash(./.venv/Scripts/python.exe -m pip install -q \"cryptography==50.0.0\")",
+      "Bash(npm audit *)"
     ]
   }
 }
