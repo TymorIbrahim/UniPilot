@@ -416,3 +416,39 @@ def test_the_builder_stores_a_number_it_is_given():
     doc = build_completed_course_document(VALID_USER_ID, VALID_RECORD_DATA, "00960211")
     assert doc["courseNumber"] == "00960211"
     assert doc["courseId"] == ObjectId(VALID_COURSE_ID), "the id stays: the number is EXTRA identity"
+
+
+@pytest.mark.asyncio
+async def test_find_used_attempts_returns_empty_set_for_invalid_ids(mongo_database):
+    from app.repositories.completed_course_repository import find_used_attempts_for_course
+
+    assert await find_used_attempts_for_course(mongo_database, "not-an-id", VALID_COURSE_ID) == set()
+    assert await find_used_attempts_for_course(mongo_database, VALID_USER_ID, "not-an-id") == set()
+
+
+@pytest.mark.asyncio
+async def test_delete_imported_completed_courses_returns_zero_for_invalid_user_id(mongo_database):
+    from app.repositories.completed_course_repository import (
+        delete_imported_completed_courses_by_user_id,
+    )
+
+    assert await delete_imported_completed_courses_by_user_id(mongo_database, "not-an-id") == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_imported_completed_courses_removes_only_imported_rows(mongo_database):
+    from app.repositories.completed_course_repository import (
+        delete_imported_completed_courses_by_user_id,
+    )
+
+    manual = await create_completed_course(mongo_database, VALID_USER_ID, VALID_RECORD_DATA)
+    imported_data = {**VALID_RECORD_DATA, "courseId": str(ObjectId())}
+    await mongo_database["completed_courses"].insert_one(
+        build_completed_course_document(VALID_USER_ID, imported_data) | {"source": "imported"}
+    )
+
+    deleted = await delete_imported_completed_courses_by_user_id(mongo_database, VALID_USER_ID)
+    assert deleted == 1
+
+    remaining = await mongo_database["completed_courses"].find_one({"_id": manual["_id"]})
+    assert remaining is not None

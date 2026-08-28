@@ -6,7 +6,14 @@ from app.services.completed_course_attempts import (
     MAX_COURSE_ATTEMPTS,
     latest_attempt_rank,
     resolve_available_attempt,
+    semester_code_rank,
 )
+
+
+def test_semester_code_rank_returns_zero_zero_for_malformed_codes():
+    assert semester_code_rank("") == (0, 0)
+    assert semester_code_rank("not-a-semester-code") == (0, 0)
+    assert semester_code_rank("2024-4") == (0, 0)
 
 
 def test_resolve_available_attempt_returns_requested_when_free():

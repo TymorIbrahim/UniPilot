@@ -35,3 +35,78 @@ async def test_repair_stale_completed_course_catalog_links_updates_course_id(mon
 
     assert str(repaired_records[0]["courseId"]) == course["courseId"]
     assert course["courseId"] in catalog_by_id
+
+
+@pytest.mark.asyncio
+async def test_repair_leaves_record_untouched_when_no_imported_course_number(mongo_database):
+    user_id = "665f2b0f2a3f7b2a1a9a7c12"
+    stale_id = str(ObjectId())
+
+    record = await create_completed_course(
+        mongo_database,
+        user_id,
+        {
+            **build_completed_course_payload(stale_id),
+            "source": "manual",
+        },
+    )
+
+    repaired_records, catalog_by_id = await repair_stale_completed_course_catalog_links(
+        mongo_database,
+        [record],
+        {},
+    )
+
+    assert repaired_records[0]["courseId"] == record["courseId"]
+    assert catalog_by_id == {}
+
+
+@pytest.mark.asyncio
+async def test_repair_leaves_record_untouched_when_imported_number_not_in_catalog(mongo_database):
+    user_id = "665f2b0f2a3f7b2a1a9a7c13"
+    stale_id = str(ObjectId())
+
+    record = await create_completed_course(
+        mongo_database,
+        user_id,
+        {
+            **build_completed_course_payload(stale_id),
+            "source": "imported",
+            "metadata": {"importedCourseNumber": "00000000"},
+        },
+    )
+
+    repaired_records, catalog_by_id = await repair_stale_completed_course_catalog_links(
+        mongo_database,
+        [record],
+        {},
+    )
+
+    assert repaired_records[0]["courseId"] == record["courseId"]
+    assert catalog_by_id == {}
+
+
+@pytest.mark.asyncio
+async def test_repair_skips_update_when_resolved_id_matches_stored_id(mongo_database):
+    course = await seed_production_course_fixture(mongo_database)
+
+    user_id = "665f2b0f2a3f7b2a1a9a7c14"
+    record = await create_completed_course(
+        mongo_database,
+        user_id,
+        {
+            **build_completed_course_payload(course["courseId"]),
+            "source": "imported",
+            "metadata": {"importedCourseNumber": course["courseNumber"]},
+        },
+    )
+
+    repaired_records, catalog_by_id = await repair_stale_completed_course_catalog_links(
+        mongo_database,
+        [record],
+        {},
+    )
+
+    assert str(repaired_records[0]["courseId"]) == course["courseId"]
+    stored = await mongo_database["completed_courses"].find_one({"_id": record["_id"]})
+    assert stored["metadata"].get("repairedCatalogLink") is None

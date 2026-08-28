@@ -23,6 +23,13 @@ def test_resolve_import_credits_uses_catalog_for_graded_row_missing_credits():
     assert resolve_import_credits(row, {"credits": 4}) == 4.0
 
 
+def test_resolve_import_credits_falls_back_to_zero_when_catalog_has_no_usable_credits():
+    row = SimpleNamespace(courseNumber="00940411", grade=80, creditsEarned=0)
+    assert resolve_import_credits(row, None) == 0.0
+    assert resolve_import_credits(row, {"credits": None}) == 0.0
+    assert resolve_import_credits(row, {"credits": 0}) == 0.0
+
+
 def test_resolve_import_grade_points_marks_exemption_without_points():
     row = SimpleNamespace(grade=0)
     assert resolve_import_grade_points(row) == 0.0

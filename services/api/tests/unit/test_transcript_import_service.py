@@ -1,13 +1,35 @@
 """Unit tests for transcript import commit service."""
 
+from unittest.mock import patch
+
 import pytest
+from pydantic import ValidationError
+from pymongo.errors import DuplicateKeyError
 
 from app.schemas.transcript_import import CommitTranscriptCourseInput, CommitTranscriptImportRequest
-from app.services.transcript_import_service import commit_transcript_import
+from app.services.transcript_import_service import _import_grade_key, commit_transcript_import
 from tests.fixtures.completed_course_fixtures import (
     build_completed_course_payload,
     seed_production_course_fixture,
 )
+
+
+def test_commit_transcript_course_input_rejects_unnormalizable_course_number():
+    with pytest.raises(ValidationError, match="Invalid course number"):
+        CommitTranscriptCourseInput(
+            courseNumber="abcdef",
+            semesterCode="2024-1",
+            grade=82,
+            creditsEarned=3,
+        )
+
+
+def test_import_grade_key_normalizes_decimal_and_non_numeric_grades():
+    decimal = _import_grade_key("course-1", "2024-1", 85.5)
+    assert decimal[2] == "85.5"
+
+    non_numeric = _import_grade_key("course-1", "2024-1", "עבר")
+    assert non_numeric[2] == "עבר"
 
 
 @pytest.mark.asyncio
@@ -231,3 +253,79 @@ async def test_commit_transcript_import_replace_existing_removes_prior_pdf_rows(
     assert result["createdCount"] == 1
     assert result["skippedCount"] == 0
     assert result["created"][0]["metadata"]["importedCourseNumber"] == course["courseNumber"]
+
+
+@pytest.mark.asyncio
+async def test_commit_transcript_import_stores_exemption_metadata(mongo_database):
+    course = await seed_production_course_fixture(mongo_database)
+    user_id = "665f2b0f2a3f7b2a1a9a7c07"
+
+    result = await commit_transcript_import(
+        mongo_database,
+        user_id,
+        CommitTranscriptImportRequest(
+            courses=[
+                CommitTranscriptCourseInput(
+                    courseNumber=course["courseNumber"],
+                    semesterCode="2024-1",
+                    grade=0,
+                    creditsEarned=3,
+                    warnings=["Recorded via exemption"],
+                )
+            ]
+        ),
+    )
+
+    assert result["createdCount"] == 1
+    assert result["created"][0]["metadata"]["exemption"] is True
+
+
+@pytest.mark.asyncio
+async def test_commit_transcript_import_reports_unresolvable_course_number(mongo_database):
+    user_id = "665f2b0f2a3f7b2a1a9a7c08"
+    row = CommitTranscriptCourseInput(
+        courseNumber="00940345",
+        semesterCode="2024-1",
+        grade=82,
+        creditsEarned=3,
+    )
+    row.courseNumber = "not-a-course-number"
+
+    result = await commit_transcript_import(
+        mongo_database,
+        user_id,
+        CommitTranscriptImportRequest(courses=[row]),
+    )
+
+    assert result["createdCount"] == 0
+    assert result["unresolvedCount"] == 1
+    assert result["unresolved"][0]["reason"] == "Invalid course number"
+
+
+@pytest.mark.asyncio
+async def test_commit_transcript_import_skips_row_on_duplicate_key_race(mongo_database):
+    course = await seed_production_course_fixture(mongo_database)
+    user_id = "665f2b0f2a3f7b2a1a9a7c09"
+
+    with patch(
+        "app.services.transcript_import_service.create_completed_course",
+        side_effect=DuplicateKeyError("duplicate"),
+    ):
+        result = await commit_transcript_import(
+            mongo_database,
+            user_id,
+            CommitTranscriptImportRequest(
+                courses=[
+                    CommitTranscriptCourseInput(
+                        courseNumber=course["courseNumber"],
+                        semesterCode="2024-1",
+                        grade=82,
+                        creditsEarned=3,
+                    )
+                ]
+            ),
+        )
+
+    assert result["createdCount"] == 0
+    assert result["skippedCount"] == 1
+    assert result["skippedDuplicates"] == [course["courseNumber"]]
