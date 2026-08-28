@@ -18,6 +18,36 @@ STRUCTURED_LINE_PATTERN = re.compile(
 COMPACT_LINE_PATTERN = re.compile(
     r"^(?P<number>0\d{7})\s+(?P<credits>\d+(?:\.\d)?)\s+(?P<grade>\d+(?:\.\d)?)\s*$"
 )
+# Non-numeric grade tokens (exemption / pass) that a course row can end in,
+# instead of the usual "credits grade" pair the patterns above expect. Grade
+# values mirror technion_official_parser.parse_exemption_grade for consistent
+# downstream handling (transcript_import_normalization treats grade 0 as an
+# exemption and looks for "exemption"/"pass grade" in the warning text) -- but
+# matched independently here since that function's own pass-grade check is
+# anchored to an isolated grade line and never fires on a combined
+# "number + title + grade" row like the ones this fallback parser sees.
+TEXT_GRADE_PHRASE = re.compile(
+    r"(exemption without points|פטור ללא ניקוד"
+    r"|exemption with points|פטור עם ניקוד"
+    r"|\bpass\b|עובר)\s*$",
+    re.IGNORECASE,
+)
+EXEMPTION_WITHOUT_POINTS = re.compile(r"exemption without points|פטור ללא ניקוד", re.IGNORECASE)
+EXEMPTION_WITH_POINTS = re.compile(r"exemption with points|פטור עם ניקוד", re.IGNORECASE)
+LEADING_COURSE_NUMBER = re.compile(r"^0\d{7}\s*")
+
+
+def _text_grade(line: str) -> tuple[float, float, tuple[str, ...]] | None:
+    """Resolve a trailing non-numeric grade phrase, if the line ends in one."""
+    if not TEXT_GRADE_PHRASE.search(line):
+        return None
+    if EXEMPTION_WITHOUT_POINTS.search(line):
+        return 0.0, 0.0, ("Recorded as exemption without points",)
+    if EXEMPTION_WITH_POINTS.search(line):
+        return 55.0, 0.0, ("Recorded as exemption with points; verify credits",)
+    return 56.0, 0.0, ("Recorded as pass grade",)
+
+
 @dataclass(frozen=True)
 class RawCourseRow:
     course_number: str
@@ -80,6 +110,23 @@ def parse_course_line(line: str, *, semester_code: str) -> RawCourseRow | None:
     course_number = _normalized_course_number_from_line(line)
     if not course_number:
         return None
+
+    stripped = line.strip()
+    text_grade = _text_grade(stripped)
+    if text_grade is not None:
+        grade, credits, text_warnings = text_grade
+        title_source = TEXT_GRADE_PHRASE.sub("", stripped)
+        title_source = LEADING_COURSE_NUMBER.sub("", title_source).strip()
+        return RawCourseRow(
+            course_number=course_number,
+            semester_code=semester_code,
+            grade=grade,
+            credits_earned=credits,
+            attempt=detect_attempt(line),
+            title=title_source or None,
+            confidence=0.8,
+            warnings=text_warnings,
+        )
 
     structured = STRUCTURED_LINE_PATTERN.match(line.strip())
     if structured:

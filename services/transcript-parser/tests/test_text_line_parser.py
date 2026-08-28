@@ -63,3 +63,44 @@ def test_parse_courses_from_text_warns_when_no_rows():
     courses, warnings = parse_courses_from_text("Header only\nNo courses here")
     assert courses == []
     assert any("No course rows detected" in warning for warning in warnings)
+
+
+def test_parse_courses_from_text_handles_hebrew_exemption_without_points():
+    text = """
+2024-1
+00940411 השלמות מתמטיקה פטור ללא ניקוד
+"""
+    courses, _ = parse_courses_from_text(text)
+    assert len(courses) == 1
+    course = courses[0]
+    assert course.grade == 0.0
+    assert course.creditsEarned == 0.0
+    assert "exemption without points" in course.warnings[0].lower()
+    assert course.title == "השלמות מתמטיקה"
+
+
+def test_parse_courses_from_text_handles_english_exemption_with_points():
+    text = """
+2024-1
+00940411 Math Refresher exemption with points
+"""
+    courses, _ = parse_courses_from_text(text)
+    assert len(courses) == 1
+    course = courses[0]
+    assert course.grade == 55.0
+    assert course.creditsEarned == 0.0
+    assert "exemption with points" in course.warnings[0].lower()
+
+
+def test_parse_courses_from_text_handles_pass_grade_hebrew_and_english():
+    text = """
+2024-1
+00940411 Physical Education pass
+00940412 חינוך גופני עובר
+"""
+    courses, _ = parse_courses_from_text(text)
+    assert len(courses) == 2
+    for course in courses:
+        assert course.grade == 56.0
+        assert course.creditsEarned == 0.0
+        assert "pass grade" in course.warnings[0].lower()
