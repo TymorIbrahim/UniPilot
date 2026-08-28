@@ -60,7 +60,7 @@ def validate_program_code_param(program_code: str) -> str:
     if not PROGRAM_CODE_RE.fullmatch(program_code):
         raise HTTPException(
             status_code=400,
-            detail="program_code must match Technion DDS format, e.g. 009216-1-000",
+            detail="program_code must match Technion catalog format, e.g. 009216-1-000",
         )
     return program_code
 

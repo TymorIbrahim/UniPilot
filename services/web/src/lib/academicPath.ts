@@ -1,8 +1,10 @@
-/** DDS track slug resolution for academic path (Phase 0). */
+/** Track slug resolution for academic path: `metadata.wikiPage` covers every
+ * promoted faculty; the DDS map below only backstops programs promoted before
+ * that field existed. */
 
 import type { DegreeProgram, StudentAcademicPath } from '../types/api'
 
-const PROGRAM_CODE_TO_TRACK: Record<string, string> = {
+const LEGACY_DDS_PROGRAM_CODE_TO_TRACK: Record<string, string> = {
   '009216-1-000': 'track-data-information-engineering',
   '009009-1-000': 'track-industrial-engineering-management',
   '009118-1-000': 'track-information-systems-engineering',
@@ -12,7 +14,7 @@ export function trackSlugFromProgram(program: DegreeProgram | undefined): string
   if (!program) return undefined
   const metadata = program.metadata as { wikiPage?: string } | undefined
   if (metadata?.wikiPage) return metadata.wikiPage
-  return PROGRAM_CODE_TO_TRACK[program.programCode]
+  return LEGACY_DDS_PROGRAM_CODE_TO_TRACK[program.programCode]
 }
 
 export function buildAcademicPathForProgram(
