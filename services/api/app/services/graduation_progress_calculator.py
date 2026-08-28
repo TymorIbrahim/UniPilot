@@ -176,6 +176,20 @@ def _pool_course_numbers(pool_document: dict[str, Any] | None) -> set[str]:
     return numbers
 
 
+def _pool_course_number_catalog(pool_documents: list[dict[str, Any]]) -> set[str]:
+    """Union of the explicit course numbers across every pool linked to a bucket.
+
+    Prefix-only pools are excluded on purpose. They are open-ended -- "any
+    0094xxxx course" -- so enumerating every catalog course that matches would
+    produce hundreds of rows rather than the handful a student actually still
+    owes, and an unusable list is worse than an absent one.
+    """
+    numbers: set[str] = set()
+    for pool in pool_documents:
+        numbers.update(_pool_course_numbers(pool))
+    return numbers
+
+
 def _pool_allowed_prefixes(
     pool_document: dict[str, Any] | None,
     *,
@@ -625,6 +639,32 @@ def calculate_graduation_progress(
                 remaining_courses=remaining_courses,
             )
         else:
+            # A strict elective POOL bucket owes the student whatever is left in
+            # its linked pools. Without this, remaining_courses is [] for every
+            # bucket but the mandatory one, so `remainingMandatoryCourses`
+            # silently under-reports what is still required. Carried over from
+            # TymorIbrahim/UniPilot a74b19f (Monya AbuDaulh).
+            if strict_pool and eligibility_pools and credits_completed < min_credits:
+                completed_numbers = {
+                    str(entry["courseNumber"])
+                    for entry in completed_courses
+                    if entry.get("courseNumber")
+                }
+                for course_number in sorted(_pool_course_number_catalog(eligibility_pools)):
+                    if course_number in completed_numbers:
+                        continue
+                    catalog_entry = catalog_courses_by_number.get(course_number)
+                    if not catalog_entry:
+                        continue
+                    remaining_course_id, remaining_catalog_course = catalog_entry
+                    if remaining_course_id in assigned_course_ids:
+                        continue
+                    remaining_courses.append(
+                        build_course_progress_entry(
+                            remaining_course_id, remaining_catalog_course, None
+                        )
+                    )
+
             credits_completed = round_credits(credits_completed)
             if min_credits > 0:
                 credits_completed = round_credits(min(credits_completed, min_credits))

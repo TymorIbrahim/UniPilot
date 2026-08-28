@@ -838,19 +838,6 @@ def test_remaining_courses_omitted_once_bucket_is_satisfied():
     assert ds["remainingCourses"] == []
 
 
-@pytest.mark.xfail(
-    reason=(
-        "KNOWN GAP carried over from TymorIbrahim/UniPilot a74b19f (Monya AbuDaulh). "
-        "`remaining_courses` is populated only for the mandatory bucket -- see the "
-        "`if suffix == mandatory_bucket_suffix and enforce_mandatory_bucket:` guard in "
-        "graduation_progress_calculator.calculate_progress. For a strict elective POOL "
-        "bucket it stays [], so remainingMandatoryCourses omits pool courses the student "
-        "still owes. That branch fixed it by building the list from each bucket's linked "
-        "pool(s); this branch keeps its own calculator, so the fix has to be re-applied "
-        "here rather than merged. Kept as xfail so the gap is not lost."
-    ),
-    strict=True,
-)
 def test_remaining_courses_populated_for_unsatisfied_strict_pool_bucket():
     """Regression test: `remainingCourses` (and remainingMandatoryCourses at the
     top level) must list pool courses not yet completed, not stay empty."""
@@ -919,19 +906,6 @@ def test_remaining_courses_skip_a_course_already_assigned_to_another_bucket():
     assert faculty["remainingCourses"] == []
 
 
-@pytest.mark.xfail(
-    reason=(
-        "KNOWN GAP carried over from TymorIbrahim/UniPilot a74b19f (Monya AbuDaulh). "
-        "`remaining_courses` is populated only for the mandatory bucket -- see the "
-        "`if suffix == mandatory_bucket_suffix and enforce_mandatory_bucket:` guard in "
-        "graduation_progress_calculator.calculate_progress. For a strict elective POOL "
-        "bucket it stays [], so remainingMandatoryCourses omits pool courses the student "
-        "still owes. That branch fixed it by building the list from each bucket's linked "
-        "pool(s); this branch keeps its own calculator, so the fix has to be re-applied "
-        "here rather than merged. Kept as xfail so the gap is not lost."
-    ),
-    strict=True,
-)
 def test_remaining_courses_union_across_multiple_pools_linked_to_same_bucket():
     """End-to-end version of the multi-pool regression: both pools' untaken
     courses must show up as remaining, not just one pool's."""
