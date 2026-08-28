@@ -17,7 +17,7 @@ from app.services.graduation_progress_calculator import (
 )
 from app.services.graduation_requirement_links import (
     index_pools_by_linked_bucket,
-    resolve_pool_for_bucket,
+    resolve_pools_for_bucket,
 )
 
 PROGRAM = "009216-1-000"
@@ -282,15 +282,144 @@ def test_phase_15_1_explicit_link_always_enforces_even_when_flag_false():
     assert ds["creditsCompleted"] == 3.5
 
 
-def test_resolve_pool_for_bucket_prefers_explicit_link():
+def test_remaining_courses_populated_for_unsatisfied_strict_pool_bucket():
+    """Regression test: `remainingCourses` (and remainingMandatoryCourses at the
+    top level) must list pool courses not yet completed, not stay empty."""
+    taken = str(ObjectId())
+    untaken = str(ObjectId())
+    catalog = {
+        **_catalog_entry(taken, "00940411", 3.5),
+        **_catalog_entry(untaken, "00940412", 3.5, title="DS elective 2"),
+    }
+    progress = calculate_graduation_progress(
+        degree_program=_program(),
+        hard_requirements=[_bucket("elective-ds", 7.0)],
+        pool_documents=[
+            _pool(
+                "elective-ds-pool",
+                linked_bucket=f"{PROGRAM}:elective-ds",
+                courseReferences=[
+                    {"courseNumber": "00940411"},
+                    {"courseNumber": "00940412"},
+                ],
+            ),
+        ],
+        catalog_courses_by_id=catalog,
+        completed_course_records=[_completion(taken, 88, 3.5)],
+    )
+    ds = progress["requirementProgress"][0]
+    assert ds["status"] == "in_progress"
+    assert [c["courseId"] for c in ds["remainingCourses"]] == [untaken]
+    assert [c["courseId"] for c in progress["remainingMandatoryCourses"]] == [untaken]
+
+
+def test_remaining_courses_omitted_once_bucket_is_satisfied():
+    taken = str(ObjectId())
+    untaken = str(ObjectId())
+    catalog = {
+        **_catalog_entry(taken, "00940411", 3.5),
+        **_catalog_entry(untaken, "00940412", 3.5, title="DS elective 2"),
+    }
+    progress = calculate_graduation_progress(
+        degree_program=_program(),
+        hard_requirements=[_bucket("elective-ds", 3.5)],
+        pool_documents=[
+            _pool(
+                "elective-ds-pool",
+                linked_bucket=f"{PROGRAM}:elective-ds",
+                courseReferences=[
+                    {"courseNumber": "00940411"},
+                    {"courseNumber": "00940412"},
+                ],
+            ),
+        ],
+        catalog_courses_by_id=catalog,
+        completed_course_records=[_completion(taken, 88, 3.5)],
+    )
+    ds = progress["requirementProgress"][0]
+    assert ds["status"] == "satisfied"
+    assert ds["remainingCourses"] == []
+
+
+def test_remaining_courses_skip_a_course_already_assigned_to_another_bucket():
+    """A course referenced by two different buckets' pools can only satisfy one
+    of them; once completed and assigned to bucket A, it must not also show up
+    as a "remaining" candidate for bucket B just because bucket B's pool lists
+    the same course number too."""
+    shared = str(ObjectId())
+    catalog = _catalog_entry(shared, "00940411", 3.5)
+    progress = calculate_graduation_progress(
+        degree_program=_program(),
+        hard_requirements=[
+            _bucket("elective-ds", 3.5),
+            _bucket("elective-faculty", 3.5),
+        ],
+        pool_documents=[
+            _pool(
+                "elective-ds-pool",
+                linked_bucket=f"{PROGRAM}:elective-ds",
+                courseReferences=[{"courseNumber": "00940411"}],
+            ),
+            _pool(
+                "elective-faculty-pool",
+                linked_bucket=f"{PROGRAM}:elective-faculty",
+                courseReferences=[{"courseNumber": "00940411"}],
+            ),
+        ],
+        catalog_courses_by_id=catalog,
+        completed_course_records=[_completion(shared, 88, 3.5)],
+    )
+    ds = next(r for r in progress["requirementProgress"] if r["requirementGroupId"] == f"{PROGRAM}:elective-ds")
+    faculty = next(
+        r for r in progress["requirementProgress"] if r["requirementGroupId"] == f"{PROGRAM}:elective-faculty"
+    )
+    assert ds["status"] == "satisfied"
+    assert faculty["status"] == "not_started"
+    assert faculty["remainingCourses"] == []
+
+
+def test_remaining_courses_union_across_multiple_pools_linked_to_same_bucket():
+    """End-to-end version of the multi-pool regression: both pools' untaken
+    courses must show up as remaining, not just one pool's."""
+    untaken_a = str(ObjectId())
+    untaken_b = str(ObjectId())
+    catalog = {
+        **_catalog_entry(untaken_a, "00940100", 3.0, title="Focus chain A course"),
+        **_catalog_entry(untaken_b, "00940200", 3.0, title="Focus chain B course"),
+    }
+    progress = calculate_graduation_progress(
+        degree_program=_program(),
+        hard_requirements=[_bucket("elective-faculty", 100.0)],
+        pool_documents=[
+            _pool(
+                "focus-chain-a",
+                linked_bucket=f"{PROGRAM}:elective-faculty",
+                courseReferences=[{"courseNumber": "00940100"}],
+            ),
+            _pool(
+                "focus-chain-b",
+                linked_bucket=f"{PROGRAM}:elective-faculty",
+                courseReferences=[{"courseNumber": "00940200"}],
+            ),
+        ],
+        catalog_courses_by_id=catalog,
+        completed_course_records=[],
+    )
+    faculty = progress["requirementProgress"][0]
+    assert {c["courseId"] for c in faculty["remainingCourses"]} == {untaken_a, untaken_b}
+
+
+def test_resolve_pools_for_bucket_prefers_explicit_link():
     pools_by_group = {f"{PROGRAM}:elective-ds-pool": {"requirementGroupId": f"{PROGRAM}:elective-ds-pool"}}
     explicit = {
-        f"{PROGRAM}:elective-ds": {
-            "requirementGroupId": f"{PROGRAM}:explicit-pool",
-            "linkedCreditBucketId": f"{PROGRAM}:elective-ds",
-        }
+        f"{PROGRAM}:elective-ds": [
+            {
+                "requirementGroupId": f"{PROGRAM}:explicit-pool",
+                "linkedCreditBucketId": f"{PROGRAM}:elective-ds",
+            }
+        ]
     }
-    pool, group, strict = resolve_pool_for_bucket(
+    pools, group, strict = resolve_pools_for_bucket(
         program_code=PROGRAM,
         bucket_suffix="elective-ds",
         pools_by_group_id=pools_by_group,
@@ -298,16 +427,51 @@ def test_resolve_pool_for_bucket_prefers_explicit_link():
     )
     assert group == f"{PROGRAM}:explicit-pool"
     assert strict is True
+    assert [p["requirementGroupId"] for p in pools] == [f"{PROGRAM}:explicit-pool"]
+
+
+def test_resolve_pools_for_bucket_returns_every_pool_linked_to_the_same_bucket():
+    """Regression test: multiple pools (e.g. several elective focus chains) can
+    share one credit bucket -- all must be returned, not just the last one
+    indexed, or courses from the discarded pools are wrongly rejected."""
+    pools_by_linked_bucket = index_pools_by_linked_bucket(
+        [
+            {
+                "requirementGroupId": f"{PROGRAM}:focus-chain-a",
+                "linkedCreditBucketId": f"{PROGRAM}:elective-faculty",
+                "ruleExpression": {"type": "course_pool"},
+                "courseReferences": [{"courseNumber": "00940100"}],
+            },
+            {
+                "requirementGroupId": f"{PROGRAM}:focus-chain-b",
+                "linkedCreditBucketId": f"{PROGRAM}:elective-faculty",
+                "ruleExpression": {"type": "course_pool"},
+                "courseReferences": [{"courseNumber": "00940200"}],
+            },
+        ]
+    )
+    pools, _, strict = resolve_pools_for_bucket(
+        program_code=PROGRAM,
+        bucket_suffix="elective-faculty",
+        pools_by_group_id={},
+        pools_by_linked_bucket=pools_by_linked_bucket,
+    )
+    assert strict is True
+    assert {p["requirementGroupId"] for p in pools} == {
+        f"{PROGRAM}:focus-chain-a",
+        f"{PROGRAM}:focus-chain-b",
+    }
 
 
 def test_index_pools_by_linked_bucket():
     docs = [
         {"linkedCreditBucketId": f"{PROGRAM}:elective-ds", "requirementGroupId": "x"},
+        {"linkedCreditBucketId": f"{PROGRAM}:elective-ds", "requirementGroupId": "y"},
         {"requirementGroupId": f"{PROGRAM}:elective-ds-pool"},
     ]
     indexed = index_pools_by_linked_bucket(docs)
-    assert f"{PROGRAM}:elective-ds" in indexed
     assert len(indexed) == 1
+    assert {doc["requirementGroupId"] for doc in indexed[f"{PROGRAM}:elective-ds"]} == {"x", "y"}
 
 
 # --- Bucket allocation / no double-count ---

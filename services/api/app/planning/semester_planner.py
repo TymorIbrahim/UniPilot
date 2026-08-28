@@ -17,7 +17,7 @@ from app.services.graduation_progress_calculator import (
 from app.services.graduation_requirement_links import (
     bucket_suffix_from_group_id,
     index_pools_by_linked_bucket,
-    resolve_pool_for_bucket,
+    resolve_pools_for_bucket,
 )
 
 DEFAULT_MAX_CREDITS = 18.0
@@ -251,6 +251,28 @@ def partition_mandatory_by_matrix_semester(
     return unmapped, by_semester
 
 
+def _core_remaining_course_refs(graduation_progress: dict[str, Any]) -> list[dict[str, Any]]:
+    """Remaining courses from mandatory, non-elective (fixed-course) buckets only.
+
+    Excludes mandatory-credit *elective* buckets (e.g. "35 credits from these
+    faculty electives") -- their remaining options are specific-choice
+    electives, not fixed required courses, and are already surfaced separately
+    as elective candidates. Falls back to the flat `remainingMandatoryCourses`
+    list when `requirementProgress` isn't present to filter by -- real
+    graduation_progress from calculate_graduation_progress always has both.
+    """
+    requirement_progress = graduation_progress.get("requirementProgress") or []
+    if not requirement_progress:
+        return list(graduation_progress.get("remainingMandatoryCourses") or [])
+
+    refs: list[dict[str, Any]] = []
+    for entry in requirement_progress:
+        if not entry.get("isMandatory") or entry.get("requirementType") == "elective":
+            continue
+        refs.extend(entry.get("remainingCourses") or [])
+    return refs
+
+
 def append_graduation_mandatory_candidates(
     mandatory_candidates: list[dict[str, Any]],
     *,
@@ -258,11 +280,12 @@ def append_graduation_mandatory_candidates(
     courses_by_id: dict[str, dict[str, Any]],
     completed_course_ids: set[str],
 ) -> list[dict[str, Any]]:
-    """Add hard-requirement mandatory courses from graduation progress (deduped)."""
+    """Add hard-requirement (core, non-elective) mandatory courses from graduation
+    progress (deduped)."""
     seen_ids = {normalize_course_id(course["_id"]) for course in mandatory_candidates}
     extras: list[dict[str, Any]] = []
 
-    for course_ref in graduation_progress.get("remainingMandatoryCourses") or []:
+    for course_ref in _core_remaining_course_refs(graduation_progress):
         course = resolve_catalog_course(courses_by_id, course_ref)
         if course is None:
             continue
@@ -274,7 +297,10 @@ def append_graduation_mandatory_candidates(
 
     if not extras:
         return mandatory_candidates
-    return sort_courses_by_number([*mandatory_candidates, *extras])
+    # Preserve the semester-matrix's curriculum ordering for the existing
+    # candidates; only the newly-appended extras (which have no matrix
+    # position) are sorted, and only among themselves.
+    return [*mandatory_candidates, *sort_courses_by_number(extras)]
 
 
 def matrix_semesters_for_planning(
@@ -389,20 +415,20 @@ def _elective_from_pools(
         if suffix not in unsatisfied_elective_suffixes:
             continue
 
-        pool_document, _, _ = resolve_pool_for_bucket(
+        pool_documents, _, _ = resolve_pools_for_bucket(
             program_code=program_code,
             bucket_suffix=suffix,
             pools_by_group_id=pools_by_id,
             pools_by_linked_bucket=pools_by_linked_bucket,
         )
-        if not pool_document:
+        if not pool_documents:
             continue
 
         for course in normalized_catalog:
             course_id = normalize_course_id(course["_id"])
             if course_id in completed_course_ids or course_id in seen_ids:
                 continue
-            if _course_matches_pool(course, pool_document):
+            if any(_course_matches_pool(course, pool_document) for pool_document in pool_documents):
                 candidates.append(course)
                 seen_ids.add(course_id)
 
@@ -438,7 +464,7 @@ def build_candidate_pools(
         )
 
     if not mandatory_candidates:
-        mandatory_remaining_refs = graduation_progress.get("remainingMandatoryCourses") or []
+        mandatory_remaining_refs = _core_remaining_course_refs(graduation_progress)
         mandatory_candidates = sort_courses_by_number(
             [
                 course

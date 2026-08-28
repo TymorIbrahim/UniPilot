@@ -318,10 +318,18 @@ def test_build_candidate_pools_falls_back_to_graduation_progress_when_no_matrix(
             "status": "published",
         }
     ]
+    remaining_course = {"courseId": course_id}
     graduation_progress = {
-        "remainingMandatoryCourses": [{"courseId": course_id}],
+        "remainingMandatoryCourses": [remaining_course],
         "remainingElectiveCredits": 0,
-        "requirementProgress": [],
+        "requirementProgress": [
+            {
+                "requirementGroupId": "core-mandatory",
+                "requirementType": "core",
+                "isMandatory": True,
+                "remainingCourses": [remaining_course],
+            }
+        ],
     }
     pools = build_candidate_pools(
         catalog_courses=catalog,
@@ -482,8 +490,17 @@ def test_append_graduation_mandatory_candidates_merges_with_matrix_mandatory():
             "prerequisites": [],
         },
     }
+    remaining_course = {"courseId": graduation_course_id}
     graduation_progress = {
-        "remainingMandatoryCourses": [{"courseId": graduation_course_id}],
+        "remainingMandatoryCourses": [remaining_course],
+        "requirementProgress": [
+            {
+                "requirementGroupId": "core-mandatory",
+                "requirementType": "core",
+                "isMandatory": True,
+                "remainingCourses": [remaining_course],
+            }
+        ],
     }
 
     merged = append_graduation_mandatory_candidates(

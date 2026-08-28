@@ -8,7 +8,7 @@ from typing import Any
 from app.services.graduation_requirement_links import (
     bucket_suffix_from_group_id,
     index_pools_by_linked_bucket,
-    resolve_pool_for_bucket,
+    resolve_pools_for_bucket,
 )
 
 from app.services.grade_evaluation import is_passing_grade, resolve_record_numeric_grade
@@ -143,6 +143,26 @@ def is_course_eligible_for_pool(
     return False
 
 
+def is_course_eligible_for_pools(
+    course_number: str | None,
+    pool_documents: list[dict[str, Any]],
+) -> bool:
+    """A course only needs to satisfy one of several pools linked to the same bucket."""
+    return any(is_course_eligible_for_pool(course_number, pool) for pool in pool_documents)
+
+
+def _pool_course_number_catalog(
+    pool_documents: list[dict[str, Any]],
+) -> set[str]:
+    """Union of explicit course numbers across all pools -- prefix-only pools are
+    open-ended and excluded, since enumerating every matching catalog course as
+    "remaining" wouldn't be a meaningful, actionable list."""
+    numbers: set[str] = set()
+    for pool in pool_documents:
+        numbers.update(_pool_course_numbers(pool))
+    return numbers
+
+
 def _requirement_group_suffix(requirement: dict[str, Any], program_code: str) -> str:
     group_id = requirement.get("requirementGroupId") or ""
     return bucket_suffix_from_group_id(str(group_id), program_code)
@@ -203,6 +223,12 @@ def calculate_graduation_progress(
     pools_by_linked_bucket = index_pools_by_linked_bucket(pool_documents)
     buckets_by_suffix = _index_buckets(hard_requirements, program_code)
 
+    catalog_courses_by_number: dict[str, tuple[str, dict[str, Any]]] = {}
+    for course_id, catalog_course in catalog_courses_by_id.items():
+        number = catalog_course.get("courseNumber") or catalog_course.get("number")
+        if number:
+            catalog_courses_by_number[str(number)] = (course_id, catalog_course)
+
     effective_completions = build_effective_completions(completed_course_records)
     assigned_course_ids: set[str] = set()
     ineligible_credits: list[dict[str, Any]] = []
@@ -218,7 +244,7 @@ def calculate_graduation_progress(
     for suffix in ordered_suffixes:
         requirement = buckets_by_suffix[suffix]
         min_credits = float(requirement.get("minCredits") or 0)
-        pool_document, pool_group, strict_pool = resolve_pool_for_bucket(
+        pool_documents, pool_group, strict_pool = resolve_pools_for_bucket(
             program_code=program_code,
             bucket_suffix=suffix,
             pools_by_group_id=pools_by_id,
@@ -246,7 +272,7 @@ def calculate_graduation_progress(
             entry = build_course_progress_entry(course_id, catalog_course, completion)
 
             if strict_pool:
-                if is_course_eligible_for_pool(course_number, pool_document):
+                if is_course_eligible_for_pools(course_number, pool_documents):
                     completed_courses.append(entry)
                     credits_completed += completion["creditsEarned"]
                     assigned_course_ids.add(course_id)
@@ -269,6 +295,23 @@ def calculate_graduation_progress(
             completed_courses.append(entry)
             credits_completed += completion["creditsEarned"]
             assigned_course_ids.add(course_id)
+
+        if strict_pool and credits_completed < min_credits:
+            completed_numbers = {
+                str(entry["courseNumber"]) for entry in completed_courses if entry.get("courseNumber")
+            }
+            for course_number in sorted(_pool_course_number_catalog(pool_documents)):
+                if course_number in completed_numbers:
+                    continue
+                catalog_entry = catalog_courses_by_number.get(course_number)
+                if not catalog_entry:
+                    continue
+                remaining_course_id, remaining_catalog_course = catalog_entry
+                if remaining_course_id in assigned_course_ids:
+                    continue
+                remaining_courses.append(
+                    build_course_progress_entry(remaining_course_id, remaining_catalog_course, None)
+                )
 
         credits_completed = round_credits(credits_completed)
 

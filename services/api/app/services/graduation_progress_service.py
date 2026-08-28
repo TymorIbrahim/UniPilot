@@ -36,6 +36,34 @@ async def _catalog_courses_for_completed_records(
     )
 
 
+async def _with_pool_catalog_courses(
+    database: AsyncIOMotorDatabase,
+    pool_documents: list[dict[str, Any]],
+    catalog_courses_by_id: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Resolve real catalog entries for every course a pool references, not just
+    completed ones, so `remainingCourses` can carry a real courseId consumers
+    (semester planner, risk analyzer) already expect to resolve by id."""
+    known_numbers = {
+        str(course.get("courseNumber")) for course in catalog_courses_by_id.values() if course.get("courseNumber")
+    }
+    pool_numbers: set[str] = set()
+    for pool in pool_documents:
+        for reference in pool.get("courseReferences") or []:
+            number = reference.get("courseNumber")
+            if number:
+                pool_numbers.add(str(number))
+    missing_numbers = sorted(pool_numbers - known_numbers)
+    if not missing_numbers:
+        return catalog_courses_by_id
+
+    pool_courses = await catalog_repository.find_courses_by_numbers(database, missing_numbers)
+    merged = dict(catalog_courses_by_id)
+    for course in pool_courses:
+        merged[str(course["_id"])] = course
+    return merged
+
+
 async def get_graduation_progress_for_user(
     database: AsyncIOMotorDatabase,
     user_id: str,
@@ -76,6 +104,11 @@ async def get_graduation_progress_for_user(
     completed_records, catalog_courses_by_id = await _catalog_courses_for_completed_records(
         database,
         completed_records,
+    )
+    catalog_courses_by_id = await _with_pool_catalog_courses(
+        database,
+        pool_documents,
+        catalog_courses_by_id,
     )
 
     progress = calculate_graduation_progress(

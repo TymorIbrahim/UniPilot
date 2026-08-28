@@ -63,13 +63,19 @@ def bucket_suffix_from_group_id(requirement_group_id: str, program_code: str) ->
 
 def index_pools_by_linked_bucket(
     pool_documents: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """Phase 15.1 — map credit bucket requirementGroupId -> pool document."""
-    indexed: dict[str, dict[str, Any]] = {}
+) -> dict[str, list[dict[str, Any]]]:
+    """Phase 15.1 — map credit bucket requirementGroupId -> its pool documents.
+
+    Multiple pools (e.g. several elective focus chains, plus a catch-all
+    "additional electives" pool) commonly link to the same credit bucket --
+    a course only needs to satisfy one of them, so all must be kept, not just
+    the last one seen for a given bucket.
+    """
+    indexed: dict[str, list[dict[str, Any]]] = {}
     for document in pool_documents:
         linked_bucket_id = document.get("linkedCreditBucketId")
         if linked_bucket_id:
-            indexed[str(linked_bucket_id)] = document
+            indexed.setdefault(str(linked_bucket_id), []).append(document)
     return indexed
 
 
@@ -100,26 +106,30 @@ def credit_bucket_id_for_pool(
     return None
 
 
-def resolve_pool_for_bucket(
+def resolve_pools_for_bucket(
     *,
     program_code: str,
     bucket_suffix: str,
     pools_by_group_id: dict[str, dict[str, Any]],
-    pools_by_linked_bucket: dict[str, dict[str, Any]],
-) -> tuple[dict[str, Any] | None, str | None, bool]:
-    """Return (pool_document, linked_pool_group_id, strict_pool_enforcement).
+    pools_by_linked_bucket: dict[str, list[dict[str, Any]]],
+) -> tuple[list[dict[str, Any]], str | None, bool]:
+    """Return (pool_documents, primary_pool_group_id, strict_pool_enforcement).
 
-    Phase 15.1 explicit linkedCreditBucketId takes precedence over Phase 15.0
-    naming-convention links.
+    A credit bucket can be satisfied by any one of several linked pools (e.g.
+    multiple elective focus chains sharing one "faculty elective" bucket), so
+    all of them are returned, not just one. Phase 15.1 explicit
+    linkedCreditBucketId takes precedence over Phase 15.0 naming-convention
+    links. `primary_pool_group_id` is kept for display/debugging only -- use
+    the full list for eligibility checks.
     """
     bucket_group = bucket_group_id(program_code, bucket_suffix)
 
-    explicit_pool = pools_by_linked_bucket.get(bucket_group)
-    if explicit_pool is not None:
-        pool_group = explicit_pool.get("requirementGroupId")
+    explicit_pools = pools_by_linked_bucket.get(bucket_group)
+    if explicit_pools:
+        primary_group = explicit_pools[0].get("requirementGroupId")
         return (
-            explicit_pool,
-            str(pool_group) if pool_group is not None else None,
+            explicit_pools,
+            str(primary_group) if primary_group is not None else None,
             True,
         )
 
@@ -127,6 +137,6 @@ def resolve_pool_for_bucket(
     if conventional_group:
         conventional_pool = pools_by_group_id.get(conventional_group)
         if conventional_pool and bucket_suffix in ENFORCED_BUCKET_POOL_SUFFIXES:
-            return conventional_pool, conventional_group, True
+            return [conventional_pool], conventional_group, True
 
-    return None, conventional_group, False
+    return [], conventional_group, False

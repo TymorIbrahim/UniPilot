@@ -15,6 +15,7 @@ from app.planning.semester_planner import (
 from app.services.graduation_progress_calculator import round_credits
 from tests.fixtures.semester_planner_extended_fixtures import (
     ELECTIVE_E,
+    PROGRAM_CODE,
     S1_COURSE_A,
     S1_COURSE_B,
     S2_COURSE_C,
@@ -334,8 +335,15 @@ def test_matrix_semester_sorting_with_missing_semester_field():
 
 def test_fallback_when_no_semester_matrix_uses_graduation_remaining():
     context = build_matrix_planner_context()
-    context["graduationProgress"]["remainingMandatoryCourses"] = [
-        {"courseId": S1_COURSE_A, "courseNumber": "00940345", "courseTitle": "Discrete Math"},
+    remaining_course = {"courseId": S1_COURSE_A, "courseNumber": "00940345", "courseTitle": "Discrete Math"}
+    context["graduationProgress"]["remainingMandatoryCourses"] = [remaining_course]
+    context["graduationProgress"]["requirementProgress"] = [
+        {
+            "requirementGroupId": f"{PROGRAM_CODE}:core-mandatory",
+            "requirementType": "core",
+            "isMandatory": True,
+            "remainingCourses": [remaining_course],
+        },
     ]
     pools = build_candidate_pools(
         catalog_courses=context["catalogCourses"],
@@ -345,3 +353,28 @@ def test_fallback_when_no_semester_matrix_uses_graduation_remaining():
     )
     assert len(pools["mandatoryCandidates"]) == 1
     assert pools["mandatoryCandidates"][0]["number"] == "00940345"
+
+
+def test_fallback_excludes_remaining_courses_from_mandatory_credit_elective_buckets():
+    """A bucket can be `isMandatory` (required credits) while `requirementType`
+    is "elective" (student's choice which courses) -- its remaining options
+    must not be recommended as fixed "mandatory" courses; they're already
+    surfaced as elective candidates."""
+    context = build_matrix_planner_context()
+    elective_remaining = {"courseId": ELECTIVE_E, "courseNumber": "00940411", "courseTitle": "DS Intro"}
+    context["graduationProgress"]["remainingMandatoryCourses"] = [elective_remaining]
+    context["graduationProgress"]["requirementProgress"] = [
+        {
+            "requirementGroupId": f"{PROGRAM_CODE}:elective-ds",
+            "requirementType": "elective",
+            "isMandatory": True,
+            "remainingCourses": [elective_remaining],
+        },
+    ]
+    pools = build_candidate_pools(
+        catalog_courses=context["catalogCourses"],
+        graduation_progress=context["graduationProgress"],
+        semester_matrix_documents=[],
+        completed_course_ids=set(),
+    )
+    assert pools["mandatoryCandidates"] == []
