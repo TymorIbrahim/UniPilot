@@ -1,6 +1,6 @@
 # UniPilot AI — Project Context (Source of Truth)
 
-Last updated: 2026-06-27
+Last updated: 2026-07-03
 Use it before starting major coding, architecture updates, or roadmap decisions.
 
 If this file and another doc conflict:
@@ -41,10 +41,11 @@ Mandatory constraints:
 
 ## 3) Current Architecture (As Implemented)
 
-Current stage: **auth (incl. Google OAuth + remember-me) + student profile + catalog + completed courses + graduation progress + deterministic semester planner + deterministic academic risk analyzer + transcript UI** implemented.
+Current stage: **auth (incl. Google OAuth + remember-me) + student profile + catalog + completed courses + graduation progress (cross-track equivalence, elective pool explorer) + deterministic semester planner + deterministic academic risk analyzer + transcript UI + transcript PDF import (parse + commit)** implemented.
 
 Architecture pattern:
-- `api` receives client requests and exposes `/health`, auth routes (register, login, refresh, logout, Google OAuth, remember-me cookies), protected `/student-profile` CRUD, protected `/completed-courses` CRUD, protected `/graduation-progress`, protected `/semester-plans` generate/history routes, protected `/academic-risks` analyze/history routes, and read-only catalog routes (`/catalog/*`).
+- `api` receives client requests and exposes `/health`, auth routes (register, login, refresh, logout, Google OAuth, remember-me cookies), protected `/student-profile` CRUD, protected `/completed-courses` CRUD, protected `/graduation-progress`, protected `/semester-plans` generate/history routes, protected `/academic-risks` analyze/history routes, protected `/transcript-import/parse` + `/transcript-import/commit`, and read-only catalog routes (`/catalog/*`).
+- `transcript-parser` is an internal FastAPI service for official transcript PDF extraction (called by `api` only). It targets Technion **summary** transcripts (one row per course, latest grade only); full multi-attempt PDFs are not supported yet.
 - `worker` and `ai` are internal services for async pipeline foundation.
 - `redis` is queue/rate-limit infrastructure foundation.
 - `mongo` is persistent data store (named volume).
@@ -66,6 +67,20 @@ The **Node.js / Express** reference backend has been **removed**. **`services/ap
 | Historical plan | `docs/planning/PYTHON_BACKEND_MIGRATION_PLAN.md` (archived reference) |
 
 **Do not** reintroduce a second API container or expose internal services to the host.
+
+### UniPilot Agent (current)
+
+The agent is the V2 loop in `services/ai` (`app/agent_core/loop/`), reached from the web `/advisor` page via `api`'s `/advisor/ask`. Design: [`docs/agent/AGENT_ARCHITECTURE_V2.md`](agent/AGENT_ARCHITECTURE_V2.md).
+
+| Item | Status |
+|---|---|
+| `POST/GET /agent/conversations` | Done |
+| `POST /agent/conversations/{id}/messages` (JSON + SSE) | Done |
+| Orchestrator, intent router, task planner, entity resolver | Done |
+| Context builder, retrieval layer, wiki RAG | Done |
+| Graduation / course / transcript / semester / requirement workflows | Done |
+| LLM explanation, intent fallback, preference extraction | Done (optional via env flags) |
+| Legacy MAS (`services/mas`, `/agent/sessions`) | **Removed** |
 
 ### Python Phase 2 status (implemented)
 
@@ -573,7 +588,7 @@ Canonical roadmaps:
 
 **FastAPI is the sole client-facing API** (Docker service `api`, container port 8000). MongoDB database: `MONGO_DB` (default `unipilot_python`).
 
-Implemented: auth (JWT + Google OAuth + remember-me), profile, catalog (`/catalog/*`), completed courses, graduation progress, semester plans (generate + manual + auto-pick preview + weekly schedule + versioning), academic risk analyzer, transcript UI (i18n, paginated list, progress link). API version **1.0.0**. pytest: **1391** tests (unit, integration, security, stress). Web Vitest: **242**. Playwright E2E: **18** (runs in CI).
+Implemented: auth (JWT + Google OAuth + remember-me), profile, catalog (`/catalog/*`), completed courses, graduation progress (cross-track equivalence, curriculum graph, elective pool explorer UI), semester plans (generate + manual + auto-pick preview + weekly schedule + versioning), academic risk analyzer, transcript UI + PDF import (parse preview + commit). API version **1.0.0**. pytest: **~1510** API tests + **~70** transcript-parser tests (unit, integration, security, stress). Web Vitest: **310**. Playwright E2E: full suite in CI (includes `@progress`, `@transcript-progress`, and other projects).
 
 ### Still pending
 
@@ -584,7 +599,7 @@ Implemented: auth (JWT + Google OAuth + remember-me), profile, catalog (`/catalo
 
 ## 10) What Has Already Been Implemented
 
-- Multi-service Docker Compose stack (`api`, `data-engineering`, `mongo`, `redis`, `worker`, `ai`).
+- Multi-service Docker Compose stack (`api`, `web`, `transcript-parser`, `data-engineering`, `mongo`, `redis`, `worker`, `ai`).
 - Healthchecks and startup ordering for core dependencies.
 - MongoDB named volume persistence (`mongo_data`).
 - Host exposure for `api` (FastAPI) only; all other services internal-only.

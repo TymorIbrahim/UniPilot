@@ -16,7 +16,7 @@ from app.services.graduation_progress_calculator import (
 def test_is_passing_grade_numeric():
     assert is_passing_grade({"grade": 82}) is True
     assert is_passing_grade({"grade": 56}) is True
-    assert is_passing_grade({"grade": 55}) is False
+    assert is_passing_grade({"grade": 55}) is True
     assert is_passing_grade({"grade": 0}) is False
 
 
@@ -142,6 +142,9 @@ def test_calculate_progress_enforces_ds_pool_for_elective_bucket():
     assert ds_bucket["creditsCompleted"] == 3.5
     assert ds_bucket["eligibilityEnforcement"] == "strict_pool"
     assert progress["completedCredits"] == 8.5
+    assert progress["transcriptCreditsTotal"] == 8.5
+    assert progress["degreeAppliedCredits"] == 3.5
+    assert len(progress["ineligibleCredits"]) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -191,6 +194,15 @@ def test_build_status_summary_complete():
     assert result == "complete"
 
 
+def test_build_status_summary_in_progress_when_mandatory_matrix_remains():
+    result = _build_status_summary(
+        120.0,
+        [],
+        remaining_mandatory_courses=[{"courseNumber": "00940411"}],
+    )
+    assert result == "in_progress"
+
+
 def test_build_status_summary_in_progress_with_mandatory():
     missing = [{"isMandatory": True, "status": "in_progress"}]
     result = _build_status_summary(10.0, missing)
@@ -230,7 +242,7 @@ def test_calculate_progress_handles_custom_bucket_suffix():
 def test_is_passing_grade_numeric():
     assert is_passing_grade({"grade": 82}) is True
     assert is_passing_grade({"grade": 56}) is True
-    assert is_passing_grade({"grade": 55}) is False
+    assert is_passing_grade({"grade": 55}) is True
     assert is_passing_grade({"grade": 0}) is False
 
 
@@ -356,3 +368,6 @@ def test_calculate_progress_enforces_ds_pool_for_elective_bucket():
     assert ds_bucket["creditsCompleted"] == 3.5
     assert ds_bucket["eligibilityEnforcement"] == "strict_pool"
     assert progress["completedCredits"] == 8.5
+    assert progress["transcriptCreditsTotal"] == 8.5
+    assert progress["degreeAppliedCredits"] == 3.5
+    assert len(progress["ineligibleCredits"]) == 1

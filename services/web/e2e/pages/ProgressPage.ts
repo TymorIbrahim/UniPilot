@@ -7,9 +7,16 @@ export class ProgressPage extends BasePage {
   readonly recommendCoursesButton = this.page.getByTestId('recommend-courses-button')
   readonly recommendCoursesStatus = this.page.getByTestId('recommend-courses-status')
   readonly recommendCoursesNarrative = this.page.getByTestId('recommend-courses-narrative')
+  readonly attentionPanel = this.page.getByTestId('progress-attention-panel')
+  readonly attentionLink = this.page.getByTestId('progress-summary-attention-link')
 
   async gotoProgress() {
     await this.goto('/progress')
+    await expect(this.summaryCard).toBeVisible({ timeout: 20_000 })
+  }
+
+  async gotoProgressWithPool(poolId: string) {
+    await this.goto(`/progress?pool=${encodeURIComponent(poolId)}`)
     await expect(this.summaryCard).toBeVisible({ timeout: 20_000 })
   }
 

@@ -16,12 +16,17 @@ Simulation and real (non-deterministic, model-backed) AI recommendation features
 | Service | Role | Host port |
 |---------|------|-----------|
 | `web` | React SPA — **primary UI** (proxies `/api` to backend) | `WEB_PORT` (default **3000**) |
-| `api` | FastAPI REST API | `API_PORT` (default **8000**) |
+| `api` | FastAPI REST API — the only backend clients ever talk to | `API_PORT` (default **8000**) |
+| `transcript-parser` | Internal Technion transcript PDF extraction | none |
 | `data-engineering` | Internal staging / promotion CLI | none |
 | `worker` | Internal async job consumer (Redis-queued) | none |
 | `ai` | Internal deterministic AI compute service | none |
+| `worker` | Internal async job stub | none |
+| `ai` | Internal academic advisor — the V2 agent loop behind `/advisor/ask` (grounded reasoning over the catalog/wiki with certainty tagging) | none |
 | `mongo` | Persistence (`mongo_data` volume) | none |
 | `redis` | Rate limits / future queue | none |
+
+The `ai` service has its own direct read-only MongoDB access for catalog/student data and reaches back into `api` for computation that stays there (`/internal/*`). It never performs the actual write for a proposed action (save a plan, commit a transcript import) — those stay in `api`'s existing confirm/reject flow. See [`docs/agent/AGENT_ARCHITECTURE_V2.md`](docs/agent/AGENT_ARCHITECTURE_V2.md) for the agent loop's design.
 
 Open the app at [http://localhost:3000](http://localhost:3000) after `docker compose up --build`. The web container proxies API calls to the internal `api` service.
 
@@ -86,6 +91,44 @@ pytest tests/integration
 pytest tests/security
 pytest tests/stress
 ```
+
+Transcript parser service (internal; 100% coverage gate):
+
+```bash
+cd services/transcript-parser
+pip install -r requirements-dev.txt
+pytest
+```
+
+Outlook Mail MCP service (internal read-only MCP; delegated Microsoft Graph):
+
+```bash
+cd services/outlook-mcp
+pip install -r requirements-dev.txt
+pytest
+```
+
+See [services/outlook-mcp/README.md](services/outlook-mcp/README.md) for OAuth setup and MCP tool usage.
+
+AI service (internal; the V2 agent loop, retrieval, tool primitives):
+
+```bash
+cd services/ai
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest            # live LLM tests are deselected by default (-m "not live")
+```
+
+### Full-stack verification (local)
+
+Runs API pytest, transcript-parser pytest, web build, Vitest (file-by-file), and optional Docker health / Playwright checks with a single progress bar:
+
+```bash
+python3 scripts/extensive_verification.py --no-cov --skip-e2e --skip-docker
+python3 scripts/extensive_verification.py --no-cov --skip-docker   # includes Playwright @progress
+```
+
+Writes `scripts/verification_report.json` (gitignored). Use `--smoke-only` for progress-focused API tests only.
 
 ### Docker E2E verification + benchmarks
 
@@ -160,12 +203,14 @@ The web UI defaults to **Hebrew** (RTL) with an in-app language switcher (Hebrew
 | Profile | `POST/GET/PUT/DELETE /student-profile` |
 | Catalog | `GET /catalog/courses`, `GET /catalog/degree-programs/{code}/...` |
 | Transcript | `POST/GET/PUT/DELETE /completed-courses` |
+| Transcript import | `POST /transcript-import/parse` (PDF preview), `POST /transcript-import/commit` (persist selected rows) |
 | Progress | `GET /graduation-progress`, `GET /graduation-progress/curriculum-graph` |
 | Plans | `POST /semester-plans/generate`, `POST /semester-plans/suggest-courses`, `POST /semester-plans/suggest-schedule`, `POST/PUT/DELETE /semester-plans`, `POST /semester-plans/:id/versions` |
 | Risks | `POST /academic-risks/analyze`, `GET /academic-risks`, `GET /academic-risks/:id` |
 | AI Jobs | `POST /ai-jobs` (async, deterministic compute — `jobType: academic_risk_narrative \| course_recommendation_narrative`), `GET /ai-jobs`, `GET /ai-jobs/:id` |
+| Advisor | `POST /advisor/ask`, `POST /advisor/ask/stream` (SSE) — forwarded to the `ai` service's agent loop |
 
-Full contract: `docs/API_SPEC.md`. API version **1.0.0**.
+Full contract: `docs/API_SPEC.md`. API version **1.0.0**. Agent design: `docs/agent/AGENT_ARCHITECTURE_V2.md`.
 
 ### Quick start flow
 
@@ -179,6 +224,13 @@ Two UI entry points into the async `/ai-jobs` pipeline, both poll until the job 
 - **Progress page** — click **"Recommend courses"** to enqueue a `course_recommendation_narrative` job; it reuses the deterministic planner's own eligibility logic to suggest up to 5 takeable mandatory and 5 elective courses, with a narrative explanation and count badges.
 
 Both job types are deterministic today (no real model call yet — see `docs/reports/RISK_ASSESSMENT.md` for the AI-risk register).
+### Transcript import and progress
+
+Technion publishes **two** official PDF transcript types. UniPilot currently imports the **summary** variant: **one row per course** with the grade from the **last** time you took it. Earlier fails or retakes are **not** on that PDF. If you need full attempt history in UniPilot, add retakes manually on the transcript page (or wait for full-transcript import support).
+
+Summary PDF totals (accumulated credits and GPA) match the **Transcript** and **Progress** headline numbers. Requirement buckets on Progress may still assign fewer credits when pool or overlap rules apply (`degreeAppliedCredits`).
+
+Re-upload after parser fixes so pass/exemption metadata is stored. Duplicate rows (same course, semester, and grade) are skipped on commit.
 
 ### Manual semester planner
 
@@ -230,6 +282,17 @@ python3 scripts/verify_promoted_faculty_curriculum.py --faculty-id faculty-civil
 
 See `services/data-engineering/README.md` and `docs/data-sources/TECHNION_DDS_SOURCE_MAPPING.md`.
 
+## Outlook Mail integration (optional)
+
+Read-only Outlook / Microsoft 365 mail access for the autonomous agent via a controlled MCP server:
+
+1. Set `MICROSOFT_CLIENT_ID` and `MICROSOFT_TOKEN_ENCRYPTION_KEY` in `.env` (see `.env.example`).
+2. Register redirect URI `${WEB_APP_URL}/api/integrations/outlook/callback` in Azure App Registration.
+3. Connect account: `GET /api/integrations/outlook/connect` (JWT required).
+4. Agent calls MCP tools from `services/outlook-mcp` (stdio) with `userId` + `INTERNAL_SERVICE_TOKEN`.
+
+Details: [services/outlook-mcp/README.md](services/outlook-mcp/README.md).
+
 ## Security & ops notes
 
 - `web` and `api` publish host ports; all other services stay internal.
@@ -238,6 +301,8 @@ See `services/data-engineering/README.md` and `docs/data-sources/TECHNION_DDS_SO
 - Progress rate limit: `PROGRESS_RATE_LIMIT_MAX` (default **60**/min) on `GET /graduation-progress` and `/graduation-progress/curriculum-graph`.
 - AI job rate limit: `JOB_RATE_LIMIT_MAX` (default **10**/min) on `POST /ai-jobs`, independent of the deterministic risk analyzer's own `AI_RATE_LIMIT_MAX`.
 - Auth, progress, and AI job rate limiting via Redis.
+- Transcript import rate limit: `TRANSCRIPT_IMPORT_RATE_LIMIT_MAX` (default **10**/min) on `/transcript-import/*`.
+- Auth, progress, and transcript-import rate limiting via Redis.
 - Replace dev secrets in `.env` before non-local deployment.
 - Worker consumes the `ai_jobs` Redis queue and calls the internal `ai` service; `ai` runs deterministic compute today (no real model call yet).
 

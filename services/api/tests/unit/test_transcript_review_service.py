@@ -23,6 +23,9 @@ def test_existing_signatures_skips_records_missing_course_id_or_semester():
     assert _existing_signatures([{"courseId": "abc", "semesterCode": "", "grade": 90}]) == set()
 
 
+from app.services.transcript_review_service import build_transcript_review, review_rows_for_commit
+
+
 @pytest.mark.asyncio
 async def test_build_transcript_review_marks_duplicate(mongo_database):
     course = await seed_production_course_fixture(mongo_database)

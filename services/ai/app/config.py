@@ -1,0 +1,293 @@
+"""AI service configuration."""
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_APP_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _resolve_repo_root() -> Path:
+    """Repo root on host (UniPilot/); in Docker fall back to the app root (/app).
+
+    Ported from `services/api/app/config.py`'s identical fix -- pydantic-
+    settings' `env_file` is resolved relative to cwd, which silently misses
+    the real root `.env` (and falls back to wrong defaults) whenever this
+    service is run from a cwd other than its own package root, e.g. `pytest`
+    invoked from `services/ai/`.
+    """
+    config_path = Path(__file__).resolve()
+    for parent in config_path.parents:
+        if (parent / "docker-compose.yml").is_file():
+            return parent
+    return _APP_ROOT
+
+
+_REPO_ROOT = _resolve_repo_root()
+
+_MINIMUM_PRODUCTION_TOKEN_LENGTH = 32
+"""Matches `api`'s rule for the same secret, and `.env.example`'s description of it."""
+
+# Real, checked-out academic data lives in the sibling data-engineering
+# service, not under services/ai itself -- used as a local-dev fallback
+# below. Found necessary the hard way: every
+# live-eval run this session (executed directly via pytest, not through
+# Docker) silently had zero working academic_wiki_path/academic_technion_
+# raw_dir data, since those two Settings fields default to Docker-only
+# /app/... paths with no such fallback -- meaning every course/wiki lookup
+# failed with academic_graph_unavailable the entire time, not because the
+# referenced course/track genuinely couldn't be found.
+_LOCAL_ACADEMIC_WIKI_PATH = _REPO_ROOT / "services" / "data-engineering" / "data" / "catalog_valut" / "catalog_valut" / "wiki"
+_LOCAL_ACADEMIC_TECHNION_RAW_DIR = _REPO_ROOT / "services" / "data-engineering" / "data" / "raw" / "technion"
+
+
+def _settings_env_files() -> tuple[str, ...]:
+    paths: list[str] = []
+    for candidate in (_REPO_ROOT / ".env", _APP_ROOT / ".env", Path.cwd() / ".env"):
+        if candidate.is_file():
+            resolved = str(candidate.resolve())
+            if resolved not in paths:
+                paths.append(resolved)
+    return tuple(paths) if paths else (".env",)
+
+
+class Settings(BaseSettings):
+    service_name: str = "ai"
+    environment: str = "development"
+    ai_service_port: int = 3001
+    internal_service_token: str | None = None
+
+    academic_wiki_path: str = "/app/data/academic/wiki"
+    academic_technion_raw_dir: str = "/app/data/raw/technion"
+    academic_default_semester_file: str = "courses_2025_201.json"
+    academic_catalog_json: str = "/app/data/raw/technion/courses_2025_201.json"
+
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    openai_chat_model: str = "gpt-5-mini"
+    advisor_max_retrieval_iterations: int = 5
+    # Ceiling on real LLM calls per turn (BudgetedLLMAdapter) -- see
+    # app/agent_core/reasoning/reasoning_budget.py for why this exists.
+    agent_reasoning_call_budget_per_turn: int = 80
+    # Despite the name (kept because AGENT_TURN_TIMEOUT_SECONDS is already
+    # deployed in the root .env), this is a WHOLE-REQUEST ceiling: routes/advise.py
+    # wraps the entire run_agent_loop call in asyncio.wait_for with it. It exists
+    # because a hung provider call has no ceiling of its own (ReasoningBlock's
+    # complete_json passes no timeout), and could block a worker indefinitely.
+    #
+    # INVARIANT: must stay ABOVE the loop's own WALL_CLOCK_S. The loop's budget is
+    # the graceful path -- it degrades into a grounded partial answer. This ceiling
+    # only drops the request for the canned timeout string. Ordering across the
+    # whole ladder: WALL_CLOCK_S (240) < this (290) < ai_advisor client (300)
+    # == nginx proxy_read_timeout (300).
+    #
+    # This sat at 180 while WALL_CLOCK_S was raised 150 -> 240, inverting the two:
+    # the backstop began firing on healthy runs. The 2026-07-18/19 planning eval
+    # composed real grounded answers at 183.6s and 192.8s that this would have
+    # thrown away. test_advise_timeout_ceiling_stays_above_loop_wall_clock pins the
+    # ordering so raising WALL_CLOCK_S again fails a test instead of silently
+    # discarding answers.
+    agent_turn_timeout_seconds: int = 290
+
+    # -- Retrieval port (services/agent/app/retrieval) additions below --
+
+    mongo_uri: str | None = None
+    completed_courses_collection: str = "completed_courses"
+    courses_collection: str = "courses"
+    semester_plans_collection: str = "semester_plans"
+
+    api_service_url: str | None = None
+    internal_api_timeout_seconds: int = 60
+
+    agent_wiki_retrieval_limit: int = 5
+
+    embedding_api_key: str | None = None
+    embedding_base_url: str | None = None
+    embedding_model: str | None = None
+    embedding_enabled: bool = True
+    embedding_index_enabled: bool = True
+    embedding_index_batch_size: int = 64
+
+    # Wiki chunk vectors live in Pinecone, not on disk. The previous on-disk
+    # index was a 47MB artifact under /app/data/cache with no compose volume
+    # backing it, so every container rebuild wiped it and forced a full
+    # re-embed of ~12.5k chunks on next boot.
+    pinecone_api_key: str | None = None
+    pinecone_index_name: str = "unipilot-wiki"
+    pinecone_namespace: str = ""
+    pinecone_cloud: str = "aws"
+    pinecone_region: str = "us-east-1"
+    # `text-embedding-3-small` is 1536-dim; must match resolved_embedding_model().
+    pinecone_dimension: int = 1536
+    # Every SDK call is bounded, per this codebase's history of unbounded
+    # embedding calls outliving their caller's own asyncio timeout (see
+    # embedding_service._EMBEDDING_TIMEOUT_SECONDS).
+    pinecone_timeout_seconds: float = 10.0
+
+    # -- agent_core reasoning port (services/agent/app/agent/reasoning) additions below --
+
+    agent_reasoning_structured_output_enabled: bool = False
+    agent_reasoning_adaptive_iterations_enabled: bool = False
+    agent_reasoning_adaptive_confidence_threshold: float = 0.75
+    agent_llm_thinking_enabled: bool = True
+    agent_llm_reasoning_effort: str | None = None
+    # Which provider's wire format `llm_client._cached_chat_llm` should
+    # translate abstract reasoning-control params (thinking_enabled/
+    # reasoning_effort) into -- the ONE setting that needs to change, along
+    # with openai_api_key/openai_base_url/openai_chat_model above, when the
+    # foundation model is swapped. Defaults to "deepseek" to match the
+    # provider actually configured today; no other file needs editing for a
+    # provider swap unless the new provider's mechanism is genuinely novel.
+    agent_llm_provider: Literal["deepseek", "openai"] = "deepseek"
+
+    model_config = SettingsConfigDict(
+        env_file=_settings_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    def resolved_internal_service_token(self) -> str:
+        return (self.internal_service_token or "").strip()
+
+    def validate_production_settings(self) -> None:
+        """Refuse to run a production service with no boundary in front of it.
+
+        `/advise` takes a `user_id` and answers with that student's transcript,
+        GPA, plans and remaining curriculum. It never authenticates the student --
+        `api` does that, then calls here on their behalf. The internal token is
+        therefore the entire boundary, and `require_internal_service_token`
+        returns early when none is configured.
+
+        That early return is right for a developer running this alone and wrong
+        in production, where the way it happens is an env var that quietly fails
+        to arrive: nothing errors, nothing looks different, and every student
+        record is readable by anything that can reach the port and guess an id.
+
+        The rule is deliberately the same one `api` already applies to this exact
+        secret -- at least 32 characters in production -- because the asymmetry
+        was the odd part: the CALLER refused to start without a strong token
+        while the CALLEE it protects would start without any token at all.
+        `.env.example` has described it as "Required (32+ chars) when
+        ENVIRONMENT=production" the whole time; this is the half that enforces it.
+        """
+        if self.environment != "production":
+            return
+        token = self.resolved_internal_service_token()
+        if not token:
+            raise RuntimeError(
+                "INTERNAL_SERVICE_TOKEN is required in production: without it "
+                "/advise answers for any user_id with no authentication at all."
+            )
+        if len(token) < _MINIMUM_PRODUCTION_TOKEN_LENGTH:
+            raise RuntimeError(
+                "INTERNAL_SERVICE_TOKEN must be at least "
+                f"{_MINIMUM_PRODUCTION_TOKEN_LENGTH} characters in production."
+            )
+
+    def resolved_academic_wiki_path(self) -> str:
+        configured = (self.academic_wiki_path or "").strip()
+        if configured and not Path(configured).exists() and _LOCAL_ACADEMIC_WIKI_PATH.is_dir():
+            return str(_LOCAL_ACADEMIC_WIKI_PATH)
+        return configured
+
+    def resolved_technion_raw_dir(self) -> str:
+        raw = (self.academic_technion_raw_dir or "").strip()
+        if raw and not Path(raw).exists() and _LOCAL_ACADEMIC_TECHNION_RAW_DIR.is_dir():
+            return str(_LOCAL_ACADEMIC_TECHNION_RAW_DIR)
+        if raw:
+            return raw
+        catalog = Path(self.academic_catalog_json)
+        if catalog.is_file():
+            return str(catalog.parent)
+        return raw
+
+    def resolved_default_semester_file(self) -> str | None:
+        explicit = (self.academic_default_semester_file or "").strip()
+        if explicit:
+            return explicit
+        catalog = Path(self.academic_catalog_json)
+        if catalog.is_file():
+            return catalog.name
+        return None
+
+    def is_graph_configured(self) -> bool:
+        wiki = (self.academic_wiki_path or "").strip()
+        raw = self.resolved_technion_raw_dir()
+        return bool(wiki and raw)
+
+    def resolved_api_service_url(self) -> str:
+        configured = (self.api_service_url or "").strip()
+        if configured:
+            return configured.rstrip("/")
+        return "http://api:8000"
+
+    def resolved_embedding_api_key(self) -> str:
+        return (self.embedding_api_key or "").strip()
+
+    def resolved_embedding_base_url(self) -> str:
+        configured = (self.embedding_base_url or "").strip()
+        if configured:
+            return configured.rstrip("/")
+        return "https://api.llmod.ai/v1"
+
+    def resolved_embedding_model(self) -> str:
+        configured = (self.embedding_model or "").strip()
+        if configured:
+            return configured
+        return "MB5R2CF-azure/text-embedding-3-small"
+
+    def embeddings_available(self) -> bool:
+        return bool(self.embedding_enabled and self.resolved_embedding_api_key())
+
+    def resolved_pinecone_api_key(self) -> str:
+        return (self.pinecone_api_key or "").strip()
+
+    def resolved_pinecone_index_name(self) -> str:
+        return (self.pinecone_index_name or "").strip() or "unipilot-wiki"
+
+    def resolved_pinecone_namespace(self) -> str:
+        """Namespace isolating one wiki corpus inside the index ('' is Pinecone's default)."""
+        return (self.pinecone_namespace or "").strip()
+
+    def pinecone_available(self) -> bool:
+        return bool(self.resolved_pinecone_api_key() and self.resolved_pinecone_index_name())
+
+    def wiki_vector_index_enabled(self) -> bool:
+        """Semantic search needs BOTH halves: embed the query, then search Pinecone.
+
+        Either half missing degrades retrieval to BM25-only rather than
+        failing the request -- the same graceful path that already ran
+        whenever EMBEDDING_API_KEY was unset.
+        """
+        return bool(
+            self.embedding_index_enabled
+            and self.embeddings_available()
+            and self.pinecone_available()
+        )
+
+    def is_agent_reasoning_structured_output_enabled(self) -> bool:
+        return bool(self.agent_reasoning_structured_output_enabled)
+
+    def is_agent_reasoning_adaptive_iterations_enabled(self) -> bool:
+        return bool(self.agent_reasoning_adaptive_iterations_enabled)
+
+    def resolved_agent_reasoning_adaptive_confidence_threshold(self) -> float:
+        value = float(self.agent_reasoning_adaptive_confidence_threshold)
+        return max(0.0, min(1.0, value))
+
+    def is_agent_llm_thinking_enabled(self) -> bool:
+        return bool(self.agent_llm_thinking_enabled)
+
+    def resolved_agent_llm_reasoning_effort(self) -> str | None:
+        value = (self.agent_llm_reasoning_effort or "").strip()
+        return value or None
+
+    def resolved_agent_llm_provider(self) -> str:
+        return self.agent_llm_provider
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

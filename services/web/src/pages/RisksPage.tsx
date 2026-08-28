@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { plansApi, risksApi } from '../api/endpoints'
-import { ExplainRiskAnalysisButton } from '../components/risks/ExplainRiskAnalysisButton'
 import { Button } from '../components/ui/Button'
 import { Badge, Card, EmptyState, PageHeader, Spinner } from '../components/ui/Card'
 
@@ -93,7 +92,6 @@ export function RisksPage() {
           )}
 
           <div className="mt-4">
-            <ExplainRiskAnalysisButton analysisId={latest.id} />
           </div>
         </Card>
       ) : null}

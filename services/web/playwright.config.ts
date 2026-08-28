@@ -62,7 +62,7 @@ export default defineConfig({
     },
     {
       name: 'progress',
-      testMatch: /progress\.spec\.ts/,
+      testMatch: /progress(-polish)?\.spec\.ts/,
       testIgnore: /transcript-progress/,
       use: { ...devices['Desktop Chrome'] },
     },
@@ -94,7 +94,12 @@ export default defineConfig({
     {
       name: 'accessibility',
       testMatch: /accessibility\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'] },
+      // Fewer animations to outlast, and it exercises the reduced-motion path.
+      // This is NOT what keeps the contrast scan honest -- `motion` animates in
+      // JavaScript and ignores the preference, so this alone still left the scan
+      // failing on blended colours. `waitForAnimationsToSettle` in
+      // `e2e/helpers/a11y.ts` is the part that matters; see the note there.
+      use: { ...devices['Desktop Chrome'], reducedMotion: 'reduce' },
     },
   ],
 })

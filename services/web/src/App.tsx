@@ -15,7 +15,9 @@ import { PlansPage } from './pages/PlansPage'
 import { PlanDetailPage } from './pages/PlanDetailPage'
 import { PlanBuilderPage } from './pages/PlanBuilderPage'
 import { RisksPage } from './pages/RisksPage'
+import { AdvisorPage } from './pages/AdvisorPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { IntegrationsPage } from './pages/IntegrationsPage'
 import { SharedPlanPage } from './pages/SharedPlanPage'
 import { ProtectedRoute, PublicOnlyRoute, ProfileGuard } from './routes/Guards'
 
@@ -58,7 +60,9 @@ export default function App() {
                     <Route path="plans/:id/edit" element={<PlanBuilderPage />} />
                     <Route path="plans/:id" element={<PlanDetailPage />} />
                     <Route path="risks" element={<RisksPage />} />
+                    <Route path="advisor" element={<AdvisorPage />} />
                     <Route path="profile" element={<ProfilePage />} />
+                    <Route path="settings/integrations" element={<IntegrationsPage />} />
                   </Route>
                 </Route>
               </Route>

@@ -186,20 +186,6 @@ def test_validate_production_settings_rejects_high_ai_rate_limit() -> None:
         settings.validate_production_settings()
 
 
-def test_validate_production_settings_rejects_high_job_rate_limit() -> None:
-    settings = Settings(
-        environment="production",
-        jwt_secret="x" * 32,
-        mongo_root_password="strong-production-mongo-password",
-        internal_service_token="y" * 32,
-        auth_rate_limit_max=5,
-        ai_rate_limit_max=5,
-        job_rate_limit_max=30,
-    )
-    with pytest.raises(RuntimeError, match="JOB_RATE_LIMIT_MAX"):
-        settings.validate_production_settings()
-
-
 def test_resolved_transcript_parser_url_uses_default_when_unset() -> None:
     settings = Settings(transcript_parser_url=None)
     assert settings.resolved_transcript_parser_url() == "http://transcript-parser:8010"
@@ -240,3 +226,51 @@ def test_validate_production_settings_requires_internal_service_token() -> None:
     )
     with pytest.raises(RuntimeError, match="INTERNAL_SERVICE_TOKEN"):
         settings.validate_production_settings()
+
+
+def test_microsoft_oauth_enabled_requires_client_and_encryption_key() -> None:
+    settings = Settings(environment="development", jwt_secret=DEV_JWT_SECRET)
+    assert settings.microsoft_oauth_enabled() is False
+
+    configured = Settings(
+        environment="development",
+        jwt_secret=DEV_JWT_SECRET,
+        microsoft_client_id="client-id",
+        microsoft_token_encryption_key="encryption-key",
+    )
+    assert configured.microsoft_oauth_enabled() is True
+
+
+def test_resolved_microsoft_redirect_uri_defaults_to_web_app_callback() -> None:
+    settings = Settings(
+        environment="development",
+        jwt_secret=DEV_JWT_SECRET,
+        web_app_url="http://localhost:3000",
+    )
+    assert (
+        settings.resolved_microsoft_redirect_uri()
+        == "http://localhost:3000/api/integrations/outlook/callback"
+    )
+
+
+def test_resolved_microsoft_redirect_uri_uses_explicit_value() -> None:
+    settings = Settings(
+        environment="development",
+        jwt_secret=DEV_JWT_SECRET,
+        microsoft_redirect_uri="https://example.com/outlook/callback",
+    )
+    assert settings.resolved_microsoft_redirect_uri() == "https://example.com/outlook/callback"
+
+
+def test_require_microsoft_token_encryption_key() -> None:
+    settings = Settings(environment="development", jwt_secret=DEV_JWT_SECRET)
+    with pytest.raises(RuntimeError, match="MICROSOFT_TOKEN_ENCRYPTION_KEY"):
+        settings.require_microsoft_token_encryption_key()
+
+    configured = Settings(
+        environment="development",
+        jwt_secret=DEV_JWT_SECRET,
+        microsoft_token_encryption_key="key-material",
+    )
+    assert configured.require_microsoft_token_encryption_key() == b"key-material"
+

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  apiRemainingMandatoryCourses,
   bucketCompletionPercent,
   hasActionableGaps,
+  hasDegreeCreditBucketGap,
   isGeneralTechnionBucket,
+  overlapIneligibleCredits,
   partitionRequirementBuckets,
   progressCatalogSubtitle,
   statusBadgeTone,
@@ -41,8 +44,10 @@ describe('graduationProgress helpers', () => {
       sampleBucket({ requirementGroupId: '009216-1-000:free-elective', isMandatory: false }),
     ]
     const { mandatory, elective, generalTechnion } = partitionRequirementBuckets(buckets)
-    expect(mandatory).toHaveLength(2)
-    expect(elective).toHaveLength(0)
+    expect(mandatory).toHaveLength(1)
+    expect(mandatory[0]?.requirementGroupId).toBe('009216-1-000:core-mandatory')
+    expect(elective).toHaveLength(1)
+    expect(elective[0]?.requirementGroupId).toBe('009216-1-000:elective-ds')
     expect(generalTechnion).toHaveLength(2)
   })
 
@@ -85,8 +90,94 @@ describe('graduationProgress helpers', () => {
     expect(
       hasActionableGaps({
         ...base,
-        ineligibleCredits: [{ courseNumber: '03940580', reason: 'wrong bucket' }],
+        ineligibleCredits: [{ courseNumber: '03940580', reason: 'not_assigned_to_requirement' }],
       }),
     ).toBe(true)
+    expect(
+      hasActionableGaps({
+        ...base,
+        ineligibleCredits: [
+          { courseNumber: '02340117', reason: 'overlap_no_additional_credit', creditsEarned: 4 },
+        ],
+      }),
+    ).toBe(false)
+  })
+
+  it('returns API remaining mandatory courses without client re-filtering', () => {
+    const progress: GraduationProgress = {
+      degreeId: 'abc',
+      completedCredits: 70,
+      totalRequiredCredits: 155,
+      creditsRemaining: 85,
+      completionPercentage: 45,
+      statusSummary: 'in_progress',
+      remainingMandatoryCourses: [
+        { courseId: 'm1', courseNumber: '02340123', courseTitle: 'OS' },
+        { courseId: 'm2', courseNumber: '02360343', courseTitle: 'Theory' },
+      ],
+    }
+    expect(apiRemainingMandatoryCourses(progress).map((course) => course.courseNumber)).toEqual([
+      '02340123',
+      '02360343',
+    ])
+  })
+
+  it('counts overlap ineligible credits in attention totals', () => {
+    const progress: GraduationProgress = {
+      degreeId: 'abc',
+      completedCredits: 70,
+      totalRequiredCredits: 155,
+      creditsRemaining: 85,
+      completionPercentage: 45,
+      statusSummary: 'in_progress',
+      ineligibleCredits: [
+        { courseId: 'o1', courseNumber: '02340117', creditsEarned: 4, reason: 'overlap_no_additional_credit' },
+      ],
+    }
+    expect(overlapIneligibleCredits(progress)).toHaveLength(1)
+  })
+
+  it('detects credit/bucket gaps when open buckets and ineligible credits coexist', () => {
+    const gap = hasDegreeCreditBucketGap({
+      degreeId: 'd1',
+      completedCredits: 95,
+      transcriptCreditsTotal: 95,
+      degreeAppliedCredits: 80,
+      totalRequiredCredits: 155,
+      creditsRemaining: 60,
+      completionPercentage: 61.3,
+      statusSummary: 'in_progress',
+      missingRequirements: [{ requirementId: 'r1' } as never],
+      ineligibleCredits: [{ courseId: 'x', creditsEarned: 15, reason: 'not_assigned_to_requirement' }],
+    })
+    expect(gap).toBe(true)
+  })
+
+  it('detects gap when credit buckets look complete but mandatory matrix courses remain', () => {
+    const gap = hasDegreeCreditBucketGap({
+      degreeId: 'd1',
+      completedCredits: 155,
+      totalRequiredCredits: 155,
+      creditsRemaining: 0,
+      completionPercentage: 100,
+      statusSummary: 'complete',
+      missingRequirements: [],
+      remainingMandatoryCourses: [{ courseNumber: '00940345', courseTitle: 'Discrete math' }],
+    })
+    expect(gap).toBe(true)
+  })
+
+  it('does not flag low-completion students with remaining mandatory courses only', () => {
+    const gap = hasDegreeCreditBucketGap({
+      degreeId: 'd1',
+      completedCredits: 7.5,
+      totalRequiredCredits: 155,
+      creditsRemaining: 147.5,
+      completionPercentage: 4.8,
+      statusSummary: 'in_progress',
+      missingRequirements: [],
+      remainingMandatoryCourses: [{ courseNumber: '00940345', courseTitle: 'Discrete math' }],
+    })
+    expect(gap).toBe(false)
   })
 })

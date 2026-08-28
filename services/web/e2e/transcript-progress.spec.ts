@@ -38,9 +38,13 @@ test.describe('Transcript ↔ Graduation progress E2E', () => {
     if (await collapsedToggle.count()) {
       await collapsedToggle.click()
     }
-    const courseLink = poolCard.getByRole('link', { name: E2E_DNE_ELECTIVE_COURSE })
+    const poolDetail = poolCard.locator('[data-testid^="elective-pool-detail-"]')
+    await expect(poolDetail).toBeVisible({ timeout: 10_000 })
+    await poolDetail.getByRole('button', { name: /counted|נספרו/i }).click()
+
+    const courseLink = poolDetail.getByRole('link', { name: E2E_DNE_ELECTIVE_COURSE })
     await courseLink.scrollIntoViewIfNeeded()
     await expect(courseLink).toBeVisible({ timeout: 10_000 })
-    await expect(poolCard.getByText(/counted|נספר/i).first()).toBeVisible()
+    await expect(poolDetail.getByText(/counted|נספר/i).first()).toBeVisible()
   })
 })

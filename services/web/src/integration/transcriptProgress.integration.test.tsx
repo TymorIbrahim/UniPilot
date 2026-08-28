@@ -159,6 +159,7 @@ describe('Transcript ↔ Progress integration', () => {
     await user.click(poolCard.querySelector('button[aria-expanded="false"]')!)
 
     const detail = await screen.findByTestId(`elective-pool-detail-${dsPool.groupId}`)
+    await user.click(screen.getByRole('button', { name: /^counted/i }))
     expect(detail).toHaveTextContent('00940411')
     expect(detail).toHaveTextContent(/counted/i)
   })

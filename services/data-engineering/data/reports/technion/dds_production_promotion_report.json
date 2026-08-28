@@ -1,11 +1,11 @@
 {
   "promotionRun": {
-    "promotionRunId": "dds-promotion-5c304376a2b2",
+    "promotionRunId": "dds-promotion-aac104372cbd",
     "sourceName": "technion-dds-catalog",
     "catalogYear": 2025,
     "catalogVersion": "2025-2026",
-    "startedAt": "2026-06-26T20:47:53+00:00",
-    "finishedAt": "2026-06-26T20:47:53+00:00",
+    "startedAt": "2026-07-03T19:48:25+00:00",
+    "finishedAt": "2026-07-03T19:48:25+00:00",
     "status": "failed",
     "gateStatus": "pass",
     "dryRun": false,
@@ -382,7 +382,7 @@
         "02740300"
       ],
       "signedOffBy": "test-reviewer",
-      "signedOffAt": "2026-06-26T20:47:53+00:00"
+      "signedOffAt": "2026-07-03T19:48:25+00:00"
     },
     "productionCollectionsTouched": [],
     "productionCollectionCountsBefore": {
@@ -398,7 +398,7 @@
     "productionCollectionCountsAfter": {},
     "plannedProductionKeys": {},
     "rollbackNotes": [
-      "Delete production docs with promotionRunId=dds-promotion-5c304376a2b2 to roll back this run.",
+      "Delete production docs with promotionRunId=dds-promotion-aac104372cbd to roll back this run.",
       "Do not delete staging data.",
       "Advisory catalog rules remain non-enforced in graduation progress."
     ],
@@ -407,7 +407,7 @@
     ]
   },
   "gate": {
-    "generatedAt": "2026-06-26T20:47:53+00:00",
+    "generatedAt": "2026-07-03T19:48:25+00:00",
     "sourceName": "technion-dds-catalog",
     "catalogYear": 2025,
     "catalogVersion": "2025-2026",
@@ -603,7 +603,7 @@
         "02740300"
       ],
       "signedOffBy": "test-reviewer",
-      "signedOffAt": "2026-06-26T20:47:53+00:00"
+      "signedOffAt": "2026-07-03T19:48:25+00:00"
     },
     "plannedWrites": {
       "degreePrograms": [

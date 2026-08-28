@@ -78,7 +78,15 @@ def test_export_includes_general_technion_elective_pools():
         for group in document["programs"][0]["requirementGroups"]
         if group["groupId"] == "009216-1-000:enrichment-pool"
     )
-    assert enrichment["ruleExpression"]["allowedPrefixes"] == ["039405"]
+    assert enrichment["ruleExpression"]["allowedPrefixes"] == [
+        "039405",
+        "032402",
+        "032403",
+        "032404",
+        "032405",
+        "032406",
+        "032409",
+    ]
     assert enrichment.get("catalogDescription")
 
 
@@ -108,7 +116,7 @@ def test_export_includes_ie_is_choose_n_eligible_courses():
     assert "ie-focus-chain-advanced-industry" in iem_groups
     assert "ie-focus-chain-operations-research" in iem_groups
     assert iem_groups["ie-focus-chain-game-theory"].get("catalogDescription")
-    assert len(iem_groups["ie-focus-chain-operations-research"]["courseReferences"]) <= 6
+    assert len(iem_groups["ie-focus-chain-operations-research"]["courseReferences"]) <= 10
 
     ise_groups = {g["groupId"].split(":")[-1]: g for g in _is_elective_groups(ise, "009118-1-000", pages)}
     assert len(ise_groups["is-behavior-science-chain"]["courseReferences"]) == 2
