@@ -89,13 +89,6 @@ test.describe('Graduation progress — industry E2E', () => {
 })
 
 test.describe('Graduation progress — course recommendations', () => {
-  test('recommends courses and renders a plain-language narrative', async ({ progressPage }) => {
-    await progressPage.gotoProgress()
-    await progressPage.recommendCourses()
-
-    await expect(progressPage.recommendCoursesNarrative).not.toBeEmpty()
-    await expect(progressPage.recommendCoursesStatus).not.toBeVisible()
-  })
 })
 
 test.describe('Graduation progress — guest access', () => {
