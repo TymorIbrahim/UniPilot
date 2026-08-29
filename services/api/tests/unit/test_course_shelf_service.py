@@ -167,9 +167,10 @@ async def test_a_required_course_absent_from_the_catalog_still_appears(stub) -> 
 
 
 @pytest.mark.asyncio
-async def test_a_course_the_student_cannot_take_sorts_below_one_they_can(stub) -> None:
-    """A five-star course with unmet prerequisites is not a better suggestion
-    than a three-star course they can register for today."""
+async def test_a_course_the_student_cannot_take_is_dropped_and_counted(stub) -> None:
+    """On a choice row a course with unmet prerequisites is not a weaker
+    suggestion, it is not a suggestion -- but the row still has to admit it
+    dropped something, or the count reads as the whole pool."""
     stub["requirementProgress"] = [
         _bucket("p:elective", "Electives", remaining=("00940111", "00940222"))
     ]
@@ -183,10 +184,49 @@ async def test_a_course_the_student_cannot_take_sorts_below_one_they_can(stub) -
         "00940222": {"meanGeneralRank": 3.0},
     }
 
-    cards = (await _build())["shelves"][0]["courses"]
+    shelf = (await _build())["shelves"][0]
 
-    assert [c["courseNumber"] for c in cards] == ["00940222", "00940111"]
-    assert cards[1]["eligibility"]["status"] == "missing_prerequisites"
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940222"]
+    assert shelf["candidateCount"] == 2
+    assert shelf["ineligibleCount"] == 1
+    assert shelf["notOfferedCount"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_course_not_offered_this_term_is_dropped_from_a_choice_row(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00940222"))
+    ]
+    stub["courses"] = [_course("00940111"), _course("00940222")]
+    stub["offered"] = {"00940222"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940222"]
+    assert shelf["notOfferedCount"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_required_course_not_offered_this_term_still_shows_but_sorts_last(stub) -> None:
+    """It cannot be scheduled into this semester whatever else is true of it --
+    but it is still outstanding, and the row exists to list what is."""
+    stub["requirementProgress"] = [
+        _bucket(
+            "p:core", "Required", remaining=("00940111", "00940222"), requirement_type="core"
+        )
+    ]
+    stub["courses"] = [_course("00940111"), _course("00940222")]
+    stub["offered"] = {"00940222"}
+    # 00940111 gates more, and would lead if being offered did not come first.
+    stub["prerequisiteTexts"] = [
+        {"courseNumber": "00949001", "prerequisitesText": "00940111"},
+        {"courseNumber": "00949002", "prerequisitesText": "00940111"},
+    ]
+
+    shelf = (await _build())["shelves"][0]
+
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940222", "00940111"]
+    assert shelf["courses"][1]["offeredThisTerm"] is False
 
 
 @pytest.mark.asyncio

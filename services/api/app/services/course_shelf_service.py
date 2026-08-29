@@ -29,7 +29,12 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.planning.course_deferral import build_dependent_index, describe_deferral
-from app.planning.course_shelves import MANDATORY, OPEN, build_course_shelves, rank_choice_courses
+from app.planning.course_ranking import (
+    diversify_by_faculty,
+    prior_mean_rating,
+    rank_candidates,
+)
+from app.planning.course_shelves import MANDATORY, OPEN, build_course_shelves
 from app.planning.prerequisite_expression import (
     PrerequisiteParseError,
     is_satisfied_by,
@@ -45,6 +50,13 @@ from app.repositories.completed_course_repository import (
 from app.services.course_outcome_stats import CourseSignal, build_course_outcomes
 from app.services.graduation_progress_service import get_graduation_progress_for_user
 from app.services.semester_plan_service import load_planning_context
+
+OPEN_SHELF_PER_FACULTY = 3
+"""Most courses one faculty may contribute to an "anything counts" row.
+
+Six of the eight best-scoring courses in the catalog come from two faculties,
+so without a cap the widest row in the product is the narrowest one on screen.
+"""
 
 OPEN_SHELF_LIMIT = 24
 """Courses shown on an "anything counts" row.
@@ -184,9 +196,10 @@ async def build_course_shelves_for_user(
         await catalog_repository.list_course_prerequisite_texts(database)
     )
 
-    # What the student could actually add to THIS semester. A five-star course
-    # that is not offered, or whose prerequisites are unmet, is not a better
-    # suggestion than a three-star course they can register for today.
+    # What the student could actually add to THIS semester. On a choice row a
+    # course that is not offered, or whose prerequisites are unmet, is not a
+    # weaker suggestion -- it is not a suggestion at all, so it is filtered out
+    # rather than ranked low. The row still reports how many it dropped.
     selectable = {
         number
         for number in needed_numbers
@@ -198,35 +211,64 @@ async def build_course_shelves_for_user(
         != "missing_prerequisites"
     }
 
+    # One prior for the whole request, so a course cannot score differently in
+    # two rows of the same screen.
+    prior_mean = prior_mean_rating(ratings)
+    credits_remaining_overall = float(
+        (progress_result.get("progress") or {}).get("creditsRemaining") or 0.0
+    )
+
     payload_shelves: list[dict[str, Any]] = []
     for shelf in shelves:
-        if shelf.kind == OPEN:
-            candidate_numbers = rank_choice_courses(
-                open_candidates, ratings=ratings, selectable=selectable
+        reasons_by_number: dict[str, tuple[str, ...]] = {}
+
+        if shelf.kind == MANDATORY:
+            # These must all be taken eventually, so none are filtered. Order by
+            # what can be acted on now, then by how much each one gates: a
+            # course that is not offered this term cannot be scheduled into it,
+            # whatever else is true of it.
+            ordered_numbers = sorted(
+                shelf.course_numbers,
+                key=lambda number: (
+                    number not in offered_numbers,
+                    -len(dependent_index.get(number, frozenset())),
+                    number,
+                ),
             )
-            candidate_count = len(candidate_numbers)
-            candidate_numbers = candidate_numbers[:OPEN_SHELF_LIMIT]
-        elif shelf.kind == MANDATORY:
-            # Order by what deferring costs: the course that runs least often,
-            # and gates the most, is the one to schedule first.
-            candidate_numbers = tuple(
-                sorted(
-                    shelf.course_numbers,
-                    key=lambda number: (
-                        -len(dependent_index.get(number, frozenset())),
-                        number,
-                    ),
-                )
-            )
-            candidate_count = len(candidate_numbers)
+            candidate_count = len(shelf.course_numbers)
+            dropped_not_offered = 0
+            dropped_ineligible = 0
         else:
-            candidate_numbers = rank_choice_courses(
-                shelf.course_numbers, ratings=ratings, selectable=selectable
+            pool = list(open_candidates) if shelf.kind == OPEN else list(shelf.course_numbers)
+            candidate_count = len(pool)
+            actionable = [number for number in pool if number in selectable]
+            dropped_not_offered = sum(
+                1 for number in pool if number not in offered_numbers
             )
-            candidate_count = len(candidate_numbers)
+            dropped_ineligible = len(pool) - len(actionable) - dropped_not_offered
+
+            ranked = rank_candidates(
+                [courses_by_number[number] for number in actionable if number in courses_by_number],
+                ratings=ratings,
+                credits_remaining_overall=credits_remaining_overall,
+                credits_remaining_in_bucket=shelf.credits_remaining,
+                prior_mean=prior_mean,
+            )
+            reasons_by_number = {entry.course_number: entry.reasons for entry in ranked}
+            ordered_numbers = [entry.course_number for entry in ranked]
+
+            if shelf.kind == OPEN:
+                ordered_numbers = [
+                    course["courseNumber"]
+                    for course in diversify_by_faculty(
+                        [courses_by_number[number] for number in ordered_numbers],
+                        limit=OPEN_SHELF_LIMIT,
+                        per_faculty=OPEN_SHELF_PER_FACULTY,
+                    )
+                ]
 
         cards = []
-        for number in candidate_numbers:
+        for number in ordered_numbers:
             course = courses_by_number.get(number)
             if course is None:
                 # A required course the catalog does not carry must still appear
@@ -243,6 +285,7 @@ async def build_course_shelves_for_user(
                         "eligibility": {"status": "unknown", "missingOptions": []},
                         "signal": signals.get(number),
                         "catalogKnown": False,
+                        "reasons": [],
                     }
                 )
                 continue
@@ -252,6 +295,7 @@ async def build_course_shelves_for_user(
                 completed_numbers=completed_numbers,
                 signals=signals,
             )
+            card["reasons"] = list(reasons_by_number.get(number, ()))
             if shelf.kind == MANDATORY:
                 card["deferral"] = describe_deferral(
                     course,
@@ -263,6 +307,8 @@ async def build_course_shelves_for_user(
         payload = shelf.as_public_dict()
         payload["courses"] = cards
         payload["candidateCount"] = candidate_count
+        payload["notOfferedCount"] = dropped_not_offered
+        payload["ineligibleCount"] = dropped_ineligible
         payload_shelves.append(payload)
 
     return {
