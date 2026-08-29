@@ -18,6 +18,7 @@ export const he = {
     signOut: 'התנתקות',
   },
   common: {
+    pleaseWait: 'רק רגע…',
     save: 'שמירה',
     cancel: 'ביטול',
     close: 'סגור',
@@ -617,6 +618,9 @@ export const he = {
       importFailed: 'לא ניתן לייבא את הקורסים שנבחרו',
       importSuccess:
         'יובאו {created} קורסים ({skipped} דולגו, {unresolved} לא נפתרו). הוחלפו {replaced} שורות מייבוא PDF קודם.',
+      unmatchedTitle: '{count} קורסים אינם בקטלוג',
+      unmatchedHint:
+        'נקודות הזכות והציונים שלהם יובאו מגיליון הציונים, אך לא ניתן לשייך אותם לדרישת תואר.',
       replaceNotice:
         'הייבוא מחליף קורסים שנוספו בעבר מקובץ PDF. קורסים שנוספו ידנית נשמרים.',
       warnings: {

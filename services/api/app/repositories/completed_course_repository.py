@@ -24,6 +24,31 @@ def parse_object_id(value: str | None) -> ObjectId | None:
         return None
 
 
+LEGACY_UNIQUE_ATTEMPT_INDEX = "completed_courses_unique_user_course_attempt"
+UNIQUE_ATTEMPT_INDEX = "completed_courses_unique_user_course_number_attempt"
+UNIQUE_ATTEMPT_KEY = [("userId", 1), ("courseId", 1), ("courseNumber", 1), ("attempt", 1)]
+
+
+async def _ensure_unique_attempt_index(collection: Any) -> None:
+    """One row per (student, course, attempt), where "course" may be a number only.
+
+    `courseId` alone was the key, which silently forbade a student from holding
+    two transcript rows the catalog does not carry: both get a null `courseId`,
+    Mongo indexes the absent field as null, and the second insert collides with
+    the first. Adding `courseNumber` to the key separates them while staying
+    strictly weaker than the old constraint for rows that DO have a course id --
+    the number is derived from the id, so no pair that was rejected before is
+    accepted now.
+
+    Dropping the old index by name is idempotent: a fresh database never has it,
+    and one that does gets it replaced exactly once.
+    """
+    existing = await collection.index_information()
+    if LEGACY_UNIQUE_ATTEMPT_INDEX in existing:
+        await collection.drop_index(LEGACY_UNIQUE_ATTEMPT_INDEX)
+    await collection.create_index(UNIQUE_ATTEMPT_KEY, unique=True, name=UNIQUE_ATTEMPT_INDEX)
+
+
 async def ensure_completed_course_indexes(
     database: AsyncIOMotorDatabase,
     *,
@@ -31,11 +56,7 @@ async def ensure_completed_course_indexes(
 ) -> None:
     settings = settings or get_settings()
     collection = database[settings.completed_courses_collection]
-    await collection.create_index(
-        [("userId", 1), ("courseId", 1), ("attempt", 1)],
-        unique=True,
-        name="completed_courses_unique_user_course_attempt",
-    )
+    await _ensure_unique_attempt_index(collection)
     await collection.create_index(
         [("userId", 1), ("semesterCode", 1)],
         name="completed_courses_user_semester",
@@ -89,9 +110,12 @@ def build_completed_course_document(
     if parsed_user_id is None:
         raise ValueError("Invalid user id for completed course")
 
-    parsed_course_id = parse_object_id(record_data["courseId"])
-    if parsed_course_id is None:
-        raise ValueError("Invalid course id for completed course")
+    parsed_course_id = parse_object_id(record_data.get("courseId"))
+    if parsed_course_id is None and not course_number:
+        # A row with neither is unidentifiable; a row with a number but no id is
+        # a course the catalog has never carried, and the registrar's own sheet
+        # is authority enough for its credits.
+        raise ValueError("Completed course needs a catalog id or a course number")
 
     now = datetime.now(timezone.utc)
 
@@ -120,18 +144,28 @@ def build_completed_course_document(
 async def find_used_attempts_for_course(
     database: AsyncIOMotorDatabase,
     user_id: str,
-    course_id: str,
+    course_id: str | None,
     *,
+    course_number: str | None = None,
     settings: Settings | None = None,
 ) -> set[int]:
     settings = settings or get_settings()
     parsed_user_id = parse_object_id(user_id)
+    if parsed_user_id is None:
+        return set()
+
     parsed_course_id = parse_object_id(course_id)
-    if parsed_user_id is None or parsed_course_id is None:
+    if parsed_course_id is not None:
+        query: dict[str, Any] = {"userId": parsed_user_id, "courseId": parsed_course_id}
+    elif course_number:
+        # Retakes of a course the catalog does not carry still need distinct
+        # attempt numbers, and the number is the only identity such a row has.
+        query = {"userId": parsed_user_id, "courseId": None, "courseNumber": course_number}
+    else:
         return set()
 
     records = await database[settings.completed_courses_collection].find(
-        {"userId": parsed_user_id, "courseId": parsed_course_id},
+        query,
         {"attempt": 1},
     ).to_list(length=MAX_COURSE_ATTEMPTS)
 
@@ -146,11 +180,17 @@ async def create_completed_course(
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
-    course_id = str(record_data["courseId"])
+    raw_course_id = record_data.get("courseId")
+    course_id = str(raw_course_id) if raw_course_id is not None else None
+    # Supplied by the caller only for a row the catalog cannot resolve; for
+    # every other row the number is read back from the catalog below, which
+    # keeps it authoritative rather than whatever the transcript happened to say.
+    fallback_number = record_data.get("courseNumber")
     used_attempts = await find_used_attempts_for_course(
         database,
         user_id,
         course_id,
+        course_number=fallback_number,
         settings=settings,
     )
     resolved_attempt = resolve_available_attempt(
@@ -162,7 +202,7 @@ async def create_completed_course(
     course_number = (
         await resolve_course_number(database, parsed_course_id, settings=settings)
         if parsed_course_id is not None
-        else None
+        else fallback_number
     )
     document = build_completed_course_document(user_id, resolved_record_data, course_number)
     insert_result = await database[settings.completed_courses_collection].insert_one(document)
@@ -361,11 +401,22 @@ def to_public_completed_course(
     if not record_document:
         return None
 
+    course_id = record_document.get("courseId")
+    stored_number = record_document.get("courseNumber")
+    stored_title = (record_document.get("metadata") or {}).get("importedTitle")
+
     return {
         "id": str(record_document["_id"]),
-        "courseId": str(record_document["courseId"]),
-        "courseNumber": course_summary.get("number") if course_summary else None,
-        "courseTitle": course_summary.get("title") if course_summary else None,
+        # None, not "None": a row imported from a transcript for a course the
+        # catalog does not carry has no catalog id, and stringifying the absence
+        # produces an id-shaped value that reads as real.
+        "courseId": str(course_id) if course_id is not None else None,
+        # Falls back to what the row itself stores. The catalog summary is
+        # missing whenever the course was never ingested or has since been
+        # dropped, and without this the student sees a transcript line with no
+        # course on it at all.
+        "courseNumber": (course_summary.get("number") if course_summary else None) or stored_number,
+        "courseTitle": (course_summary.get("title") if course_summary else None) or stored_title,
         "semesterCode": record_document["semesterCode"],
         "grade": record_document["grade"],
         "gradePoints": record_document.get("gradePoints"),

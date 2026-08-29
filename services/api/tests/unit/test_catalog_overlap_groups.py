@@ -6,9 +6,12 @@ from bson import ObjectId
 
 from app.services.grade_evaluation import resolve_record_numeric_grade
 from app.services.catalog_overlap_groups import (
+    build_catalog_overlap_conflicts,
     build_catalog_overlap_groups,
     collect_overlap_partner_numbers,
+    conflicts_for_course,
     exclude_overlap_duplicate_credits,
+    serialize_catalog_overlap_conflicts,
 )
 from app.services.course_reference_keys import build_progress_equivalence_groups
 from app.services.graduation_progress_calculator import calculate_graduation_progress
@@ -66,7 +69,9 @@ def test_exclude_overlap_duplicate_credits_prefers_latest_completion():
     excluded = exclude_overlap_duplicate_credits(
         completions,
         catalog,
-        [{"02340114", "02340117"}],
+        build_catalog_overlap_conflicts(
+            [{"courseNumber": "02340114", "noAdditionalCreditText": "02340117"}]
+        ),
         recorded_at_timestamp=lambda value: 0 if value == "2024-01-01T00:00:00Z" else 1,
     )
     assert excluded == {older_id}
@@ -92,10 +97,66 @@ def test_exclude_overlap_duplicate_credits_keeps_latest_when_credits_equal():
     excluded = exclude_overlap_duplicate_credits(
         completions,
         catalog,
-        [{"02340114", "02340117"}],
+        build_catalog_overlap_conflicts(
+            [{"courseNumber": "02340114", "noAdditionalCreditText": "02340117"}]
+        ),
         recorded_at_timestamp=lambda value: 0 if value == "2024-01-01T00:00:00Z" else 1,
     )
     assert excluded == {older_id}
+
+
+def test_conflicts_are_pairwise_and_never_transitive():
+    """Two courses that merely share a partner do not conflict with each other.
+
+    Measured on a real transcript: `02340221` names nine partners, `00940219`
+    names seven, they share `02340121`, and neither names the other. Merging
+    into equivalence groups put both in one group and stripped 4.0 credits at
+    grade 93 from a course that overlaps nothing the student took.
+    """
+    conflicts = build_catalog_overlap_conflicts(
+        [
+            {"courseNumber": "02340221", "noAdditionalCreditText": "02340121"},
+            {"courseNumber": "00940219", "noAdditionalCreditText": "02340121"},
+        ]
+    )
+    assert conflicts_for_course("02340221", conflicts) == frozenset({"02340121"})
+    assert "00940219" not in conflicts_for_course("02340221", conflicts)
+    assert "02340221" not in conflicts_for_course("00940219", conflicts)
+
+    kept_id = str(ObjectId())
+    other_id = str(ObjectId())
+    excluded = exclude_overlap_duplicate_credits(
+        {
+            kept_id: {"creditsEarned": 4.0, "recordedAt": "2025-01-01T00:00:00Z"},
+            other_id: {"creditsEarned": 3.5, "recordedAt": "2021-01-01T00:00:00Z"},
+        },
+        {
+            kept_id: {"courseNumber": "02340221"},
+            other_id: {"courseNumber": "00940219"},
+        },
+        conflicts,
+        recorded_at_timestamp=lambda value: 1 if value.startswith("2025") else 0,
+    )
+    assert excluded == set()
+
+
+def test_conflicts_are_symmetric_when_named_from_one_side_only():
+    conflicts = build_catalog_overlap_conflicts(
+        [{"courseNumber": "02340114", "noAdditionalCreditText": "02340117"}]
+    )
+    assert conflicts_for_course("02340117", conflicts) == frozenset({"02340114"})
+
+
+def test_serialize_catalog_overlap_conflicts_emits_each_pair_once():
+    serialized = serialize_catalog_overlap_conflicts(
+        build_catalog_overlap_conflicts(
+            [
+                {"courseNumber": "02340114", "noAdditionalCreditText": "02340117"},
+                {"courseNumber": "02340117", "noAdditionalCreditText": "02340114"},
+            ]
+        )
+    )
+    assert serialized == [["02340114", "02340117"]]
 
 
 def test_intro_cs_m_satisfies_matrix_chet_requirement():

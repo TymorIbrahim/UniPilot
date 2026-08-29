@@ -11,9 +11,10 @@ Mongo holds. Checked against the live collections (2026-07-19):
   - `completed_courses.courseId` is an **ObjectId** referencing `courses._id`,
     not a course code. Declaring it a string made every transcript fetch fail at
     admission, since the key itself is one.
-  - `completed_courses` carries **no `courseNumber` at all** (0 of 93). A course
-    code is only reachable by joining to `courses` on that ObjectId -- which the
-    old tool layer did in Python, and which is now an ordinary `join`.
+  - `completed_courses` carried **no `courseNumber` at all** (0 of 93) when
+    this was written; the repository now denormalises it onto every row it
+    writes, so the field is declared here but OLDER rows still lack it. Joining
+    to `courses` on the ObjectId remains the reliable route to a course code.
   - `semester_plans` stores `semesters[]`, each with its own
     `plannedCourses[]`. There is no top-level `semesterCode` (0 of 247).
   - Plans DENORMALISE `courseNumber` into `plannedCourses[]` while transcripts
@@ -45,20 +46,65 @@ Held as a constant because it is the hinge of `passed` and `creditsCounted`
 below, and those two decide whether a course counts toward a degree.
 """
 
-PASSED_EXPRESSION = {"$gte": ["$grade", PASSING_GRADE]}
+NON_NUMERIC_OUTCOME_EXPRESSION = {
+    "$or": [
+        {"$eq": [{"$ifNull": ["$metadata.exemption", False]}, True]},
+        {"$eq": [{"$ifNull": ["$metadata.passGrade", False]}, True]},
+    ]
+}
+"""Rows where the registrar wrote פטור / עובר instead of a score.
+
+`grade` is a non-nullable float all the way down from the parser, so an
+exemption has to be stored as a sentinel 0 and what was really on the sheet is
+kept in `metadata`. Reading the number alone turns every exemption into a
+failure: a student with one genuine fail was told they had three.
+"""
+
+GRADED_EXPRESSION = {
+    "$and": [
+        {"$not": [NON_NUMERIC_OUTCOME_EXPRESSION]},
+        {"$isNumber": "$grade"},
+    ]
+}
+"""Rows carrying a real score, and so the ones the registrar averages."""
+
+PASSED_EXPRESSION = {
+    "$or": [
+        NON_NUMERIC_OUTCOME_EXPRESSION,
+        {"$gte": ["$grade", PASSING_GRADE]},
+    ]
+}
 """Whether a transcript ROW is a course the student has.
 
 A missing or non-numeric grade compares as less than any number in Mongo's
 ordering, so it comes back `false` -- the safe direction. An ungraded row is not
-a passed one.
+a passed one. An EXEMPTED one is: the student owes nothing further for it.
+"""
+
+COURSE_KEY_EXPRESSION = {
+    "$ifNull": [
+        {"$toString": "$courseId"},
+        {"$concat": ["number:", {"$ifNull": ["$courseNumber", ""]}]},
+    ]
+}
+"""A transcript row's identity, which `courseId` alone is not.
+
+A course the catalog has never carried is imported with a null `courseId` and
+its registrar course number instead -- losing the row would make the reported
+total disagree with the sheet it came from. But a record with no key is refused
+outright here, and rightly so, which would take the whole fetch down with it.
+The number is the registrar's own identifier and is stored on every row.
 """
 
 COMPLETED_COURSES = SourceSchema(
     collection="completed_courses",
-    # An ObjectId, and the only identity always present.
-    key="courseId",
+    # DERIVED -- see COURSE_KEY_EXPRESSION. `courseId` is absent on rows for
+    # courses the catalog does not carry, so it is not an identity on its own.
+    key="courseKey",
     fields={
+        "courseKey": _I,
         "courseId": _I,
+        "courseNumber": _I,
         "userId": _I,
         "semesterCode": _I,
         "grade": _Q,
@@ -68,23 +114,32 @@ COMPLETED_COURSES = SourceSchema(
         # neither, which is exactly why every consumer re-derived them and three
         # of them got it wrong.
         "creditsCounted": _Q,
+        "creditsGraded": _Q,
         "passed": _B,
         "attempt": _Q,
         "source": _I,
-        # NO courseNumber: it is not stored here. Reaching a course code means
-        # joining to `courses` on courseId = _id.
     },
     computed={
+        "courseKey": COURSE_KEY_EXPRESSION,
         "passed": PASSED_EXPRESSION,
         "creditsCounted": {"$cond": [PASSED_EXPRESSION, {"$ifNull": ["$creditsEarned", 0]}, 0]},
+        "creditsGraded": {"$cond": [GRADED_EXPRESSION, {"$ifNull": ["$creditsEarned", 0]}, 0]},
     },
     field_notes={
         "creditsCounted": (
             "credits that COUNT toward the degree -- `creditsEarned` when the course was "
             "passed, else 0. SUM THIS for 'how many credits have I completed'. Summing "
             "`creditsEarned` instead counts courses the student FAILED and overstates the total. "
-            "WEIGHT A GPA BY THIS TOO: gpa = sum(grade * creditsCounted) / sum(creditsCounted). "
-            "Weighting by `creditsEarned` drags a failed grade into the average."
+            "It is NOT the GPA weight -- use `creditsGraded` for that."
+        ),
+        "creditsGraded": (
+            "the GPA weight, and NOT the same as `creditsCounted`. "
+            "gpa = sum(grade * creditsGraded) / sum(creditsGraded). Two differences, both "
+            "checked against an official transcript that states its own average: a FAILED "
+            "course still counts in the average (weighting by `creditsCounted` drops it and "
+            "reported 76.0 where the sheet said 74.1), and an exemption or pass/fail row does "
+            "NOT (including those reported 74.8). This field is `creditsEarned` on rows with a "
+            "real score and 0 on every other row, so the two corrections come for free."
         ),
         # Imperative, like `creditsCounted` above, and for the same measured
         # reason. A note that says only what a column MEANS gets read,
@@ -93,7 +148,9 @@ COMPLETED_COURSES = SourceSchema(
         # were eligible for a course because they had ATTEMPTED its prerequisite
         # and been graded 30.
         "passed": (
-            f"false when the grade is below {PASSING_GRADE}, the pass mark. FILTER ON THIS before "
+            f"false when the grade is below {PASSING_GRADE}, the pass mark -- EXCEPT on a row the "
+            "registrar marked exempt or pass/fail, which passed without a score and is true here. "
+            "FILTER ON THIS before "
             "treating a row as a course the student HAS. A transcript row is an ATTEMPT: a failed "
             "one counts toward nothing, satisfies no prerequisite, and must be re-taken. Deriving "
             "'the courses I have completed' without it reports a student ELIGIBLE for a course "
@@ -102,6 +159,14 @@ COMPLETED_COURSES = SourceSchema(
         "creditsEarned": (
             "as recorded by the registrar, INCLUDING failed courses -- one row here is graded 32 "
             "and still carries its full 5.5. Rarely what a question means."
+        ),
+        "courseNumber": (
+            "the registrar's course code, denormalised onto the row. Present even when "
+            "`courseId` is not, which is the case for a course the catalog has never carried."
+        ),
+        "courseKey": (
+            "row identity: the catalog id when there is one, else `number:<code>`. Use "
+            "`courseId` to join to `courses`, not this."
         ),
     },
     basis=Basis.OFFICIAL_RECORD,

@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n'
 import { cn } from '../../lib/utils'
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -15,6 +16,8 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
+  const { t } = useTranslation()
+
   return (
     <button
       className={cn(
@@ -36,7 +39,7 @@ export function Button({
       disabled={disabled || loading}
       {...props}
     >
-      {loading ? 'Please wait…' : children}
+      {loading ? t('common.pleaseWait') : children}
     </button>
   )
 }

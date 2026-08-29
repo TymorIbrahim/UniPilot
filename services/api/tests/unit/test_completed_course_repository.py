@@ -79,10 +79,18 @@ def test_build_completed_course_document_raises_on_invalid_user_id():
         build_completed_course_document("bad-id", VALID_RECORD_DATA)
 
 
-def test_build_completed_course_document_raises_on_invalid_course_id():
+def test_build_completed_course_document_raises_without_any_course_identity():
     data = {**VALID_RECORD_DATA, "courseId": "bad-id"}
-    with pytest.raises(ValueError, match="Invalid course id"):
+    with pytest.raises(ValueError, match="catalog id or a course number"):
         build_completed_course_document(VALID_USER_ID, data)
+
+
+def test_build_completed_course_document_accepts_a_course_number_without_catalog_id():
+    """A course the catalog never carried is still a course the student passed."""
+    data = {**VALID_RECORD_DATA, "courseId": None}
+    document = build_completed_course_document(VALID_USER_ID, data, "03240462")
+    assert document["courseId"] is None
+    assert document["courseNumber"] == "03240462"
 
 
 # ---------------------------------------------------------------------------

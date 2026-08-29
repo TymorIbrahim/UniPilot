@@ -131,8 +131,18 @@ async def _passed_documents(database: Any) -> list[dict[str, Any]]:
             "$project": {
                 "_id": 0,
                 "courseId": {"$toString": "$courseId"},
+                # Row identity, and NOT `courseId`: a transcript row for a course
+                # the catalog has never carried is stored with a null one, and a
+                # record without a key is refused outright -- which takes the
+                # whole fetch down, not just that row. Mirrors `completed_courses`.
+                "courseKey": {
+                    "$ifNull": [
+                        {"$toString": "$courseId"},
+                        {"$concat": ["number:", {"$ifNull": ["$courseNumber", ""]}]},
+                    ]
+                },
                 "userId": {"$toString": "$userId"},
-                "courseNumber": "$_course.courseNumber",
+                "courseNumber": {"$ifNull": ["$_course.courseNumber", "$courseNumber"]},
                 "title": "$_course.title",
                 "grade": 1,
                 "creditsEarned": 1,
@@ -165,8 +175,9 @@ def passed_courses_source(engine: Any) -> ViewSchema:
     """
     return ViewSchema(
         collection="passed_courses",
-        key="courseId",
+        key="courseKey",
         fields={
+            "courseKey": _I,
             "courseId": _I,
             "userId": _I,
             "courseNumber": _I,
@@ -178,13 +189,23 @@ def passed_courses_source(engine: Any) -> ViewSchema:
             "attempt": _Q,
         },
         field_notes={
+            "courseKey": (
+                "row identity: the catalog id when there is one, else `number:<code>`. Use "
+                "`courseId` to join to `courses`, not this."
+            ),
             "courseNumber": (
-                "the course code, ALREADY joined from `courses`. Absent on a row whose catalog "
+                "the course code, joined from `courses` and falling back to the code the "
+                "transcript row itself carries. Absent on a row whose catalog "
                 "entry is missing -- which is unrecoverable, not a bug to route around: a "
                 "comparison against it simply does not match, so eligibility comes back denied "
                 "rather than granted."
             ),
-            "grade": f"always {PASSING_GRADE} or above here; failing attempts are not in this view.",
+            "grade": (
+                f"always {PASSING_GRADE} or above here (or an exemption, which has no score at "
+                "all); failing attempts are not in this view. So a GPA CANNOT be computed from "
+                "this view -- the registrar averages failed courses in, and they are missing "
+                "here. Build a GPA from `completed` weighted by `creditsGraded`."
+            ),
             "creditsCounted": (
                 "credits that COUNT toward the degree. Every row here is ALSO a row in "
                 "`completed_courses` -- this view is that table filtered, not a second set of "
@@ -340,6 +361,38 @@ def _resolve_track(program_slug: str, contains: Mapping[str, Any]) -> str | None
     return prefixed if prefixed in contains else None
 
 
+_COURSE_CODE = re.compile(r"\b0\d{7}\b")
+
+
+async def _equivalent_codes(database: Any) -> dict[str, set[str]]:
+    """Course codes the catalog says stand in for one another, pairwise.
+
+    "מקצועות ללא זיכוי נוסף" names the pairs; it is not transitive, so this
+    keeps the declared pairs rather than merging them into equivalence classes
+    (doing that in the API invented conflicts and cost a course its credit).
+
+    Needed because the remaining-curriculum view matched course numbers exactly:
+    a student who passed `01040016` was still told to take `01040065`, its
+    documented alternative for the same slot, and one who passed `00940411` was
+    told to take `00940412`. Measured against a real transcript, that turned a
+    correct list of 3 outstanding courses into 6.
+    """
+    pairs: dict[str, set[str]] = {}
+    async for document in database["courses"].find(
+        {"noAdditionalCreditText": {"$nin": [None, ""]}},
+        {"courseNumber": 1, "noAdditionalCreditText": 1},
+    ):
+        code = str(document.get("courseNumber") or "")
+        if not code:
+            continue
+        for partner in _COURSE_CODE.findall(str(document.get("noAdditionalCreditText") or "")):
+            if partner == code:
+                continue
+            pairs.setdefault(code, set()).add(partner)
+            pairs.setdefault(partner, set()).add(code)
+    return pairs
+
+
 async def _remaining_documents(
     database: Any, engine: Any, categories: Mapping[tuple[str, str], str]
 ) -> list[dict[str, Any]]:
@@ -368,11 +421,18 @@ async def _remaining_documents(
         )
     }
 
+    equivalents = await _equivalent_codes(database)
+
     passed_by_user: dict[str, set[str]] = {}
     for row in await _passed_documents(database):
         number = row.get("courseNumber")
         if number:
-            passed_by_user.setdefault(str(row["userId"]), set()).add(str(number))
+            code = str(number)
+            held = passed_by_user.setdefault(str(row["userId"]), set())
+            held.add(code)
+            # A passed course also discharges the codes the catalog says replace
+            # it, or the same slot is reported outstanding under its other name.
+            held |= equivalents.get(code, set())
 
     documents: list[dict[str, Any]] = []
     # EVERY profile, not just the ones carrying a `programSlug`. Filtering here is

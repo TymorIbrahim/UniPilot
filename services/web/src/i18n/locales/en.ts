@@ -18,6 +18,7 @@ export const en: TranslationTree = {
     signOut: 'Sign out',
   },
   common: {
+    pleaseWait: 'Please wait…',
     save: 'Save',
     cancel: 'Cancel',
     close: 'Close',
@@ -619,6 +620,9 @@ export const en: TranslationTree = {
       importFailed: 'Unable to import selected courses',
       importSuccess:
         'Imported {created} courses ({skipped} skipped, {unresolved} unresolved). Replaced {replaced} prior PDF import rows.',
+      unmatchedTitle: '{count} courses are not in the catalog',
+      unmatchedHint:
+        'Their credits and grades were imported from the transcript, but they cannot be matched to a degree requirement.',
       replaceNotice:
         'Importing replaces any courses previously added from a PDF upload. Manually added courses are kept.',
       warnings: {

@@ -275,6 +275,28 @@ def clean_title(value: str | None) -> str | None:
     return cleaned or None
 
 
+OUTCOME_PHRASE = re.compile(
+    r"\s*(?:exemption without points|exemption with points"
+    r"|פטור ללא ניקוד|פטור עם ניקוד|\bpass\b|עובר)\s*",
+    re.IGNORECASE,
+)
+
+
+def title_from_outcome_line(line: str) -> str | None:
+    """The course title carried on a row whose grade cell is a word, not a score.
+
+    In the Hebrew PDF these rows arrive as a single string that runs the title
+    straight into "פטור ללא ניקוד", with no credits number to split on. Treating
+    the whole line as a grade token and nothing else loses the title: on a real
+    transcript, three exempted courses imported with no name at all, leaving the
+    student a bare course number to identify them by.
+
+    Returns None when the line is only the phrase -- then the title was on an
+    earlier line and the caller already has it.
+    """
+    return clean_title(OUTCOME_PHRASE.sub(" ", line))
+
+
 def parse_block_from_index(lines: list[str], start: int) -> tuple[ParsedBlock | None, int]:
     line = lines[start].strip()
     index = start + 1
@@ -283,7 +305,7 @@ def parse_block_from_index(lines: list[str], start: int) -> tuple[ParsedBlock | 
     exemption_concat = CONCATENATED_EXEMPTION.match(line)
     if exemption_concat:
         course_number = exemption_concat.group("number")
-        title = clean_title(exemption_concat.group("middle"))
+        title = title_from_outcome_line(exemption_concat.group("middle"))
         exemption = parse_exemption_grade(line)
         if exemption is None:
             return None, index
@@ -350,7 +372,7 @@ def parse_block_from_index(lines: list[str], start: int) -> tuple[ParsedBlock | 
             index += 1
             if not semester_code:
                 return None, index
-            block_title = clean_title(" ".join(title_parts))
+            block_title = clean_title(" ".join(title_parts)) or title_from_outcome_line(current)
             marked_attempt = _marked_attempt_from_parts(current, semester_line, block_title)
             return (
                 ParsedBlock(

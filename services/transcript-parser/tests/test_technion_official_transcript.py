@@ -10,9 +10,9 @@ from app.services.technion_official_parser import (
     parse_technion_official_transcript,
 )
 from app.services.pdf_pipeline import parse_technion_transcript_pdf
+from repo_root import repo_file
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_COURSE_COUNT = 48
 EXPECTED_STUDENT_ID = "211479449"
 
@@ -57,8 +57,8 @@ def test_official_transcript_fixture_parses_all_courses(fixture_name, expected_n
     ["תדפיס (1).pdf", "תדפיס.pdf"],
 )
 def test_sample_pdf_files_when_present(pdf_name):
-    pdf_path = REPO_ROOT / pdf_name
-    if not pdf_path.exists():
+    pdf_path = repo_file(pdf_name)
+    if pdf_path is None or not pdf_path.exists():
         pytest.skip(f"Sample PDF not available: {pdf_name}")
 
     result = parse_technion_transcript_pdf(pdf_path.read_bytes())

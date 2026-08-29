@@ -30,15 +30,21 @@ class TestShape:
         for name, schema in REGISTRY.items():
             assert schema.key in schema.fields, f"{name} keys on '{schema.key}' but never declares it"
 
-    def test_completed_courses_does_not_claim_a_courseNumber(self) -> None:
-        """It is not stored there -- 0 of 93 real documents carry one.
+    def test_completed_courses_identity_survives_a_missing_catalog_entry(self) -> None:
+        """`courseId` is not an identity on its own, so the key is derived.
 
-        An earlier version of this registry declared it, having been derived
-        from the API's INPUT model rather than the stored document. A course
-        code is only reachable by joining to `courses` on the ObjectId.
+        A transcript row for a course the catalog has never carried is imported
+        with a null `courseId` and the registrar's course number instead --
+        dropping it would make the reported total disagree with the sheet it
+        came from. A record with no key is refused outright, and that refusal
+        aborts the whole fetch, so the key falls back to the number.
         """
-        assert COMPLETED_COURSES.key == "courseId"
-        assert "courseNumber" not in COMPLETED_COURSES.fields
+        assert COMPLETED_COURSES.key == "courseKey"
+        assert "courseKey" in COMPLETED_COURSES.computed
+        assert "courseNumber" in COMPLETED_COURSES.fields
+        # Still the join route to a course code; the number is denormalised and
+        # older rows predate it.
+        assert ("courseId", "courses._id") in COMPLETED_COURSES.joins
 
     def test_grades_and_credits_are_quantities(self) -> None:
         fields = COMPLETED_COURSES.fields
@@ -241,7 +247,15 @@ class TestAgainstRealDocuments:
         """A key absent in practice means `find` refuses the whole fetch, which
         is a very loud way to discover the wrong key was chosen."""
         schema = REGISTRY[name]
-        documents = [doc async for doc in database[schema.collection].find({}).limit(50)]
+        # A DERIVED key is not on the stored document by definition, so it has to
+        # be checked after the same `$addFields` the fetch runs -- checking the
+        # raw document would report every row missing a key it never stores.
+        stages = (
+            [{"$addFields": dict(schema.computed)}] if getattr(schema, "computed", None) else []
+        )
+        documents = await database[schema.collection].aggregate(
+            stages + [{"$limit": 50}]
+        ).to_list(50)
         if not documents:
             pytest.skip(f"'{schema.collection}' is empty")
 

@@ -107,13 +107,24 @@ def build_effective_completions(
             continue
 
         numeric_grade = resolve_record_numeric_grade(record)
+        metadata = record.get("metadata") or {}
         effective[course_id] = {
             "courseId": course_id,
+            # Carried so a row whose course is not in the catalog can still be
+            # named; the catalog wins wherever it has an entry.
+            "courseNumber": record.get("courseNumber") or metadata.get("importedCourseNumber"),
+            "courseTitle": metadata.get("importedTitle"),
             "creditsEarned": round_credits(record["creditsEarned"]),
             "grade": numeric_grade if numeric_grade is not None else record.get("grade"),
             "semesterCode": record.get("semesterCode"),
             "recordedAt": record.get("recordedAt"),
             "attempt": int(record.get("attempt") or 1),
+            # An exemption the registrar granted without points: the student owes
+            # nothing for it, but it earns no credit either, so it fills no
+            # credit requirement. Without this the four on one transcript were
+            # listed as "free electives" the student had chosen.
+            "isExemptionWithoutCredit": bool(metadata.get("exemption"))
+            and round_credits(record["creditsEarned"]) <= 0,
         }
 
     return effective
@@ -139,6 +150,14 @@ def build_course_progress_entry(
     *,
     assigned_pool_group_id: str | None = None,
 ) -> dict[str, Any]:
+    """One row of a requirement bucket, named from the catalog where there is one.
+
+    A course the catalog has never carried still belongs on the list -- it is on
+    the student's official transcript -- so the number and title fall back to
+    what the transcript row itself recorded. Without that the bucket rendered
+    rows reading "None · None · 2.0 credits", which is worse than either naming
+    the course or leaving it out.
+    """
     catalog_credits = (catalog_course or {}).get("credits")
     credits_earned = completion["creditsEarned"] if completion else None
     credits_from_transcript = (
@@ -146,10 +165,20 @@ def build_course_progress_entry(
         and catalog_credits is not None
         and round_credits(float(credits_earned)) != round_credits(float(catalog_credits))
     )
+    fallback_number = (completion or {}).get("courseNumber")
+    fallback_title = (completion or {}).get("courseTitle")
     return {
         "courseId": course_id,
-        "courseNumber": (catalog_course or {}).get("courseNumber") or (catalog_course or {}).get("number"),
-        "courseTitle": (catalog_course or {}).get("title") or (catalog_course or {}).get("titleHebrew"),
+        "courseNumber": (
+            (catalog_course or {}).get("courseNumber")
+            or (catalog_course or {}).get("number")
+            or fallback_number
+        ),
+        "courseTitle": (
+            (catalog_course or {}).get("title")
+            or (catalog_course or {}).get("titleHebrew")
+            or fallback_title
+        ),
         "catalogCredits": catalog_credits,
         "creditsEarned": credits_earned,
         "creditsFromTranscript": credits_from_transcript,
@@ -157,6 +186,59 @@ def build_course_progress_entry(
         "semesterCode": completion.get("semesterCode") if completion else None,
         "assignedPoolGroupId": assigned_pool_group_id,
     }
+
+
+def _admit_deferred_overlap_courses(
+    deferred: list[tuple[str, dict[str, Any] | None, dict[str, Any]]],
+    *,
+    completed_courses: list[dict[str, Any]],
+    assigned_course_ids: set[str],
+    claimed_keys: set[str],
+    pool_group: str | None,
+    credits_completed: float,
+    min_credits: float,
+) -> float:
+    """Let overlap-blocked courses fill a bucket that would otherwise finish short.
+
+    A requirement the student cannot satisfy is a bug wherever it comes from. The
+    physical-education bucket asks for 2.0 credits from a pool of 1.0-credit
+    courses that the catalog cross-lists as no-additional-credit with one
+    another, so the overlap rule caps the bucket at 1.0 and every Technion
+    undergraduate is permanently 1.0 short of a requirement they have met. The
+    registrar disagrees in writing: the official transcript's accumulated total
+    counts all three of this student's PE courses.
+
+    So the rule still applies wherever a bucket can be filled without it -- two
+    genuinely equivalent courses do not both count -- and yields only when the
+    alternative is reporting an unreachable requirement. Returns the extra
+    credits admitted, and stops the moment the minimum is reached.
+    """
+    if not deferred or credits_completed >= min_credits:
+        return 0.0
+
+    admitted = 0.0
+    for course_id, catalog_course, completion in deferred:
+        if credits_completed + admitted >= min_credits:
+            break
+        if course_id in assigned_course_ids:
+            continue
+
+        completed_courses.append(
+            build_course_progress_entry(
+                course_id,
+                catalog_course,
+                completion,
+                assigned_pool_group_id=pool_group,
+            )
+        )
+        admitted += completion["creditsEarned"]
+        assigned_course_ids.add(course_id)
+
+        number = (catalog_course or {}).get("courseNumber") or (catalog_course or {}).get("number")
+        if number is not None:
+            claimed_keys |= _course_number_keys(str(number))
+
+    return admitted
 
 
 def _course_number_keys(raw: str) -> set[str]:
@@ -374,9 +456,10 @@ def calculate_graduation_progress(
         resolve_claiming_pool,
     )
     from app.services.catalog_overlap_groups import (
-        build_catalog_overlap_groups,
+        build_catalog_overlap_conflicts,
+        conflicts_for_course,
         exclude_overlap_duplicate_credits,
-        overlap_group_for_course,
+        serialize_catalog_overlap_conflicts,
     )
 
     program_code = str(degree_program["programCode"])
@@ -402,7 +485,7 @@ def calculate_graduation_progress(
         executable_matrix_documents,
         catalog_course_list,
     )
-    catalog_overlap_groups = build_catalog_overlap_groups(catalog_course_list)
+    catalog_overlap_conflicts = build_catalog_overlap_conflicts(catalog_course_list)
     enforce_mandatory_bucket = bool(matrix_mandatory_groups)
 
     pools_by_id = _index_pools_by_group_id(pool_documents)
@@ -429,12 +512,15 @@ def calculate_graduation_progress(
     overlap_excluded_ids = exclude_overlap_duplicate_credits(
         effective_completions,
         catalog_courses_by_id,
-        catalog_overlap_groups,
+        catalog_overlap_conflicts,
         recorded_at_timestamp=_recorded_at_timestamp,
     )
     assigned_course_ids: set[str] = set()
     assigned_mandatory_groups: set[frozenset[str]] = set()
-    global_overlap_credits_claimed: set[frozenset[str]] = set()
+    # Course-number keys whose credit has already been claimed by some bucket.
+    # Pairwise, not group-identity: a course is blocked only by a course the
+    # catalog names as its own overlap partner.
+    global_overlap_credits_claimed: set[str] = set()
     ineligible_credits: list[dict[str, Any]] = []
     requirement_progress: list[dict[str, Any]] = []
 
@@ -460,6 +546,7 @@ def calculate_graduation_progress(
 
         completed_courses: list[dict[str, Any]] = []
         remaining_courses: list[dict[str, Any]] = []
+        overlap_deferred: list[tuple[str, dict[str, Any] | None, dict[str, Any]]] = []
         credits_completed = 0.0
 
         for course_id, completion in sorted(
@@ -467,6 +554,10 @@ def calculate_graduation_progress(
             key=lambda item: item[0],
         ):
             if course_id in assigned_course_ids:
+                continue
+            if completion.get("isExemptionWithoutCredit"):
+                # Nothing to place: it carries no credit, so it can neither fill
+                # a bucket nor be owed. It is reported separately below.
                 continue
 
             catalog_course = catalog_courses_by_id.get(course_id)
@@ -480,9 +571,22 @@ def calculate_graduation_progress(
                 suffix == mandatory_bucket_suffix and enforce_mandatory_bucket
             )
             if course_id in overlap_excluded_ids and not is_mandatory_bucket_pass:
+                # Same reprieve as the per-bucket conflict guard below: hold the
+                # course rather than dropping it, so a pool whose members all
+                # exclude each other can still reach its minimum.
+                if strict_pool and is_course_eligible_for_pools(
+                    course_number,
+                    eligibility_pools,
+                    program_code=program_code,
+                    equivalence_groups=progress_equivalence_groups,
+                ):
+                    overlap_deferred.append((course_id, catalog_course, completion))
                 continue
 
-            overlap_key = overlap_group_for_course(course_number, catalog_overlap_groups)
+            overlap_own_keys = _course_number_keys(course_number) if course_number else set()
+            overlap_conflict_keys = conflicts_for_course(
+                course_number, catalog_overlap_conflicts
+            )
 
             entry = build_course_progress_entry(course_id, catalog_course, completion)
 
@@ -494,13 +598,94 @@ def calculate_graduation_progress(
             ):
                 continue
 
+            # The mandatory bucket is decided BEFORE the generic pool branch
+            # below, and the order is the whole point. `core-mandatory` carries a
+            # linked pool -- the science-elective supplement -- which is a
+            # sub-constraint on the bucket, NOT the definition of it. Letting the
+            # pool branch run first filtered a 107.5-credit core requirement down
+            # to the 12 courses in that supplement: this student had 26 core
+            # courses assigned nowhere, and the branch below was unreachable for
+            # every program whose mandatory bucket links a pool. The pool is still
+            # enforced, by `evaluate_bucket_pool_constraints` further down, which
+            # is where a sub-constraint belongs.
+            if suffix == mandatory_bucket_suffix and enforce_mandatory_bucket:
+                constraint_pool_eligible = (
+                    suffix in CONSTRAINT_ENFORCED_BUCKET_SUFFIXES
+                    and is_course_eligible_for_pools(
+                        course_number,
+                        eligibility_pools,
+                        program_code=program_code,
+                        equivalence_groups=progress_equivalence_groups,
+                    )
+                )
+                if not constraint_pool_eligible:
+                    if not qualifies_for_required_bucket(
+                        course_number,
+                        mandatory_equivalence_groups=mandatory_equivalence_groups,
+                        progress_equivalence_groups=progress_equivalence_groups,
+                    ):
+                        continue
+                    group_key = resolve_mandatory_assignment_group(
+                        course_number,
+                        mandatory_equivalence_groups=mandatory_equivalence_groups,
+                        progress_equivalence_groups=progress_equivalence_groups,
+                    )
+                    if group_key is not None and group_key in assigned_mandatory_groups:
+                        continue
+                    completed_courses.append(entry)
+                    assigned_course_ids.add(course_id)
+                    if group_key is not None:
+                        assigned_mandatory_groups.add(group_key)
+                    global_overlap_credits_claimed |= overlap_own_keys
+                    continue
+
+                if overlap_conflict_keys & global_overlap_credits_claimed:
+                    continue
+
+                claiming_pool = resolve_claiming_pool(
+                    course_number,
+                    eligibility_pools,
+                    program_code=program_code,
+                    equivalence_groups=progress_equivalence_groups,
+                )
+                assigned_pool_group_id = (
+                    str(claiming_pool.get("requirementGroupId"))
+                    if claiming_pool and claiming_pool.get("requirementGroupId")
+                    else pool_group
+                )
+                completed_courses.append(
+                    build_course_progress_entry(
+                        course_id,
+                        catalog_course,
+                        completion,
+                        assigned_pool_group_id=assigned_pool_group_id,
+                    )
+                )
+                credits_completed += completion["creditsEarned"]
+                assigned_course_ids.add(course_id)
+                global_overlap_credits_claimed |= overlap_own_keys
+                continue
+
             if strict_pool:
                 if credits_completed >= min_credits:
                     continue
-                if (
-                    overlap_key is not None
-                    and overlap_key in global_overlap_credits_claimed
-                ):
+                if overlap_conflict_keys & global_overlap_credits_claimed:
+                    # Held back rather than dropped. Some pools are built from
+                    # courses the catalog cross-lists as no-additional-credit
+                    # with each ANOTHER -- every physical-education course names
+                    # every other one -- so enforcing the rule here alone leaves
+                    # a 2-credit requirement that 1-credit courses can never
+                    # fill. `_admit_deferred_overlap_courses` lets these in only
+                    # if the bucket would otherwise finish short, which is the
+                    # reading the registrar's own transcript supports: it counts
+                    # all three of this student's PE courses.
+                    if is_course_eligible_for_pools(
+                        course_number,
+                        eligibility_pools,
+                        program_code=program_code,
+                        equivalence_groups=progress_equivalence_groups,
+                    ):
+                        overlap_deferred.append((course_id, catalog_course, completion))
                     continue
 
                 if is_course_eligible_for_pools(
@@ -530,71 +715,7 @@ def calculate_graduation_progress(
                     )
                     credits_completed += completion["creditsEarned"]
                     assigned_course_ids.add(course_id)
-                    if overlap_key is not None:
-                        global_overlap_credits_claimed.add(overlap_key)
-                continue
-
-            if suffix == mandatory_bucket_suffix and enforce_mandatory_bucket:
-                constraint_pool_eligible = (
-                    suffix in CONSTRAINT_ENFORCED_BUCKET_SUFFIXES
-                    and is_course_eligible_for_pools(
-                        course_number,
-                        eligibility_pools,
-                        program_code=program_code,
-                        equivalence_groups=progress_equivalence_groups,
-                    )
-                )
-                if not constraint_pool_eligible:
-                    if not qualifies_for_required_bucket(
-                        course_number,
-                        mandatory_equivalence_groups=mandatory_equivalence_groups,
-                        progress_equivalence_groups=progress_equivalence_groups,
-                    ):
-                        continue
-                    group_key = resolve_mandatory_assignment_group(
-                        course_number,
-                        mandatory_equivalence_groups=mandatory_equivalence_groups,
-                        progress_equivalence_groups=progress_equivalence_groups,
-                    )
-                    if group_key is not None and group_key in assigned_mandatory_groups:
-                        continue
-                    completed_courses.append(entry)
-                    assigned_course_ids.add(course_id)
-                    if group_key is not None:
-                        assigned_mandatory_groups.add(group_key)
-                    if overlap_key is not None:
-                        global_overlap_credits_claimed.add(overlap_key)
-                    continue
-
-                if (
-                    overlap_key is not None
-                    and overlap_key in global_overlap_credits_claimed
-                ):
-                    continue
-
-                claiming_pool = resolve_claiming_pool(
-                    course_number,
-                    eligibility_pools,
-                    program_code=program_code,
-                    equivalence_groups=progress_equivalence_groups,
-                )
-                assigned_pool_group_id = (
-                    str(claiming_pool.get("requirementGroupId"))
-                    if claiming_pool and claiming_pool.get("requirementGroupId")
-                    else pool_group
-                )
-                completed_courses.append(
-                    build_course_progress_entry(
-                        course_id,
-                        catalog_course,
-                        completion,
-                        assigned_pool_group_id=assigned_pool_group_id,
-                    )
-                )
-                credits_completed += completion["creditsEarned"]
-                assigned_course_ids.add(course_id)
-                if overlap_key is not None:
-                    global_overlap_credits_claimed.add(overlap_key)
+                    global_overlap_credits_claimed |= overlap_own_keys
                 continue
 
             at_min_credits = credits_completed >= min_credits
@@ -612,14 +733,23 @@ def calculate_graduation_progress(
                         continue
                 else:
                     break
-            if overlap_key is not None and overlap_key in global_overlap_credits_claimed:
+            if overlap_conflict_keys & global_overlap_credits_claimed:
                 continue
 
             completed_courses.append(entry)
             credits_completed += completion["creditsEarned"]
             assigned_course_ids.add(course_id)
-            if overlap_key is not None:
-                global_overlap_credits_claimed.add(overlap_key)
+            global_overlap_credits_claimed |= overlap_own_keys
+
+        credits_completed += _admit_deferred_overlap_courses(
+            overlap_deferred,
+            completed_courses=completed_courses,
+            assigned_course_ids=assigned_course_ids,
+            claimed_keys=global_overlap_credits_claimed,
+            pool_group=pool_group,
+            credits_completed=credits_completed,
+            min_credits=min_credits,
+        )
 
         if suffix == mandatory_bucket_suffix and enforce_mandatory_bucket:
             remaining_courses = filter_remaining_mandatory_courses(
@@ -730,9 +860,24 @@ def calculate_graduation_progress(
             if imported_number:
                 course_number = str(imported_number)
         course_title = metadata.get("importedTitle")
-        overlap_key = overlap_group_for_course(course_number, catalog_overlap_groups)
-        if overlap_key is not None and (
-            overlap_key in global_overlap_credits_claimed or course_id in overlap_excluded_ids
+        if completion.get("isExemptionWithoutCredit"):
+            # Not a shortfall and not a course the student chose: the registrar
+            # waived it and awarded no points. Saying so beats filing it under
+            # "not assigned to a requirement", which reads like something went
+            # wrong, and beats listing it as a free elective, which it never was.
+            ineligible_credits.append(
+                {
+                    "courseId": course_id,
+                    "courseNumber": course_number,
+                    "courseTitle": course_title,
+                    "creditsEarned": completion["creditsEarned"],
+                    "reason": "exemption_without_credit",
+                }
+            )
+            continue
+        overlap_conflict_keys = conflicts_for_course(course_number, catalog_overlap_conflicts)
+        if course_id in overlap_excluded_ids or (
+            overlap_conflict_keys & global_overlap_credits_claimed
         ):
             ineligible_credits.append(
                 {
@@ -780,8 +925,23 @@ def calculate_graduation_progress(
     completed_mandatory_courses = _dedupe_courses_by_id(
         [course for entry in mandatory_progress for course in entry["completedCourses"]]
     )
+    # ONLY the matrix-backed bucket. An elective bucket is "mandatory" in that
+    # its credit total must be reached, but the courses it lists as remaining
+    # are OPTIONS from its pools, not requirements. Folding them in here told
+    # this student they still had to take `00940189` -- the industrial
+    # engineering version of a project they had already completed as
+    # `00940395` -- alongside three interchangeable statistics courses, none of
+    # which anyone owes. What an elective bucket still needs is credits, and it
+    # already reports that as `creditsRemaining`.
+    curriculum_progress = [
+        entry
+        for entry in mandatory_progress
+        if mandatory_bucket_suffix is not None
+        and bucket_suffix_from_group_id(str(entry.get("requirementGroupId") or ""), program_code)
+        == mandatory_bucket_suffix
+    ] or (mandatory_progress if mandatory_bucket_suffix is None else [])
     remaining_mandatory_courses = _dedupe_courses_by_id(
-        [course for entry in mandatory_progress for course in entry["remainingCourses"]]
+        [course for entry in curriculum_progress for course in entry["remainingCourses"]]
     )
     remaining_mandatory_courses = filter_remaining_mandatory_courses(
         remaining_mandatory_courses,
@@ -819,6 +979,17 @@ def calculate_graduation_progress(
         if entry["status"] != "satisfied"
     ]
 
+    # A remaining requirement the catalog does not carry contributes 0 to the
+    # remainder, and the mandatory bucket derives what is DONE by subtracting the
+    # remainder from the minimum -- so an uncatalogued outstanding course
+    # silently flatters the figure. Its credits cannot be invented, so the
+    # qualification is stated instead of buried.
+    uncatalogued_remaining = sorted(
+        str(course.get("courseNumber"))
+        for course in remaining_mandatory_courses
+        if course.get("catalogCredits") is None and course.get("courseNumber")
+    )
+
     assumptions = [
         "hard_requirements_matrix",
         "strict_pool_eligibility",
@@ -828,7 +999,14 @@ def calculate_graduation_progress(
         "degree_applied_credits",
         "track_requirements",
     ]
+    if uncatalogued_remaining:
+        assumptions.append("uncatalogued_remaining_requirements")
     assumption_labels = {
+        "uncatalogued_remaining_requirements": (
+            "Still-required courses missing from the catalog carry no credit value, so the "
+            "mandatory bucket's completed figure is an overestimate by their true worth: "
+            + ", ".join(uncatalogued_remaining)
+        ),
         "hard_requirements_matrix": (
             "Hard requirements from degree_requirements; semester_matrix rows assign mandatory curriculum courses."
         ),
@@ -854,7 +1032,7 @@ def calculate_graduation_progress(
         ),
     }
 
-    catalog_overlap_serialized = [sorted(group) for group in catalog_overlap_groups]
+    catalog_overlap_serialized = serialize_catalog_overlap_conflicts(catalog_overlap_conflicts)
 
     from app.services.pool_constraint_evaluator import build_advisory_warnings
 

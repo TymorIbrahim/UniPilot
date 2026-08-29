@@ -78,6 +78,8 @@ function renderUpload(featured = false, locale: 'en' | 'he' = 'en') {
       'transcript.upload.importButton': `Import ${params?.count ?? 0} selected`,
       'transcript.upload.importing': 'Importing',
       'transcript.upload.importSuccess': `Imported ${params?.created} courses`,
+      'transcript.upload.unmatchedTitle': `${params?.count ?? 0} courses are not in the catalog`,
+      'transcript.upload.unmatchedHint': 'Credits were imported from the transcript',
       'transcript.upload.parseFailed': 'Parse failed',
       'transcript.upload.importFailed': 'Import failed',
       'transcript.upload.invalidFile': 'Invalid file',
@@ -198,6 +200,44 @@ describe('TranscriptPdfUpload', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['transcript'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['progress'] })
     expect(await screen.findByTestId('transcript-upload-success')).toHaveTextContent('Imported 2 courses')
+  })
+
+  it('names the courses the catalog could not match, not just how many', async () => {
+    // A bare count leaves the student no way to know WHICH course went
+    // unmatched, or to check it: a real import lost a 2-credit course at
+    // grade 96 and said only "3 unresolved".
+    const user = userEvent.setup()
+    vi.mocked(endpoints.transcriptImportApi.parse).mockResolvedValue({
+      parsePreview: previewFixture,
+    })
+    vi.mocked(endpoints.transcriptImportApi.commit).mockResolvedValue({
+      importResult: {
+        created: [],
+        skippedDuplicates: [],
+        unresolved: [
+          {
+            courseNumber: '03240462',
+            semesterCode: '2022-3',
+            reason: 'Course not found in catalog; credits taken from the transcript',
+          },
+        ],
+        createdCount: 2,
+        skippedCount: 0,
+        unresolvedCount: 1,
+      },
+    })
+
+    renderUpload()
+    const file = new File(['pdf'], 'transcript.pdf', { type: 'application/pdf' })
+    await user.upload(screen.getByTestId('transcript-upload-input'), file)
+    await user.click(screen.getByTestId('transcript-upload-parse'))
+    await screen.findByTestId('transcript-upload-preview')
+    await user.click(screen.getByTestId('transcript-upload-commit'))
+
+    const panel = await screen.findByTestId('transcript-upload-unmatched')
+    expect(panel).toHaveTextContent('03240462')
+    expect(panel).toHaveTextContent('2022-3')
+    expect(panel).toHaveTextContent('1 courses are not in the catalog')
   })
 
   it('filters preview rows', async () => {

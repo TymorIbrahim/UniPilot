@@ -13,12 +13,51 @@ something can feed it.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from typing import Any
 
 from app.agent_core.facts.find import DerivedSchema
 from app.agent_core.facts.prose import Passage
 from app.agent_core.facts.types import Basis, ScalarKind
+
+logger = logging.getLogger(__name__)
+
+# Below this, the graph is a development stub rather than a catalog: the
+# bootstrap fixtures hold six courses between three files. Measured against
+# the real export, which carries thousands.
+MIN_GRAPH_CATALOG_COURSES = 50
+
+
+def _graph_has_usable_catalog(engine: Any) -> bool:
+    """Whether the graph holds a real catalog, not just the stubs that let it start."""
+    if not getattr(engine, "_built", False):
+        return False
+    # `course_catalog`, and named here rather than guessed: an attribute this
+    # engine does not have reads as an empty catalog, which would refuse a
+    # perfectly good graph exactly as silently as the bug this guard exists to
+    # stop. Verified against a loaded engine -- 1,289 courses from the real
+    # semester exports, 2 from the bootstrap stubs.
+    catalog = getattr(engine, "course_catalog", None)
+    if catalog is None:
+        logger.warning(
+            "academic graph engine exposes no `course_catalog`: cannot tell a real "
+            "catalog from a stub, so the curriculum sources stay unavailable"
+        )
+        return False
+    try:
+        catalog_size = len(catalog)
+    except TypeError:
+        return False
+    if catalog_size < MIN_GRAPH_CATALOG_COURSES:
+        logger.warning(
+            "academic graph holds %d courses (< %d): treating the curriculum sources as "
+            "unavailable rather than answering from a stub catalog",
+            catalog_size,
+            MIN_GRAPH_CATALOG_COURSES,
+        )
+        return False
+    return True
 
 
 class WikiRetriever:
@@ -365,10 +404,17 @@ def build_wiring(settings: Any | None = None) -> dict[str, Any]:
         if engine is not None:
             wiring["retriever"] = WikiRetriever(engine)
             wiring["engine"] = engine
-            # Only once the graph is BUILT does it hold prerequisite ASTs. An
-            # unbuilt engine would produce zero edges and report them complete,
-            # which is the confident-silence failure in miniature.
-            if getattr(engine, "_built", False):
+            # BUILT is necessary and not sufficient. The semester offering JSON
+            # is gitignored, and `scripts/bootstrap-semester-data.sh` fills in
+            # stubs so the service can start -- three files holding six courses
+            # between them. A graph built on those reports `built = True` with
+            # two courses in the catalog and ONE prerequisite edge, and
+            # registering these sources off it would have the model answer
+            # prerequisite and "what is left" questions from an empty
+            # curriculum, confidently. Declining is the honest answer; this is
+            # the check that produces it deliberately rather than by way of a
+            # swallowed FileNotFoundError.
+            if _graph_has_usable_catalog(engine):
                 from app.agent_core.facts.views import (
                     passed_courses_source,
                     remaining_courses_source,
@@ -383,8 +429,12 @@ def build_wiring(settings: Any | None = None) -> dict[str, Any]:
                 # build "what is left" from a set that is not "what is done".
                 wiring["sources"]["passed_courses"] = passed_courses_source(engine)
                 wiring["sources"]["remaining_courses"] = remaining_courses_source(engine)
-    except Exception:  # noqa: BLE001 -- unconfigured corpus is a missing capability
-        pass
+    except Exception as exc:  # noqa: BLE001 -- unconfigured corpus is a missing capability
+        # Logged, not silent. An unconfigured corpus and a broken one look
+        # identical from the outside -- both register nothing -- and the
+        # difference took a session to find because the reason was discarded
+        # here. The capability stays absent either way; only the diagnosis changes.
+        logger.warning("academic graph sources unavailable: %s: %s", type(exc).__name__, exc)
 
     try:
         from app.agent_core.reasoning.llm_client import build_chat_llm

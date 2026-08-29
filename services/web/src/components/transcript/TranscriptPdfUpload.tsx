@@ -22,7 +22,12 @@ import {
 import { semesterLabel } from '../../lib/semester'
 import { cn, formatCredits } from '../../lib/utils'
 import type { Locale } from '../../i18n/types'
-import type { CourseSummary, ParsedTranscriptCourse, TranscriptParsePreview } from '../../types/api'
+import type {
+  CourseSummary,
+  ParsedTranscriptCourse,
+  TranscriptImportResult,
+  TranscriptParsePreview,
+} from '../../types/api'
 import { Badge } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -66,6 +71,7 @@ export function TranscriptPdfUpload({ locale, t, featured = false }: TranscriptP
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [unmatched, setUnmatched] = useState<TranscriptImportResult['unresolved']>([])
   const catalogQuery = useTranscriptPreviewCatalog(preview)
   const catalogByNumber = catalogQuery.data ?? EMPTY_CATALOG_MAP
 
@@ -133,6 +139,9 @@ export function TranscriptPdfUpload({ locale, t, featured = false }: TranscriptP
           replaced: replacedCount,
         }),
       )
+      // A count alone leaves the student with no idea WHICH course the catalog
+      // could not match, and so no way to check it or correct it.
+      setUnmatched(data.importResult.unresolved ?? [])
       resetPreview()
       setSelectedFile(null)
       setError('')
@@ -140,6 +149,7 @@ export function TranscriptPdfUpload({ locale, t, featured = false }: TranscriptP
     },
     onError: (err: Error) => {
       setSuccess('')
+      setUnmatched([])
       setError(err.message || t('transcript.upload.importFailed'))
     },
   })
@@ -525,6 +535,25 @@ export function TranscriptPdfUpload({ locale, t, featured = false }: TranscriptP
           >
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             {success}
+          </div>
+        ) : null}
+        {unmatched.length > 0 ? (
+          <div
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            data-testid="transcript-upload-unmatched"
+          >
+            <p className="flex items-start gap-2 font-medium">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {t('transcript.upload.unmatchedTitle', { count: unmatched.length })}
+            </p>
+            <p className="mt-1 text-amber-800">{t('transcript.upload.unmatchedHint')}</p>
+            <ul className="mt-2 space-y-1">
+              {unmatched.map((row) => (
+                <li key={`${row.courseNumber}-${row.semesterCode}`} className="font-mono text-xs">
+                  {row.courseNumber} · {row.semesterCode}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </div>

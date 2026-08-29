@@ -83,6 +83,11 @@ async def test_transcript_import_commit_reports_unresolved_catalog(auth_client):
 
     assert response.status_code == 200
     payload = response.json()["data"]["importResult"]
-    assert payload["createdCount"] == 0
+    # Still reported, so the student learns the course could not be matched --
+    # but imported, so its credits do not vanish from the transcript total.
     assert payload["unresolvedCount"] == 1
     assert payload["unresolved"][0]["courseNumber"] == "00000000"
+    assert payload["createdCount"] == 1
+    assert payload["created"][0]["courseId"] is None
+    assert payload["created"][0]["courseNumber"] == "00000000"
+    assert payload["created"][0]["creditsEarned"] == 3

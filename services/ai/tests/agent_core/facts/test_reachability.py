@@ -284,13 +284,36 @@ class TestEveryAdvertisedToolCanBeFed:
 
         So this asks the production wiring what it actually registered, and then
         reads each one the way the model would.
+
+        Skipped, not failed, when the machine has no catalog to build a graph
+        from: the semester exports are gitignored, so a fresh clone genuinely
+        cannot register these and a red test there says nothing about the code.
+        What it still catches is the case that matters -- a usable graph that
+        registers nothing anyway, which is the silent-wiring regression.
         """
         wired = build_wiring()["sources"]
-        assert wired, (
-            "build_wiring registered NO sources. Either the graph is unbuilt or the try/except "
-            "around it swallowed a real error -- both leave prerequisite_edges, track_courses, "
-            "passed_courses and remaining_courses silently unreachable."
-        )
+        if not wired:
+            from app.agent_core.facts.wiring import _graph_has_usable_catalog
+
+            engine = None
+            try:
+                from app.retrieval.graph_engine.graph_registry import graph_registry
+
+                engine = graph_registry.get_engine()
+            except Exception:  # noqa: BLE001 -- no corpus on this machine
+                engine = None
+            if engine is None or not _graph_has_usable_catalog(engine):
+                pytest.skip(
+                    "NOT VERIFIED: no usable academic graph on this machine, so "
+                    "prerequisite_edges/track_courses/passed_courses/remaining_courses are "
+                    "UNCHECKED. Copy the Technion semester exports to verify them."
+                )
+            pytest.fail(
+                "build_wiring registered NO sources even though the graph holds a usable "
+                "catalog -- the try/except around registration swallowed a real error, "
+                "leaving prerequisite_edges, track_courses, passed_courses and "
+                "remaining_courses silently unreachable."
+            )
 
         context = DispatchContext(database=database, schemas={**REGISTRY, **wired})
         _seed_me(context, str(ObjectId()))

@@ -271,3 +271,34 @@ def test_exemption_concat_guard_when_exemption_parser_returns_none(monkeypatch):
     assert block is None
     assert next_index == 1
 
+
+
+def test_title_from_outcome_line_keeps_the_course_name():
+    """Hebrew exemption rows run the title into the phrase with no credits split.
+
+    Three courses on a real transcript imported with `title: null` because the
+    whole line was consumed as a grade token.
+    """
+    from app.services.technion_official_parser import title_from_outcome_line
+
+    assert title_from_outcome_line("סווג חלק א-1 השלמות פיסיקה פטור ללא ניקוד") == (
+        "סווג חלק א-1 השלמות פיסיקה"
+    )
+    assert title_from_outcome_line("4 עברית פטור ללא ניקוד") == "4 עברית"
+    assert title_from_outcome_line("Math Refresher exemption with points") == "Math Refresher"
+    # Only the phrase: the title was on an earlier line and the caller holds it.
+    assert title_from_outcome_line(" פטור ללא ניקוד") is None
+    assert title_from_outcome_line("עובר") is None
+
+
+def test_exemption_row_split_over_two_lines_keeps_its_title():
+    lines = [
+        "01130013",
+        "סווג חלק א-1 השלמות פיסיקה פטור ללא ניקוד",
+        "2021-2022 Winter",
+    ]
+    block, _ = parse_block_from_index(lines, 0)
+    assert block is not None
+    assert block.course_number == "01130013"
+    assert block.title == "סווג חלק א-1 השלמות פיסיקה"
+    assert block.grade == 0.0

@@ -1,14 +1,13 @@
 """Regression tests against the sample Technion gradesheet PDF in the repo root."""
 
-from pathlib import Path
-
 from app.services.pdf_pipeline import parse_technion_transcript_pdf
+from repo_root import repo_file
 
-GRADESHEET_PDF = Path(__file__).resolve().parents[3] / "gradesheet.pdf"
+GRADESHEET_PDF = repo_file("gradesheet.pdf")
 
 
 def test_gradesheet_pdf_parses_full_credit_total():
-    if not GRADESHEET_PDF.is_file():
+    if GRADESHEET_PDF is None or not GRADESHEET_PDF.is_file():
         return
 
     result = parse_technion_transcript_pdf(GRADESHEET_PDF.read_bytes())
@@ -31,7 +30,7 @@ def test_gradesheet_pdf_parses_full_credit_total():
 
 
 def test_gradesheet_pdf_metadata_marks_summary_transcript():
-    if not GRADESHEET_PDF.is_file():
+    if GRADESHEET_PDF is None or not GRADESHEET_PDF.is_file():
         return
 
     result = parse_technion_transcript_pdf(GRADESHEET_PDF.read_bytes())

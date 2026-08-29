@@ -75,13 +75,46 @@ def build_progress_equivalence_groups(
     semester_matrix_documents: list[dict[str, Any]] | None,
     catalog_courses: list[dict[str, Any]] | None = None,
 ) -> list[set[str]]:
-    """Matrix + cross-track + catalog overlap (מקצועות ללא זיכוי נוסף) groups."""
-    from app.services.catalog_overlap_groups import build_catalog_overlap_groups
+    """Matrix slots, each widened by the courses the catalog says may stand in for it.
 
-    combined = [set(group) for group in build_mandatory_equivalence_groups(semester_matrix_documents)]
-    if catalog_courses:
-        combined.extend(build_catalog_overlap_groups(catalog_courses))
-    return merge_overlapping_equivalence_groups(combined)
+    Matrix rows and cross-track pairs ARE equivalences -- alternatives for one
+    curriculum slot -- so they are merged. "מקצועות ללא זיכוי נוסף" is not: it
+    is pairwise, and merging it into the same closure made every course that
+    shared a single partner interchangeable with every other.
+
+    That is not a cosmetic difference here, because this list decides which
+    matrix slot a completed course CLAIMS. Under the closure,
+    `resolve_mandatory_assignment_group` handed `00940312` (deterministic models
+    in OR) the slot belonging to `02340221` (intro to CS) -- the two share one
+    partner and neither names the other -- and the real intro-CS course, 4.0
+    credits at grade 93, was then refused as a duplicate of a slot already
+    taken and counted toward no requirement at all.
+
+    So each slot absorbs only the DIRECT overlap partners of its own members,
+    and the slots are not merged into one another.
+    """
+    from app.services.catalog_overlap_groups import (
+        build_catalog_overlap_conflicts,
+        serialize_catalog_overlap_conflicts,
+    )
+
+    groups = [set(group) for group in build_mandatory_equivalence_groups(semester_matrix_documents)]
+    if not catalog_courses:
+        return groups
+
+    conflicts = build_catalog_overlap_conflicts(catalog_courses)
+    widened: list[set[str]] = []
+    for group in groups:
+        partners: set[str] = set()
+        for key in group:
+            partners |= conflicts.get(key, frozenset())
+        widened.append(group | partners)
+
+    # Pairs that touch no matrix slot still matter for pool matching -- a pool
+    # naming one course should accept the course the catalog says replaces it --
+    # so they are carried as their own groups rather than merged into the above.
+    widened.extend(set(pair) for pair in serialize_catalog_overlap_conflicts(conflicts))
+    return widened
 
 
 def merge_with_cross_track_equivalence_groups(groups: list[set[str]]) -> list[set[str]]:

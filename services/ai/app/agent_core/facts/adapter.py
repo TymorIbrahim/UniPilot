@@ -363,8 +363,14 @@ the actual plan, and stopping before it answers nothing:
      answering before it exists is. Every arithmetic operand is an OBJECT; a bare
      number is rejected, so write {"value": N}.
      a. GPA basis -- no join, `completed` has both fields:
-          {"op":"extend","fields":{"points":{"mul":[{"path":"grade"},{"path":"creditsEarned"}]}}}
-        then sum(points) -> total_points and sum(creditsEarned) -> total_credits.
+          {"op":"extend","fields":{"points":{"mul":[{"path":"grade"},{"path":"creditsGraded"}]}}}
+        then sum(points) -> total_points and sum(creditsGraded) -> total_credits.
+        Weight by `creditsGraded` and NOTHING else. `creditsEarned` pulls in rows
+        the registrar leaves out of the average -- exemptions and pass/fail --
+        and reported 73.0 against a transcript stating 74.1; `creditsCounted`
+        drops the failed course the registrar DOES average and reported 76.0.
+        `creditsGraded` is already 0 on every row that must not weigh, so the
+        sum needs no filter.
         (Do NOT sum `gradePoints`; it is often empty and stalls the whole GPA.)
         Then `gpa` is a SCALAR compute straight from those two held facts -- a
         pipeline with a `value` and NO `source`:
