@@ -641,3 +641,49 @@ def test_matrix_semesters_for_planning_returns_empty_when_no_available_semesters
         )
         == []
     )
+
+
+def test_a_course_in_both_the_matrix_and_an_elective_pool_is_offered_once():
+    """`00940704` is an outstanding mandatory course AND a faculty-elective pool
+    member, so it arrived from both sources and was planned into one semester
+    twice -- counted twice against the credit cap, which pushed a real course
+    out as "would exceed maxCredits"."""
+    from app.planning.semester_planner import build_candidate_pools
+
+    shared = {
+        "_id": "6a3db0e382df7b7cb04552d8",
+        "number": "00940704",
+        "courseNumber": "00940704",
+        "title": "C programming workshop",
+        "credits": 1.5,
+    }
+    courses_by_id = {"6a3db0e382df7b7cb04552d8": shared}
+    progress = {
+        "requirementProgress": [
+            {
+                "isMandatory": True,
+                "requirementType": "core",
+                "remainingCourses": [{"courseId": "6a3db0e382df7b7cb04552d8"}],
+            },
+            {
+                "isMandatory": True,
+                "requirementType": "elective",
+                "remainingCourses": [{"courseId": "6a3db0e382df7b7cb04552d8"}],
+            },
+        ]
+    }
+
+    result = build_candidate_pools(
+        catalog_courses=[shared],
+        graduation_progress=progress,
+        completed_course_ids=set(),
+        semester_matrix_documents=[],
+        hard_requirements=[],
+        pool_documents=[],
+        program_code="009118-1-000",
+    )
+
+    mandatory = {c["_id"] for c in result["mandatoryCandidates"]}
+    elective = {c["_id"] for c in result["electiveCandidates"]}
+    assert "6a3db0e382df7b7cb04552d8" in mandatory
+    assert not (mandatory & elective), "the same course is offered by both passes"
