@@ -363,6 +363,23 @@ def _resolve_track(program_slug: str, contains: Mapping[str, Any]) -> str | None
 
 _COURSE_CODE = re.compile(r"\b0\d{7}\b")
 
+# Same course, different code per track. Curated rather than derived: across
+# 8,884 catalog references exactly ONE note matches the "code X (ISE) vs code Y
+# (DNE)" shape this pair is documented by, while 42 other notes name a course
+# code for unrelated reasons (prerequisites, replacements). A regex justified by
+# a single example would buy one pair and risk forty-two wrong ones.
+#
+# MUST agree with `KNOWN_CROSS_TRACK_EQUIVALENCE_GROUPS` in the API's
+# `app/curriculum/cross_track_equivalence.py`. The two services share no code,
+# so the only thing keeping them in step is this note and the test that pins the
+# pair -- when adding one, add it in both places.
+CROSS_TRACK_EQUIVALENT_CODES: tuple[tuple[str, ...], ...] = (
+    # Models for Electronic Commerce: 00960221 (ISE) / 00960211 (DNE). Only the
+    # DNE code is in `courses`, so a student who passed one was still told to
+    # take the other -- it has no catalog row to match against.
+    ("00960211", "00960221"),
+)
+
 
 async def _equivalent_codes(database: Any) -> dict[str, set[str]]:
     """Course codes the catalog says stand in for one another, pairwise.
@@ -378,6 +395,10 @@ async def _equivalent_codes(database: Any) -> dict[str, set[str]]:
     correct list of 3 outstanding courses into 6.
     """
     pairs: dict[str, set[str]] = {}
+    for group in CROSS_TRACK_EQUIVALENT_CODES:
+        for code in group:
+            pairs.setdefault(code, set()).update(other for other in group if other != code)
+
     async for document in database["courses"].find(
         {"noAdditionalCreditText": {"$nin": [None, ""]}},
         {"courseNumber": 1, "noAdditionalCreditText": 1},
@@ -485,9 +506,22 @@ async def _remaining_documents(
             continue
         user_id = str(profile["userId"])
         already = passed_by_user.get(user_id, set())
-        for code in contains.get(track, ()):
-            if code in already:
+        # One row per COURSE, not per code. A track can list the same course
+        # under two codes -- `00960221` is the ISE code and `00960211` the DNE
+        # code for Models for Electronic Commerce -- and emitting both told a
+        # student they owed four mandatory courses where they owed three, the
+        # fourth being the third under its other name. The code the catalog
+        # actually carries is emitted, so the row keeps its title and credits.
+        track_codes = sorted(
+            contains.get(track, ()),
+            key=lambda code: (code not in catalog, code),
+        )
+        emitted: set[str] = set()
+        for code in track_codes:
+            if code in already or code in emitted:
                 continue
+            emitted.add(code)
+            emitted |= equivalents.get(code, set())
             course = catalog.get(code, {})
             row = {
                 "userId": user_id,

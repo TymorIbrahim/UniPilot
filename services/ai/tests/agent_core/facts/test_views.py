@@ -510,3 +510,23 @@ class TestAStudentWhoHasNotSaidWhatTheyStudy:
         documents = await _remaining_documents(database, _Engine(), {})
 
         assert [d for d in documents if d["userId"] == "legacy-1"]
+
+
+def test_cross_track_pairs_match_the_api_registry():
+    """The two services curate this list separately; nothing but this pins them.
+
+    `00960221` (ISE) and `00960211` (DNE) are one course. Only the DNE code is
+    in `courses`, so a student who passed it had no catalog row to match the ISE
+    code against and was told to take a course they had already completed --
+    the advisor said 4 outstanding mandatory courses where the API said 3.
+    """
+    from app.agent_core.facts.views import CROSS_TRACK_EQUIVALENT_CODES
+
+    pairs = {frozenset(group) for group in CROSS_TRACK_EQUIVALENT_CODES}
+    assert frozenset({"00960211", "00960221"}) in pairs
+
+    # Mirrors app/curriculum/cross_track_equivalence.py in services/api. If that
+    # file grows a pair, this list has to grow it too; the assertion below is
+    # what makes the omission visible instead of silent.
+    api_registry = ((("00960211", "00960221"),))
+    assert pairs == {frozenset(group) for group in api_registry}
