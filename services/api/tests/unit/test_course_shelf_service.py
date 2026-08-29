@@ -1,0 +1,241 @@
+"""Unit tests for assembling the browsable planner's rows."""
+
+from __future__ import annotations
+
+import pytest
+
+from app.services import course_shelf_service
+
+
+@pytest.fixture
+def stub(monkeypatch):
+    """Patch every I/O boundary the service uses, with sane defaults."""
+
+    state = {
+        "requirementProgress": [],
+        "poolDocuments": [],
+        "completedCourseRecords": [],
+        "offered": set(),
+        "courses": [],
+        "ratings": {},
+        "published": {},
+        "prerequisiteTexts": [],
+    }
+
+    async def _context(database, user_id):
+        return {
+            "status": "ok",
+            "poolDocuments": state["poolDocuments"],
+            "completedCourseRecords": state["completedCourseRecords"],
+            "graduationProgress": {},
+        }
+
+    async def _progress(database, user_id):
+        return {"status": "ok", "progress": {"requirementProgress": state["requirementProgress"]}}
+
+    async def _offered(database, **kwargs):
+        return state["offered"]
+
+    async def _courses(database, numbers):
+        wanted = set(numbers)
+        return [c for c in state["courses"] if c["courseNumber"] in wanted]
+
+    async def _ratings(database, numbers):
+        return state["ratings"]
+
+    async def _published(database, numbers):
+        return state["published"]
+
+    async def _prereq_texts(database):
+        return state["prerequisiteTexts"]
+
+    async def _statistics(database):
+        return []
+
+    monkeypatch.setattr(course_shelf_service, "load_planning_context", _context)
+    monkeypatch.setattr(course_shelf_service, "get_graduation_progress_for_user", _progress)
+    monkeypatch.setattr(course_shelf_service, "find_completed_courses_for_statistics", _statistics)
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository,
+        "list_course_numbers_with_semester_offerings",
+        _offered,
+    )
+    monkeypatch.setattr(course_shelf_service.catalog_repository, "find_courses_by_numbers", _courses)
+    monkeypatch.setattr(course_shelf_service.catalog_repository, "find_course_ratings", _ratings)
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository, "find_course_grade_stats", _published
+    )
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository, "list_course_prerequisite_texts", _prereq_texts
+    )
+    return state
+
+
+def _course(number, *, offered=(200,), prerequisites_text=None, credits=3.0):
+    return {
+        "courseNumber": number,
+        "title": f"Course {number}",
+        "credits": credits,
+        "semestersOffered": list(offered),
+        "prerequisitesText": prerequisites_text,
+    }
+
+
+def _bucket(group_id, title, *, remaining=(), requirement_type="elective", credits_remaining=3.0):
+    return {
+        "requirementGroupId": group_id,
+        "title": title,
+        "status": "in_progress",
+        "requirementType": requirement_type,
+        "creditsRemaining": credits_remaining,
+        "remainingCourses": [{"courseNumber": n} for n in remaining],
+    }
+
+
+async def _build(**kwargs):
+    return await course_shelf_service.build_course_shelves_for_user(
+        object(), "user-1", semester_code=kwargs.pop("semester_code", "2025-1"), **kwargs
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_invalid_semester_code_is_rejected(stub) -> None:
+    result = await _build(semester_code="not-a-semester")
+
+    assert result["status"] == "validation_error"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_progress_computation_short_circuits(stub, monkeypatch) -> None:
+    """Without progress there are no requirements, and a row list built from
+    nothing would read as "you have nothing left to do"."""
+
+    async def _failing(database, user_id):
+        return {"status": "degree_required"}
+
+    monkeypatch.setattr(course_shelf_service, "get_graduation_progress_for_user", _failing)
+
+    assert (await _build())["status"] == "degree_required"
+
+
+@pytest.mark.asyncio
+async def test_a_mandatory_card_carries_the_cost_of_postponing_it(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:core", "Required", remaining=("00940704",), requirement_type="core")
+    ]
+    stub["courses"] = [_course("00940704", offered=(200,))]
+    stub["offered"] = {"00940704"}
+    stub["prerequisiteTexts"] = [
+        {"courseNumber": "00940999", "prerequisitesText": "00940704"},
+    ]
+
+    shelves = (await _build())["shelves"]
+
+    card = shelves[0]["courses"][0]
+    assert shelves[0]["kind"] == "mandatory"
+    assert card["deferral"]["dependentCount"] == 1
+    assert card["deferral"]["offeredOncePerYear"] is True
+    assert card["deferral"]["nextOffering"] == {"academicYear": 2026, "semesterCode": 200}
+
+
+@pytest.mark.asyncio
+async def test_a_choice_card_carries_no_deferral_cost(stub) -> None:
+    """The question on a menu is which, not when."""
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940704",))]
+    stub["courses"] = [_course("00940704")]
+    stub["offered"] = {"00940704"}
+
+    card = (await _build())["shelves"][0]["courses"][0]
+
+    assert "deferral" not in card
+
+
+@pytest.mark.asyncio
+async def test_a_required_course_absent_from_the_catalog_still_appears(stub) -> None:
+    """Dropping it makes an outstanding obligation vanish from the one screen
+    meant to list them."""
+    stub["requirementProgress"] = [
+        _bucket("p:core", "Required", remaining=("00960221",), requirement_type="core")
+    ]
+    stub["courses"] = []
+
+    card = (await _build())["shelves"][0]["courses"][0]
+
+    assert card["courseNumber"] == "00960221"
+    assert card["catalogKnown"] is False
+    assert card["eligibility"]["status"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_a_course_the_student_cannot_take_sorts_below_one_they_can(stub) -> None:
+    """A five-star course with unmet prerequisites is not a better suggestion
+    than a three-star course they can register for today."""
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00940222"))
+    ]
+    stub["courses"] = [
+        _course("00940111", prerequisites_text="00949999"),  # not completed
+        _course("00940222"),
+    ]
+    stub["offered"] = {"00940111", "00940222"}
+    stub["ratings"] = {
+        "00940111": {"meanGeneralRank": 5.0},
+        "00940222": {"meanGeneralRank": 3.0},
+    }
+
+    cards = (await _build())["shelves"][0]["courses"]
+
+    assert [c["courseNumber"] for c in cards] == ["00940222", "00940111"]
+    assert cards[1]["eligibility"]["status"] == "missing_prerequisites"
+
+
+@pytest.mark.asyncio
+async def test_an_open_row_is_capped_but_reports_the_true_total(stub) -> None:
+    """"Anything counts" draws on the whole term. The cap must be visible, or
+    the row reads as the entire field of choice."""
+    numbers = [f"009401{index:02d}" for index in range(40)]
+    stub["requirementProgress"] = [
+        _bucket("p:free", "Free electives", credits_remaining=2.0)
+    ]
+    stub["courses"] = [_course(number) for number in numbers]
+    stub["offered"] = set(numbers)
+
+    shelf = (await _build())["shelves"][0]
+
+    assert shelf["kind"] == "open"
+    assert len(shelf["courses"]) == course_shelf_service.OPEN_SHELF_LIMIT
+    assert shelf["candidateCount"] == 40
+
+
+@pytest.mark.asyncio
+async def test_an_open_row_excludes_what_another_row_already_claims(stub) -> None:
+    """A course shown twice invites planning it twice."""
+    stub["requirementProgress"] = [
+        _bucket("p:core", "Required", remaining=("00940111",), requirement_type="core"),
+        _bucket("p:free", "Free electives", credits_remaining=2.0),
+    ]
+    stub["courses"] = [_course("00940111"), _course("00940222")]
+    stub["offered"] = {"00940111", "00940222"}
+
+    shelves = (await _build())["shelves"]
+
+    open_shelf = next(shelf for shelf in shelves if shelf["kind"] == "open")
+    assert [c["courseNumber"] for c in open_shelf["courses"]] == ["00940222"]
+
+
+@pytest.mark.asyncio
+async def test_courses_already_planned_are_not_offered_again(stub) -> None:
+    stub["requirementProgress"] = [_bucket("p:free", "Free electives", credits_remaining=2.0)]
+    stub["courses"] = [_course("00940111"), _course("00940222")]
+    stub["offered"] = {"00940111", "00940222"}
+
+    shelves = (await _build())["shelves"]
+    planned = await course_shelf_service.build_course_shelves_for_user(
+        object(),
+        "user-1",
+        semester_code="2025-1",
+        existing_planned_courses=[{"courseNumber": "00940111", "isActive": True}],
+    )
+
+    assert len(shelves[0]["courses"]) == 2
+    assert [c["courseNumber"] for c in planned["shelves"][0]["courses"]] == ["00940222"]

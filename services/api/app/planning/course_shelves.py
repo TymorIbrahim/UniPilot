@@ -88,6 +88,59 @@ class CourseShelf:
         }
 
 
+def rank_choice_courses(
+    course_numbers: Iterable[str],
+    *,
+    ratings: dict[str, dict[str, Any]],
+    selectable: Iterable[str] | None = None,
+) -> tuple[str, ...]:
+    """Order a choice shelf: what can be taken now, best-reviewed first.
+
+    `selectable` is the subset the student could actually add to this semester
+    -- offered this term and with prerequisites met. Those sort first whatever
+    their rating, because a five-star course the student cannot register for is
+    not a better suggestion than a three-star course they can. Passing None
+    treats every course as selectable.
+
+    Ranking by pass rate is deliberately NOT done. A high pass rate means a
+    course is easy, not that it is good, and ordering a menu by easiness is a
+    worse recommendation dressed up as a data-driven one -- the same reason
+    `outcome_sort_key` is only ever a tie-break in a generated plan. What a
+    student choosing freely wants first is what other students thought was
+    worth taking, which is `meanGeneralRank`. Pass rate and difficulty belong
+    on the card as context.
+
+    Unrated courses keep catalog order and sort after the rated ones rather
+    than being scored as if the absence of an opinion were a bad one -- a third
+    of the catalog has no rating. They are a trailing group, not a low rank,
+    and the caller is expected to present them as such.
+    """
+    numbers = [
+        number
+        for raw in course_numbers
+        if (number := canonical_course_number(raw)) is not None
+    ]
+    available = (
+        None
+        if selectable is None
+        else {
+            number
+            for raw in selectable
+            if (number := canonical_course_number(raw)) is not None
+        }
+    )
+
+    def sort_key(number: str) -> tuple[int, int, float, str]:
+        blocked = 0 if available is None or number in available else 1
+        rating = ratings.get(number) or {}
+        mean_general = rating.get("meanGeneralRank")
+        if not isinstance(mean_general, (int, float)) or isinstance(mean_general, bool):
+            return (blocked, 1, 0.0, number)
+        return (blocked, 0, -float(mean_general), number)
+
+    return tuple(sorted(numbers, key=sort_key))
+
+
 def _normalized_numbers(
     references: Iterable[dict[str, Any]],
     *,

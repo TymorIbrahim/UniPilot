@@ -965,3 +965,21 @@ async def find_course_grade_stats(
         {"_id": 0},
     )
     return {str(document["courseNumber"]): document async for document in cursor}
+
+
+async def list_course_prerequisite_texts(
+    database: AsyncIOMotorDatabase,
+    *,
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    """Course number plus prerequisite text for every published course.
+
+    The projection matters: this feeds the reverse dependency graph, which needs
+    every course in the catalog to know what waits on any one of them, and the
+    two fields are a fraction of the full documents.
+    """
+    settings = settings or get_settings()
+    cursor = database[settings.courses_collection].find(
+        PUBLISHED_FILTER, {"courseNumber": 1, "prerequisitesText": 1, "_id": 0}
+    )
+    return [doc async for doc in cursor]

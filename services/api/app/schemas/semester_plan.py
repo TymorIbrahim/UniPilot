@@ -114,6 +114,20 @@ class ExistingPlannedCourseInput(BaseModel):
         return validate_credit_load(value)
 
 
+class CourseShelvesRequest(BaseModel):
+    """Rows for building `semesterCode` by hand."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    semesterCode: str
+    existingPlannedCourses: list[ExistingPlannedCourseInput] = Field(default_factory=list)
+
+    @field_validator("semesterCode")
+    @classmethod
+    def validate_semester_code_field(cls, value: str) -> str:
+        return validate_semester_code(value)
+
+
 class SuggestSemesterCoursesForPlannerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

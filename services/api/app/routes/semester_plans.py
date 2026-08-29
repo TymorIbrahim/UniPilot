@@ -29,6 +29,7 @@ from app.schemas.semester_plan import (
     PatchMaybeCoursesRequest,
     PatchPlannedCourseRequest,
     ReorderPlannedCoursesRequest,
+    CourseShelvesRequest,
     SuggestSemesterCoursesForPlannerRequest,
     SuggestSemesterScheduleRequest,
     UpdateSemesterPlanRequest,
@@ -48,6 +49,7 @@ from app.services.manual_semester_plan_service import (
     update_semester_plan_share_by_user,
 )
 from app.services.semester_plan_service import generate_and_store_semester_plan
+from app.services.course_shelf_service import build_course_shelves_for_user
 from app.services.semester_plan_suggestion_service import (
     suggest_semester_courses,
     suggest_semester_schedule,
@@ -236,6 +238,32 @@ async def suggest_courses_for_planner(
             "plannedCourses": result["plannedCourses"],
             "explanation": result["explanation"],
         }
+    )
+
+
+@router.post("/course-shelves")
+async def course_shelves_for_planner(
+    request: Request,
+    payload: CourseShelvesRequest,
+    auth: AuthContext = Depends(require_auth),
+) -> dict[str, Any]:
+    """Candidate courses grouped by the requirement each would advance."""
+    await enforce_progress_rate_limit(request, auth.user_id)
+    database = await get_database()
+    result = await build_course_shelves_for_user(
+        database,
+        auth.user_id,
+        semester_code=payload.semesterCode,
+        existing_planned_courses=[
+            course.model_dump(exclude_none=True)
+            for course in payload.existingPlannedCourses
+        ],
+    )
+    _handle_planning_context_error(result)
+    if result.get("status") == "validation_error":
+        raise HTTPException(status_code=400, detail=result.get("errors") or ["Invalid request"])
+    return success_response(
+        {"semesterCode": result["semesterCode"], "shelves": result["shelves"]}
     )
 
 
