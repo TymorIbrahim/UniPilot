@@ -348,7 +348,12 @@ def test_build_base_graph_skips_invalid_matrix_course_reference():
 def test_build_base_graph_prefers_earlier_semester_for_duplicate_course(monkeypatch):
     original_sorted = sorted
 
-    def reverse_semester_sort(items, key):
+    # `key` optional and `reverse` accepted, because this patches BUILTIN
+    # `sorted` for the whole call tree -- not just the semester sort under test.
+    # A stub that demands `key` turns any unrelated `sorted(x)` on the path into
+    # a TypeError; one did, in catalog_overlap_groups, and the failure looked
+    # like a bug in graph building.
+    def reverse_semester_sort(items, key=None, reverse=False):
         return original_sorted(items, key=key, reverse=True)
 
     monkeypatch.setattr("builtins.sorted", reverse_semester_sort)
