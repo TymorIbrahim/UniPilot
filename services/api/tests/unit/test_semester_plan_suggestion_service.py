@@ -78,6 +78,11 @@ async def test_suggest_semester_courses_sets_partial_and_empty_flags():
             return_value=context,
         ),
         patch(
+            "app.services.semester_plan_suggestion_service.find_completed_courses_for_statistics",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
             "app.services.semester_plan_suggestion_service.build_candidate_pools",
             return_value={
                 "mandatoryCandidates": [{"_id": "course-a", "number": "10001", "title": "A", "credits": 3}],

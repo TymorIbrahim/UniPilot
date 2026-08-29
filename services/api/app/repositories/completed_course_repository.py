@@ -249,6 +249,36 @@ async def find_completed_courses_by_user_id(
     }
 
 
+async def find_completed_courses_for_statistics(
+    database: AsyncIOMotorDatabase,
+    *,
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    """Every transcript row, projected to just what course statistics need.
+
+    Deliberately narrow: course number, grade, and the two metadata flags that
+    say whether a row carries a real score. No user id leaves this query, so an
+    aggregate built from it cannot be traced back to a student even by accident,
+    and the rows are small enough to aggregate in the caller.
+    """
+    settings = settings or get_settings()
+    return (
+        await database[settings.completed_courses_collection]
+        .find(
+            {},
+            {
+                "_id": 0,
+                "courseNumber": 1,
+                "grade": 1,
+                "metadata.importedCourseNumber": 1,
+                "metadata.exemption": 1,
+                "metadata.passGrade": 1,
+            },
+        )
+        .to_list(length=None)
+    )
+
+
 async def find_all_completed_courses_by_user_id(
     database: AsyncIOMotorDatabase,
     user_id: str,
