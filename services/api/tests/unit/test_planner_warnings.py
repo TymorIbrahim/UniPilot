@@ -90,6 +90,101 @@ def test_assess_prerequisite_resolved_ids_satisfied():
     assert result["status"] == "satisfied"
 
 
+def test_one_satisfied_alternative_is_enough():
+    """`00970215` needs ONE of five courses. Read as a flat list it demanded
+    all five, and a student who had done exactly what was asked was told they
+    were missing four courses."""
+    course = {
+        "courseNumber": "00970215",
+        "prerequisitesText": "02360756 או 00960411 או 00460203 או 00460202 או 00460195",
+    }
+
+    result = assess_prerequisite_warning(
+        course,
+        completed_records=[{"courseId": "x", "courseNumber": "00960411"}],
+        courses_by_number={},
+        courses_by_id={},
+    )
+
+    assert result["status"] == "satisfied"
+
+
+def test_an_unsatisfied_choice_reports_the_alternatives_separately():
+    course = {
+        "courseNumber": "00970215",
+        "prerequisitesText": "02360756 או 00960411",
+    }
+
+    result = assess_prerequisite_warning(
+        course,
+        completed_records=[],
+        courses_by_number={},
+        courses_by_id={},
+    )
+
+    assert result["status"] == "missing"
+    assert result["requiresOneOf"] is True
+    assert result["missingPrerequisiteOptions"] == [["02360756"], ["00960411"]]
+    # The flat key means "all of these are needed", which is false here.
+    assert "missingPrerequisiteNumbers" not in result
+
+
+def test_a_conjunction_still_reports_one_combined_option():
+    course = {
+        "courseNumber": "00940345",
+        "prerequisitesText": "00940564 ו-00940424",
+    }
+
+    result = assess_prerequisite_warning(
+        course,
+        completed_records=[{"courseId": "x", "courseNumber": "00940564"}],
+        courses_by_number={},
+        courses_by_id={},
+    )
+
+    assert result["status"] == "missing"
+    assert result["requiresOneOf"] is False
+    assert result["missingPrerequisiteNumbers"] == ["00940424"]
+
+
+def test_and_binds_tighter_than_or_when_deciding_eligibility():
+    """Two alternative pairs, not two courses and two alternatives."""
+    course = {
+        "courseNumber": "00940345",
+        "prerequisitesText": "01240400 ו-02340128 או 01150203 ו-02340128",
+    }
+
+    result = assess_prerequisite_warning(
+        course,
+        completed_records=[
+            {"courseId": "a", "courseNumber": "01150203"},
+            {"courseId": "b", "courseNumber": "02340128"},
+        ],
+        courses_by_number={},
+        courses_by_id={},
+    )
+
+    assert result["status"] == "satisfied"
+
+
+def test_text_the_grammar_does_not_cover_stays_manual():
+    """Three catalog entries are truncated mid-rule by the source. Guessing at
+    a half-stated requirement is worse than admitting it is unread."""
+    course = {
+        "courseNumber": "00960573",
+        "prerequisitesText": "(00940347 ו-00940411) או (00940345 ו-...",
+    }
+
+    result = assess_prerequisite_warning(
+        course,
+        completed_records=[{"courseId": "a", "courseNumber": "00940347"}],
+        courses_by_number={},
+        courses_by_id={},
+    )
+
+    assert result["status"] == "manual_verification"
+
+
 def test_assess_prerequisite_possibly_missing_from_text():
     course = {
         "courseNumber": "00940345",

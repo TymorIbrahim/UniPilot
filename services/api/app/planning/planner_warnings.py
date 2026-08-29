@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.planning.prerequisite_expression import (
+    PrerequisiteParseError,
+    is_satisfied_by,
+    missing_alternatives,
+    parse_prerequisite_expression,
+)
 from app.planning.prerequisite_resolver import (
     extract_course_numbers_from_text,
     resolve_prerequisite_ids,
@@ -81,6 +87,43 @@ def assess_prerequisite_warning(
             "status": "satisfied",
             "message": "Parsed prerequisites appear satisfied",
         }
+
+    # The catalog states prerequisites as a boolean expression, so read it as
+    # one. Falling through on a parse failure leaves the older, weaker paths in
+    # place for the handful of entries the grammar does not cover.
+    try:
+        expression = parse_prerequisite_expression(prereq_text)
+    except PrerequisiteParseError:
+        expression = None
+
+    if expression is not None:
+        if is_satisfied_by(expression, completed_numbers):
+            return {
+                "courseNumber": course_number,
+                "status": "satisfied",
+                "message": "Prerequisites parsed from text appear satisfied",
+                "prerequisitesText": prereq_text,
+            }
+
+        options = [sorted(option) for option in missing_alternatives(expression, completed_numbers)]
+        requires_one_of = len(options) > 1
+        warning = {
+            "courseNumber": course_number,
+            "status": "missing",
+            "message": (
+                "Missing one of several alternative prerequisites"
+                if requires_one_of
+                else "Some prerequisites parsed from text appear missing"
+            ),
+            "missingPrerequisiteOptions": options,
+            "requiresOneOf": requires_one_of,
+            "prerequisitesText": prereq_text,
+        }
+        if not requires_one_of:
+            # This key means "all of these are needed", which is only true when
+            # there is a single way to satisfy the requirement.
+            warning["missingPrerequisiteNumbers"] = options[0]
+        return warning
 
     if resolved_ids:
         missing_numbers: list[str] = []
