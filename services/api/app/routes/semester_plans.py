@@ -263,7 +263,11 @@ async def course_shelves_for_planner(
     if result.get("status") == "validation_error":
         raise HTTPException(status_code=400, detail=result.get("errors") or ["Invalid request"])
     return success_response(
-        {"semesterCode": result["semesterCode"], "shelves": result["shelves"]}
+        {
+            "semesterCode": result["semesterCode"],
+            "shelves": result["shelves"],
+            "draftSummary": result["draftSummary"],
+        }
     )
 
 

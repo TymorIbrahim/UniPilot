@@ -21,11 +21,13 @@ def stub(monkeypatch):
         "published": {},
         "prerequisiteTexts": [],
         "offerings": {},
+        "profile": {"programType": "BSc"},
     }
 
     async def _context(database, user_id):
         return {
             "status": "ok",
+            "profile": state["profile"],
             "poolDocuments": state["poolDocuments"],
             "completedCourseRecords": state["completedCourseRecords"],
             "graduationProgress": {},
@@ -42,7 +44,8 @@ def stub(monkeypatch):
         return [c for c in state["courses"] if c["courseNumber"] in wanted]
 
     async def _ratings(database, numbers):
-        return state["ratings"]
+        wanted = set(numbers)
+        return {n: r for n, r in state["ratings"].items() if n in wanted} or state["ratings"]
 
     async def _published(database, numbers):
         return state["published"]
@@ -470,3 +473,57 @@ async def test_chain_sequencing_does_not_apply_to_an_anything_counts_row(stub) -
     assert all(
         "unlocks_later_courses" not in (c.get("reasons") or []) for c in shelf["courses"]
     )
+
+
+@pytest.mark.asyncio
+async def test_an_undergraduate_is_not_offered_graduate_courses(stub, monkeypatch) -> None:
+    """197 graduate courses sat in one term's undergraduate candidate pool, and
+    108 state no prerequisites, so eligibility filtering did not exclude them."""
+    async def _context(database, user_id):
+        return {
+            "status": "ok",
+            "profile": {"programType": "BSc"},
+            "poolDocuments": [],
+            "completedCourseRecords": [],
+            "graduationProgress": {},
+        }
+
+    monkeypatch.setattr(course_shelf_service, "load_planning_context", _context)
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00980610"))
+    ]
+    undergrad = _course("00940111")
+    undergrad["studyFramework"] = "לימודי הסמכה"
+    graduate = _course("00980610")
+    graduate["studyFramework"] = "תארים מתקדמים"
+    stub["courses"] = [undergrad, graduate]
+    stub["offered"] = {"00940111", "00980610"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940111"]
+    assert shelf["wrongDegreeLevelCount"] == 1
+
+
+@pytest.mark.asyncio
+async def test_the_draft_summary_describes_what_is_planned(stub) -> None:
+    """Planned courses are excluded from every shelf, so their documents and
+    ratings have to be fetched separately -- reusing the candidate lookups
+    silently yields a draft with no credits and no difficulty."""
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940333",))]
+    planned = _course("00940111", credits=3.5)
+    stub["courses"] = [planned, _course("00940333")]
+    stub["offered"] = {"00940111", "00940333"}
+    stub["ratings"] = {"00940111": {"meanDifficultyRank": 4.5, "responseCount": 20}}
+
+    result = await course_shelf_service.build_course_shelves_for_user(
+        object(),
+        "user-1",
+        semester_code="2025-1",
+        existing_planned_courses=[{"courseNumber": "00940111", "isActive": True}],
+    )
+
+    summary = result["draftSummary"]
+    assert summary["plannedCourseCount"] == 1
+    assert summary["plannedCredits"] == 3.5
+    assert summary["difficulty"]["plannedMean"] == 4.5

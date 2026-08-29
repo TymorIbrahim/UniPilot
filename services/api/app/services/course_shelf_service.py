@@ -37,6 +37,8 @@ from app.planning.course_ranking import (
 )
 from app.planning.course_shelves import MANDATORY, OPEN, build_course_shelves
 from app.planning.course_unlocking import build_unlock_index
+from app.planning.draft_summary import build_draft_summary
+from app.planning.exam_summary import exams_from_offering
 from app.planning.prerequisite_expression import (
     PrerequisiteParseError,
     is_satisfied_by,
@@ -47,6 +49,7 @@ from app.planning.prerequisite_resolver import canonical_course_number
 from app.planning.schedule_fit import build_occupied_schedule, can_schedule_alongside
 from app.planning.semester_codes import plan_semester_to_offering_keys
 from app.planning.student_affinity import build_elective_affinity, describe_readiness
+from app.planning.study_level import allowed_frameworks, is_appropriate_level
 from app.repositories import catalog_repository
 from app.repositories.completed_course_repository import (
     find_completed_courses_for_statistics,
@@ -263,6 +266,19 @@ async def build_course_shelves_for_user(
     overlap_conflicts = build_catalog_overlap_conflicts(course_documents)
     already_credited = completed_numbers | planned_numbers
 
+    # `studyFramework` is set on every catalog course and was consulted nowhere:
+    # 197 graduate courses sat in this term's undergraduate candidate pool, 108
+    # of them stating no prerequisites at all, so eligibility did not stop them
+    # either. They stayed off the rows only because the cap and the ranking
+    # happened to bury them.
+    allowed_levels = allowed_frameworks((context["profile"] or {}).get("programType"))
+
+    def _wrong_degree_level(number: str) -> bool:
+        return not is_appropriate_level(
+            (courses_by_number.get(number) or {}).get("studyFramework"),
+            allowed=allowed_levels,
+        )
+
     def _gives_no_additional_credit(number: str) -> bool:
         return bool(conflicts_for_course(number, overlap_conflicts) & already_credited)
 
@@ -270,6 +286,7 @@ async def build_course_shelves_for_user(
         number
         for number in needed_numbers
         if number in offered_numbers
+        and not _wrong_degree_level(number)
         and not _gives_no_additional_credit(number)
         and _eligibility(
             (courses_by_number.get(number) or {}).get("prerequisitesText"),
@@ -353,6 +370,7 @@ async def build_course_shelves_for_user(
             dropped_ineligible = 0
             dropped_no_credit = 0
             dropped_conflicting = 0
+            dropped_wrong_level = 0
         else:
             pool = list(open_candidates) if shelf.kind == OPEN else list(shelf.course_numbers)
             candidate_count = len(pool)
@@ -374,7 +392,14 @@ async def build_course_shelves_for_user(
             dropped_no_credit = sum(
                 1
                 for number in pool
-                if number in offered_numbers and _gives_no_additional_credit(number)
+                if number in offered_numbers
+                and not _wrong_degree_level(number)
+                and _gives_no_additional_credit(number)
+            )
+            dropped_wrong_level = sum(
+                1
+                for number in pool
+                if number in offered_numbers and _wrong_degree_level(number)
             )
             dropped_conflicting = len(selectable_here) - len(actionable)
             dropped_ineligible = (
@@ -382,6 +407,7 @@ async def build_course_shelves_for_user(
                 - len(selectable_here)
                 - dropped_not_offered
                 - dropped_no_credit
+                - dropped_wrong_level
             )
 
             ranked = rank_candidates(
@@ -462,6 +488,7 @@ async def build_course_shelves_for_user(
         payload["ineligibleCount"] = dropped_ineligible
         payload["noAdditionalCreditCount"] = dropped_no_credit
         payload["conflictsWithDraftCount"] = dropped_conflicting
+        payload["wrongDegreeLevelCount"] = dropped_wrong_level
         # 11 of 14 real students have at least one row with nothing in it --
         # small specialised pools they cannot draw from this term. The row must
         # still appear, because the requirement is real and unmet, so it says
@@ -477,8 +504,39 @@ async def build_course_shelves_for_user(
         )
         payload_shelves.append(payload)
 
+    # Ratings for the student's own completed courses too, so the difficulty
+    # comparison has their history to compare against.
+    history_ratings = await catalog_repository.find_course_ratings(
+        database, sorted(completed_numbers)
+    )
+    # Planned courses are excluded from every shelf, so they are absent from
+    # `courses_by_number` and from `ratings` -- reusing either silently yields a
+    # draft with no credits and no difficulty.
+    planned_documents = await catalog_repository.find_courses_by_numbers(
+        database, sorted(planned_numbers)
+    )
+    planned_ratings = await catalog_repository.find_course_ratings(
+        database, sorted(planned_numbers)
+    )
+    draft_summary = build_draft_summary(
+        planned_documents,
+        ratings={**history_ratings, **ratings, **planned_ratings},
+        completed_course_numbers=completed_numbers,
+        exams_by_course={
+            number: [
+                exam["date"]
+                for exam in exams_from_offering(
+                    candidate_offerings.get(number), course_number=number, course_name=""
+                )
+                if exam.get("date")
+            ]
+            for number in planned_numbers
+        },
+    )
+
     return {
         "status": "ok",
         "semesterCode": semester_code,
         "shelves": payload_shelves,
+        "draftSummary": draft_summary,
     }
