@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GraduationCap, Info } from 'lucide-react'
 import { progressApi, transcriptApi } from '../api/endpoints'
 import { TranscriptAddCourseForm } from '../components/transcript/TranscriptAddCourseForm'
+import { TranscriptGradeSimulator } from '../components/transcript/TranscriptGradeSimulator'
 import { TranscriptPdfUpload } from '../components/transcript/TranscriptPdfUpload'
 import { TranscriptCourseList } from '../components/transcript/TranscriptCourseList'
 import { TranscriptPageSkeleton } from '../components/transcript/TranscriptPageSkeleton'
@@ -89,6 +90,17 @@ export function TranscriptPage() {
         locale={locale}
         t={t}
       />
+
+      {records.length > 0 ? (
+        <TranscriptGradeSimulator
+          records={records}
+          stats={stats}
+          catalogYear={profile?.catalogYear}
+          currentSemesterCode={currentSemesterCode}
+          locale={locale}
+          t={t}
+        />
+      ) : null}
 
       {hasReadOnlyEntries ? (
         <Card className="border-[var(--color-primary)]/15 bg-[var(--color-primary)]/5">
