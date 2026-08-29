@@ -43,6 +43,7 @@ from app.planning.prerequisite_expression import (
 )
 from app.planning.prerequisite_resolver import canonical_course_number
 from app.planning.semester_codes import plan_semester_to_offering_keys
+from app.planning.student_affinity import build_elective_affinity, describe_readiness
 from app.repositories import catalog_repository
 from app.repositories.completed_course_repository import (
     find_completed_courses_for_statistics,
@@ -99,6 +100,7 @@ def _card(
     offered_numbers: set[str],
     completed_numbers: set[str],
     signals: dict[str, dict[str, Any]],
+    grades: dict[str, float],
 ) -> dict[str, Any]:
     number = str(course.get("courseNumber") or "")
     return {
@@ -110,6 +112,9 @@ def _card(
         "offeredThisTerm": number in offered_numbers,
         "eligibility": _eligibility(course.get("prerequisitesText"), completed_numbers),
         "signal": signals.get(number),
+        # How the student did in this course's OWN prerequisites -- reported,
+        # never ranked on. See `student_affinity`.
+        "readiness": describe_readiness(course.get("prerequisitesText"), grades=grades),
         "catalogKnown": True,
     }
 
@@ -214,6 +219,27 @@ async def build_course_shelves_for_user(
     # One prior for the whole request, so a course cannot score differently in
     # two rows of the same screen.
     prior_mean = prior_mean_rating(ratings)
+    grades = {
+        number: float(grade)
+        for record in context["completedCourseRecords"]
+        if (number := canonical_course_number(record.get("courseNumber"))) is not None
+        and isinstance(grade := record.get("grade"), (int, float))
+        and not isinstance(grade, bool)
+        and grade > 0
+    }
+    # Their OWN past choices, which are by definition not candidates -- so
+    # their faculties have to be looked up separately. Reusing
+    # `courses_by_number` here silently yields an empty affinity.
+    completed_documents = await catalog_repository.find_courses_by_numbers(
+        database, sorted(completed_numbers)
+    )
+    faculty_affinity = build_elective_affinity(
+        requirement_progress,
+        faculties_by_number={
+            str(document.get("courseNumber")): document.get("faculty")
+            for document in completed_documents
+        },
+    )
     credits_remaining_overall = float(
         (progress_result.get("progress") or {}).get("creditsRemaining") or 0.0
     )
@@ -253,6 +279,7 @@ async def build_course_shelves_for_user(
                 credits_remaining_overall=credits_remaining_overall,
                 credits_remaining_in_bucket=shelf.credits_remaining,
                 prior_mean=prior_mean,
+                faculty_affinity=faculty_affinity,
             )
             reasons_by_number = {entry.course_number: entry.reasons for entry in ranked}
             ordered_numbers = [entry.course_number for entry in ranked]
@@ -294,6 +321,7 @@ async def build_course_shelves_for_user(
                 offered_numbers=offered_numbers,
                 completed_numbers=completed_numbers,
                 signals=signals,
+                grades=grades,
             )
             card["reasons"] = list(reasons_by_number.get(number, ()))
             if shelf.kind == MANDATORY:

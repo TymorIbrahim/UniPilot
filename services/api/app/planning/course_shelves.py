@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from app.planning.prerequisite_resolver import canonical_course_number
+from app.planning.student_affinity import pool_momentum
 
 MANDATORY = "mandatory"
 POOL = "pool"
@@ -69,6 +70,8 @@ class CourseShelf:
     requirement_title: str
     credits_remaining: float
     course_numbers: tuple[str, ...]
+    started_count: int = 0
+    pool_size: int = 0
 
     @property
     def is_choice(self) -> bool:
@@ -85,6 +88,9 @@ class CourseShelf:
             "creditsRemaining": self.credits_remaining,
             "courseNumbers": list(self.course_numbers),
             "isChoice": self.is_choice,
+            # "3 of 19 taken" -- a share alone cannot tell 1-of-2 from 10-of-20.
+            "startedCount": self.started_count,
+            "poolSize": self.pool_size,
         }
 
 
@@ -219,23 +225,34 @@ def build_course_shelves(
                 )
             )
 
-        linked_pools = sorted(
-            pools_by_bucket.get(bucket_id, []),
-            key=lambda document: str(document.get("title") or document.get("requirementGroupId") or ""),
-        )
-        pool_shelves = [
-            CourseShelf(
-                shelf_id=str(pool.get("requirementGroupId") or bucket_id),
-                title=str(pool.get("title") or bucket_title),
-                kind=POOL,
-                requirement_group_id=bucket_id,
-                requirement_title=bucket_title,
-                credits_remaining=credits_remaining,
-                course_numbers=numbers,
+        # A chain the student has already started is the closest thing this data
+        # has to "because you watched that", so it leads the bucket's rows.
+        # Bucket order itself is left alone: it is the curriculum's own
+        # sequence, and reordering it would be a surprise, not a personalisation.
+        pool_shelves = []
+        for pool in pools_by_bucket.get(bucket_id, []):
+            references = pool.get("courseReferences") or []
+            numbers = _normalized_numbers(references, exclude=completed)
+            if not numbers:
+                continue
+            started, size = pool_momentum(
+                [(reference or {}).get("courseNumber") for reference in references],
+                completed=completed,
             )
-            for pool in linked_pools
-            if (numbers := _normalized_numbers(pool.get("courseReferences") or [], exclude=completed))
-        ]
+            pool_shelves.append(
+                CourseShelf(
+                    shelf_id=str(pool.get("requirementGroupId") or bucket_id),
+                    title=str(pool.get("title") or bucket_title),
+                    kind=POOL,
+                    requirement_group_id=bucket_id,
+                    requirement_title=bucket_title,
+                    credits_remaining=credits_remaining,
+                    course_numbers=numbers,
+                    started_count=started,
+                    pool_size=size,
+                )
+            )
+        pool_shelves.sort(key=lambda shelf: (-shelf.started_count, shelf.title))
         shelves.extend(pool_shelves)
 
         # Nothing enumerable anywhere, but the requirement still wants credits:

@@ -217,3 +217,76 @@ class TestDiversifyByFaculty:
         courses = [self._entry("00324001", "Civil"), self._entry("00324002", "Civil")]
 
         assert diversify_by_faculty(courses, limit=10, per_faculty=None) == courses
+
+
+class TestPersonalisation:
+    def _pair(self):
+        return [
+            {"courseNumber": "00940111", "credits": 3.0, "semestersOffered": [200, 201],
+             "faculty": "Mathematics"},
+            {"courseNumber": "00940222", "credits": 3.0, "semestersOffered": [200, 201],
+             "faculty": "Humanities"},
+        ]
+
+    def test_a_faculty_the_student_keeps_choosing_leads_its_band(self) -> None:
+        """The one part of the order that differs between two students looking
+        at the same row."""
+        ranked = rank_candidates(
+            self._pair(),
+            ratings={
+                "00940111": {"meanGeneralRank": 4.5, "responseCount": 50},
+                "00940222": {"meanGeneralRank": 3.0, "responseCount": 50},
+            },
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.0,
+            faculty_affinity={"Humanities": 0.6, "Mathematics": 0.1},
+        )
+
+        assert ranked[0].course_number == "00940222"
+        assert "matches_your_electives" in ranked[0].reasons
+
+    def test_without_a_history_the_order_falls_back_to_the_shared_one(self) -> None:
+        ranked = rank_candidates(
+            self._pair(),
+            ratings={
+                "00940111": {"meanGeneralRank": 4.5, "responseCount": 50},
+                "00940222": {"meanGeneralRank": 3.0, "responseCount": 50},
+            },
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.0,
+            faculty_affinity={},
+        )
+
+        assert ranked[0].course_number == "00940111"
+
+    def test_a_single_curiosity_is_not_a_pattern(self) -> None:
+        """One course out of ten in a faculty does not make it theirs."""
+        ranked = rank_candidates(
+            self._pair(),
+            ratings={},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.0,
+            faculty_affinity={"Humanities": 0.1},
+        )
+
+        assert all("matches_your_electives" not in entry.reasons for entry in ranked)
+
+    def test_affinity_never_outranks_a_structural_cost(self) -> None:
+        """Interest orders within a band; it does not beat a course that closes
+        the requirement or will not run again for a year."""
+        courses = [
+            {"courseNumber": "00940111", "credits": 3.5, "semestersOffered": [200],
+             "faculty": "Mathematics"},
+            {"courseNumber": "00940222", "credits": 1.0, "semestersOffered": [200, 201],
+             "faculty": "Humanities"},
+        ]
+
+        ranked = rank_candidates(
+            courses,
+            ratings={},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.5,
+            faculty_affinity={"Humanities": 0.9},
+        )
+
+        assert ranked[0].course_number == "00940111"

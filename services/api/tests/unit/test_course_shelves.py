@@ -295,3 +295,47 @@ class TestRankChoiceCourses:
         ranked = rank_choice_courses(["940412"], ratings={"00940412": {"meanGeneralRank": 4.0}})
 
         assert ranked == ("00940412",)
+
+
+class TestMomentum:
+    def test_a_chain_the_student_has_started_leads_its_bucket(self) -> None:
+        """The closest thing this data has to "because you watched that".
+        One real student has taken 3 of Chain B and 0 of Chain C, and Chain C
+        led purely because "C" sorts before "B" by title."""
+        shelves = build_course_shelves(
+            requirement_progress=[_bucket("p:elective-faculty", "Faculty electives")],
+            pool_documents=[
+                _pool("p:chain-a", "p:elective-faculty", "A chain", "00960111", "00960222"),
+                _pool("p:chain-b", "p:elective-faculty", "B chain", "00960333", "00960444"),
+            ],
+            completed_course_numbers={"00960333"},
+        )
+
+        assert [shelf.title for shelf in shelves] == ["B chain", "A chain"]
+        assert shelves[0].started_count == 1
+        assert shelves[0].pool_size == 2
+
+    def test_momentum_counts_the_whole_pool_not_what_is_left(self) -> None:
+        """"3 of 19 taken" needs the original size; the shelf's own course list
+        has already had the completed ones removed."""
+        shelves = build_course_shelves(
+            requirement_progress=[_bucket("p:elective-faculty", "Faculty electives")],
+            pool_documents=[
+                _pool("p:chain", "p:elective-faculty", "Chain", "00960111", "00960222", "00960333")
+            ],
+            completed_course_numbers={"00960111"},
+        )
+
+        assert (shelves[0].started_count, shelves[0].pool_size) == (1, 3)
+        assert len(shelves[0].course_numbers) == 2
+
+    def test_untouched_pools_keep_a_stable_alphabetical_order(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[_bucket("p:elective-faculty", "Faculty electives")],
+            pool_documents=[
+                _pool("p:z", "p:elective-faculty", "Z chain", "00960111"),
+                _pool("p:a", "p:elective-faculty", "A chain", "00960222"),
+            ],
+        )
+
+        assert [shelf.title for shelf in shelves] == ["A chain", "Z chain"]

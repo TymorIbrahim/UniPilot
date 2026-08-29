@@ -73,6 +73,14 @@ deferred at almost no cost, so quality leads instead.
 WELL_REVIEWED_SCORE = 4.0
 """Shrunk score at which a course is worth calling out as well reviewed."""
 
+AFFINITY_SHARE = 0.25
+"""Share of a student's own elective choices that marks a faculty as one of theirs.
+
+A quarter of their free choices is enough to be a pattern rather than a single
+curiosity, and low enough that a student who spreads across four faculties is
+credited with all of them.
+"""
+
 
 @dataclass(frozen=True)
 class RankedCourse:
@@ -82,6 +90,7 @@ class RankedCourse:
     score: float
     band: int
     reasons: tuple[str, ...]
+    matches_interest: bool = False
 
 
 def shrunk_rating(
@@ -141,8 +150,19 @@ def rank_candidates(
     credits_remaining_overall: float,
     credits_remaining_in_bucket: float,
     prior_mean: float | None = None,
+    faculty_affinity: dict[str, float] | None = None,
 ) -> list[RankedCourse]:
     """Order one shelf's candidates, best use of the slot first.
+
+    `faculty_affinity` is the share of the student's own past elective choices
+    going to each faculty. A course from a faculty they keep choosing is more
+    relevant to them, so it leads within its band -- this is the one part of the
+    ordering that differs between two students looking at the same row.
+
+    Note what is NOT here: how well the student is likely to SCORE. Ranking a
+    weak subject down would narrow their degree and entrench the weakness, and
+    is the personalised form of ranking by pass rate. Relevance is personalised;
+    difficulty is reported (see `student_affinity.describe_readiness`).
 
     Ordering is total and deterministic: equal band and score fall back to the
     course number, so the same shelf renders identically on every reload.
@@ -178,13 +198,31 @@ def rank_candidates(
         if score >= WELL_REVIEWED_SCORE:
             reasons.append("well_reviewed")
 
+        faculty = course.get("faculty")
+        matches_interest = bool(
+            faculty and (faculty_affinity or {}).get(str(faculty), 0.0) >= AFFINITY_SHARE
+        )
+        if matches_interest:
+            reasons.append("matches_your_electives")
+
         ranked.append(
             RankedCourse(
-                course_number=number, score=score, band=band, reasons=tuple(reasons)
+                course_number=number,
+                score=score,
+                band=band,
+                reasons=tuple(reasons),
+                matches_interest=matches_interest,
             )
         )
 
-    ranked.sort(key=lambda entry: (entry.band, -entry.score, entry.course_number))
+    ranked.sort(
+        key=lambda entry: (
+            entry.band,
+            not entry.matches_interest,
+            -entry.score,
+            entry.course_number,
+        )
+    )
     return ranked
 
 
