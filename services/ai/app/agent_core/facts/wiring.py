@@ -423,6 +423,7 @@ def build_context(database: Any, settings: Any | None = None, **overrides: Any) 
         schemas=schemas,
         retriever=overrides.get("retriever", wiring.get("retriever")),
         extractor=overrides.get("extractor", wiring.get("extractor")),
+        mail_client=overrides.get("mail_client"),
         obtainable=obtainable_from(schemas),
     )
 

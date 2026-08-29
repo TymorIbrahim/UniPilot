@@ -99,6 +99,7 @@ class Settings(BaseSettings):
     semester_plans_collection: str = "semester_plans"
 
     api_service_url: str | None = None
+    outlook_mcp_url: str | None = None
     internal_api_timeout_seconds: int = 60
 
     agent_wiki_retrieval_limit: int = 5
@@ -222,6 +223,12 @@ class Settings(BaseSettings):
         if configured:
             return configured.rstrip("/")
         return "http://api:8000"
+
+    def resolved_outlook_mcp_url(self) -> str:
+        configured = (self.outlook_mcp_url or "").strip()
+        if configured:
+            return configured.rstrip("/")
+        return "http://outlook-mcp:8020"
 
     def resolved_embedding_api_key(self) -> str:
         return (self.embedding_api_key or "").strip()

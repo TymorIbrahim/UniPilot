@@ -158,6 +158,7 @@ services:
       ADVISOR_MAX_RETRIEVAL_ITERATIONS: ${ADVISOR_MAX_RETRIEVAL_ITERATIONS:-5}
       MONGO_URI: ${MONGO_URI:-mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DB:-unipilot_python}?authSource=admin}
       API_SERVICE_URL: http://api:${API_PORT:-8000}
+      OUTLOOK_MCP_URL: http://outlook-mcp:8020
       INTERNAL_API_TIMEOUT_SECONDS: ${INTERNAL_API_TIMEOUT_SECONDS:-60}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://api.llmod.ai/v1}
@@ -212,6 +213,18 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8020/health').read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - unipilot-internal

@@ -387,6 +387,81 @@ class TestProseChain:
         assert "no corpus is configured" in result.defects["p"].message
 
 
+class TestSearchMailbox:
+    async def test_an_unwired_mail_client_says_so_rather_than_crashing(self) -> None:
+        result = await dispatch(
+            {"tool": "search_mailbox", "as": "p", "args": {"query": "registration"}},
+            DispatchContext(),
+        )
+        assert "no mailbox is connected" in result.defects["p"].message
+
+    async def test_search_returns_records_carrying_live_mail_basis(self) -> None:
+        """Mail is live correspondence, not a system of record -- every fact it
+        produces must say so via its basis, the same way `search_corpus` results
+        carry `WIKI_DERIVED` rather than `OFFICIAL_RECORD`."""
+
+        class _MailClient:
+            async def search_messages(self, *, query, max_results):
+                return [
+                    {
+                        "id": "AAMk1",
+                        "subject": "Registration opens Monday",
+                        "sender": {"name": "Registrar", "email": "registrar@technion.ac.il"},
+                        "receivedDateTime": "2026-08-20T09:00:00Z",
+                        "snippet": {"content": "Course registration opens...", "trusted": False},
+                    }
+                ]
+
+        result = await dispatch(
+            {"tool": "search_mailbox", "as": "mail", "args": {"query": "registration", "limit": 5}},
+            DispatchContext(mail_client=_MailClient()),
+        )
+        held = result.facts["mail"]
+        assert held.basis is Basis.LIVE_MAIL
+        record = held.value.records[0]
+        assert record.fields["subject"].value == "Registration opens Monday"
+        assert record.fields["senderEmail"].value == "registrar@technion.ac.il"
+
+    async def test_never_passes_a_user_id_the_model_could_have_supplied(self) -> None:
+        """The security property this tool exists to have: no `userId` in `args`
+        for the model to write in the first place, unlike `find`'s owner-scoped
+        sources where the server has to override a value the model CAN supply.
+        `search_messages`'s keyword-only signature would raise on an unexpected
+        `userId` kwarg, so this also fails loudly if that ever regresses."""
+
+        received: dict = {}
+
+        class _MailClient:
+            async def search_messages(self, *, query, max_results):
+                received["query"] = query
+                received["max_results"] = max_results
+                return []
+
+        result = await dispatch(
+            {
+                "tool": "search_mailbox",
+                "as": "mail",
+                "args": {"query": "x", "userId": "someone-elses-id", "limit": 3},
+            },
+            DispatchContext(mail_client=_MailClient()),
+        )
+        assert "mail" in result.facts
+        assert received == {"query": "x", "max_results": 3}
+
+    async def test_a_client_error_becomes_a_defect_carrying_its_detail(self) -> None:
+        from app.clients.outlook_mail_client import OutlookMailClientError
+
+        class _MailClient:
+            async def search_messages(self, *, query, max_results):
+                raise OutlookMailClientError(detail="connect your Outlook account in Settings -> Integrations")
+
+        result = await dispatch(
+            {"tool": "search_mailbox", "as": "mail", "args": {"query": "registration"}},
+            DispatchContext(mail_client=_MailClient()),
+        )
+        assert "connect your Outlook account" in result.defects["mail"].message
+
+
 class TestPropose:
     async def test_grounds_must_name_held_facts(self) -> None:
         result = await dispatch(

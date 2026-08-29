@@ -132,7 +132,7 @@ class TestNoDrift:
             "next_course", "all_groups", "met_groups",
             # The `as` result-names shown in the tool examples (also invented).
             "my_courses", "policy_hits", "prereq_chain", "required_credits", "spring_forecast",
-            "elective_codes", "winter_plan",
+            "elective_codes", "winter_plan", "registration_mail",
             # plan_term argument names.
             "max_credits",
         }
@@ -205,14 +205,22 @@ class TestWhatTheModelIsTold:
 
 
 class TestShape:
-    def test_there_are_exactly_nine_primitives(self) -> None:
+    def test_there_are_exactly_ten_primitives(self) -> None:
         """Eight from the original derivation, plus `extract_list` -- the grounded
         PLURAL of `interpret`. Its boundary argument: reading a set the wiki
         already lists (which courses are electives) is retrieval, not a new kind
         of reasoning, and the alternative was pre-baking the classification into
-        the graph -- the composite anti-pattern this set exists to avoid. If this
-        number moves again, something was added without an argument that clean."""
-        assert len(PRIMITIVES) == 9
+        the graph -- the composite anti-pattern this set exists to avoid.
+
+        Plus `search_mailbox`: the same `search_corpus` shape (a model query
+        against a context-bound dependency, gated on `requires`) applied to a
+        second, genuinely different corpus -- the student's own live mailbox
+        rather than the shared wiki. Not a special case of `find`: `find`'s
+        `ViewSchema.produce` only ever receives the database, because a Mongo
+        view can afford to over-fetch and filter in memory, and there is no
+        "fetch every student's mail" equivalent to over-fetch. If this number
+        moves again, something was added without an argument that clean."""
+        assert len(PRIMITIVES) == 10
 
     def test_plan_term_is_a_quarantined_composite_not_a_primitive(self) -> None:
         """The composite the primitive set exists to avoid lives in COMPOSITES, so

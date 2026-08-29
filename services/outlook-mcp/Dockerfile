@@ -15,4 +15,6 @@ COPY pytest.ini ./
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 USER appuser
 
-CMD ["python", "-m", "app.main"]
+EXPOSE 8020
+
+CMD ["uvicorn", "app.http_server:app", "--host", "0.0.0.0", "--port", "8020"]

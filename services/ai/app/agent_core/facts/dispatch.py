@@ -48,6 +48,7 @@ from app.agent_core.facts.predicate import (
     Path,
     Predicate,
 )
+from app.agent_core.facts.mail import search_mailbox
 from app.agent_core.facts.propose import Proposal, propose
 from app.agent_core.facts.prose import Passage, interpret, interpret_list, search_corpus
 from app.agent_core.facts.runner import Blocked, Failed, Succeeded, run_pipelines
@@ -55,6 +56,7 @@ from app.agent_core.facts.traverse import traverse
 from app.agent_core.facts.types import Basis, Collection, Completeness, Record, Scalar, ScalarKind
 from app.agent_core.loop.course_names import canonical_course_code
 from app.clients.internal_api_client import InternalApiClientError, fetch_term_plan
+from app.clients.outlook_mail_client import OutlookMailClientError
 
 
 @dataclass
@@ -70,6 +72,12 @@ class DispatchContext:
     service token off it; `None` in tests, which the tool reports as a defect."""
     retriever: Any = None
     extractor: Any = None
+    mail_client: Any = None
+    """An `OutlookMailClient`, already bound to the asking student -- never a
+    tool the model can hand a `userId` to. `None` when the student has not
+    connected Outlook or the internal token is not configured, exactly like
+    `retriever`/`extractor` being `None` when unwired; `search_mailbox` is
+    advertised only when this is set (`catalog.py`, `requires="mail_client"`)."""
     passages: dict[str, Passage] = field(default_factory=dict)
     obtainable: frozenset[str] = frozenset()
     """Input kinds the MODEL can obtain by calling tools -- e.g. "edges", "slots".
@@ -367,6 +375,25 @@ async def _search_corpus(name: str, args: Mapping[str, Any], context: DispatchCo
             score=record.fields["score"].value,
         )
     return _fact(name, hits, Basis.WIKI_DERIVED)
+
+
+async def _search_mailbox(name: str, args: Mapping[str, Any], context: DispatchContext) -> Dispatched:
+    if context.mail_client is None:
+        return _defect(
+            name,
+            ExpressionDefect(
+                0,
+                "no mailbox is connected for this student, so mail cannot be searched here -- "
+                "tell them to connect Outlook in Settings -> Integrations",
+            ),
+        )
+    try:
+        hits = await search_mailbox(
+            context.mail_client, args.get("query", ""), limit=args.get("limit", 10)
+        )
+    except OutlookMailClientError as error:
+        return _defect(name, DataDefect(0, f"the mailbox could not be searched: {error.detail}"))
+    return _fact(name, hits, Basis.LIVE_MAIL)
 
 
 _PASSAGE_STASH_CAP = 20000
@@ -1209,6 +1236,7 @@ def _quantity(record: Any, path: Any, default: float) -> float:
 _HANDLERS = {
     "find": _find,
     "search_corpus": _search_corpus,
+    "search_mailbox": _search_mailbox,
     "interpret": _interpret,
     "extract_list": _extract_list,
     "compute": _compute,

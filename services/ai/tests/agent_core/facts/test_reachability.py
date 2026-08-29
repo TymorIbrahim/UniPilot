@@ -80,11 +80,14 @@ class TestCatalogHonesty:
         advertised = {spec.name for spec in available_tools(bare)}
         assert "search_corpus" not in advertised, "a corpus tool with no corpus must not be offered"
         assert "interpret" not in advertised
+        assert "search_mailbox" not in advertised, "a student with no connected mailbox must not be offered it"
 
     def test_wiring_the_dependency_makes_the_tool_appear(self) -> None:
-        wired = DispatchContext(schemas=REGISTRY, retriever=object(), extractor=object())
+        wired = DispatchContext(
+            schemas=REGISTRY, retriever=object(), extractor=object(), mail_client=object()
+        )
         advertised = {spec.name for spec in available_tools(wired)}
-        assert {"search_corpus", "interpret"} <= advertised
+        assert {"search_corpus", "interpret", "search_mailbox"} <= advertised
 
     def test_no_tool_is_permanently_unadvertisable(self) -> None:
         """Every primitive must be reachable under SOME wiring, or it is dead
@@ -94,6 +97,7 @@ class TestCatalogHonesty:
             schemas=schemas,
             retriever=object(),
             extractor=object(),
+            mail_client=object(),
             database=object(),
             # Through the production function, not a hand-written set. A literal
             # here would pass while the real `build_context` advertised something

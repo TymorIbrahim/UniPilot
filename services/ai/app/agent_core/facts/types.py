@@ -41,14 +41,24 @@ class Basis(Enum):
     mark the registrar has not finalised -- so it is deliberately less certain
     than the registrar's authoritative record, and anything derived by joining a
     Moodle fact with a registrar fact correctly carries the weaker Moodle basis.
+
+    `LIVE_MAIL` sits BELOW `WIKI_DERIVED`, not beside `LIVE_MOODLE`: an email is
+    live and current the way a Moodle scrape is, but unlike Moodle it is not a
+    read of any system of record -- it is informal correspondence that can be
+    stale, a draft, spam, or simply wrong, with nothing behind it the way a
+    registrar or the curated wiki stand behind their own content. A student's
+    "is this true" question about something an email claims is answered by
+    `search_corpus`/`find`, not by trusting the email itself further than that.
+
     These values are strength RANKS, not labels or a wire format: nothing
     persists a basis by its integer (serialization goes through `.label`), which
     is what makes renumbering to insert a tier safe.
     """
 
-    OFFICIAL_RECORD = 6
-    LIVE_MOODLE = 5
-    WIKI_DERIVED = 4
+    OFFICIAL_RECORD = 7
+    LIVE_MOODLE = 6
+    WIKI_DERIVED = 5
+    LIVE_MAIL = 4
     LLM_INTERPRETATION = 3
     PREDICTED_PATTERN = 2
     SIMULATED = 1

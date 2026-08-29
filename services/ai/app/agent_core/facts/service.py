@@ -141,7 +141,12 @@ async def run_advice(
     # idempotent and cached in the module, so this costs one query per process.
     await load_catalog_names()
 
-    context = build_context(database, settings, **_extractor_override(chat))
+    context = build_context(
+        database,
+        settings,
+        **_mail_client_override(user_id, settings),
+        **_extractor_override(chat),
+    )
 
     # AFTER the context, because the system prompt now carries the tool catalog
     # and the source list, and both are read off the context. Building the
@@ -415,6 +420,27 @@ def _extractor_override(chat: Any | None) -> dict[str, Any]:
     the normal path is untouched.
     """
     return {"extractor": ModelExtractor(chat)} if chat is not None else {}
+
+
+def _mail_client_override(user_id: str, settings: Any | None) -> dict[str, Any]:
+    """A per-request `OutlookMailClient`, bound to THIS asking student.
+
+    Cannot live in `build_wiring` the way `retriever`/`extractor` do -- those
+    are settings-only and shared across every request, while a mail client is
+    bound to one student's `user_id` and must never be. Gated on the internal
+    token being configured, the same signal the rest of the internal-service
+    mesh gates on, so `search_mailbox` simply is not advertised
+    (`catalog.py`, `requires="mail_client"`) in an environment with no token --
+    connecting THIS student's Outlook account is a separate, per-user question
+    `search_mailbox` itself answers with a defect.
+    """
+    from app.clients.outlook_mail_client import OutlookMailClient
+    from app.config import get_settings as get_ai_settings
+
+    resolved = settings or get_ai_settings()
+    if not resolved.resolved_internal_service_token():
+        return {}
+    return {"mail_client": OutlookMailClient(user_id=user_id, settings=resolved)}
 
 
 def to_advice(result: LoopResult) -> Advice:

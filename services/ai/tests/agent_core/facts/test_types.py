@@ -44,10 +44,18 @@ class TestBasisOrdering:
             (Basis.OFFICIAL_RECORD, Basis.WIKI_DERIVED, Basis.WIKI_DERIVED),
             (Basis.SIMULATED, Basis.OFFICIAL_RECORD, Basis.SIMULATED),
             (Basis.WIKI_DERIVED, Basis.WIKI_DERIVED, Basis.WIKI_DERIVED),
+            (Basis.WIKI_DERIVED, Basis.LIVE_MAIL, Basis.LIVE_MAIL),
         ],
     )
     def test_weakest_picks_the_lower_rank(self, left: Basis, right: Basis, expected: Basis) -> None:
         assert weakest([left, right]) is expected
+
+    def test_live_mail_is_weaker_than_the_curated_wiki(self) -> None:
+        """An email is live correspondence, not a system of record -- weaker
+        than the curated wiki it sits below, unlike `LIVE_MOODLE` which scrapes
+        an authoritative Technion system and so sits just under OFFICIAL_RECORD."""
+        assert Basis.LIVE_MAIL.strength < Basis.WIKI_DERIVED.strength
+        assert Basis.LIVE_MAIL.strength > Basis.LLM_INTERPRETATION.strength
 
     def test_a_simulated_input_taints_the_result(self) -> None:
         """§2.1: this is what removes the need for a counterfactual primitive."""
