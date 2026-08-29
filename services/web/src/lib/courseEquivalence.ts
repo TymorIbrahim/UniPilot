@@ -72,6 +72,47 @@ export function catalogOverlapEquivalenceGroupsFromSources(options?: {
   return fromProgress.map((members) => keysForMembers(members))
 }
 
+
+/**
+ * Widen each equivalence group by the courses the catalog NAMES as overlapping
+ * its members, without merging the overlap pairs into one another.
+ *
+ * "מקצועות ללא זיכוי נוסף" is pairwise and not transitive. Feeding it through
+ * `mergeOverlappingEquivalenceGroups` — which is correct for matrix alternatives,
+ * where the members really are one slot — collapsed every course that shared a
+ * single partner into one group. `02340221` names nine partners and `00940219`
+ * names seven; they share one and name each other nowhere, yet ended up
+ * interchangeable, which drove pool visibility and chain satisfaction off
+ * equivalences the registrar never declared. The API now sends the pairs
+ * unmerged; this keeps them that way.
+ */
+function widenWithOverlapPartners(
+  groups: Array<Set<string>>,
+  overlapPairs: Array<Set<string>>,
+): Array<Set<string>> {
+  if (!overlapPairs.length) return groups
+
+  const partnersByKey = new Map<string, Set<string>>()
+  for (const pair of overlapPairs) {
+    for (const key of pair) {
+      const bucket = partnersByKey.get(key) ?? new Set<string>()
+      for (const other of pair) if (other !== key) bucket.add(other)
+      partnersByKey.set(key, bucket)
+    }
+  }
+
+  const widened = groups.map((group) => {
+    const next = new Set(group)
+    for (const key of group) {
+      for (const partner of partnersByKey.get(key) ?? []) next.add(partner)
+    }
+    return next
+  })
+  // Pairs touching no group still matter on their own — a pool naming one
+  // course should accept the course the catalog says replaces it.
+  return [...widened, ...overlapPairs.map((pair) => new Set(pair))]
+}
+
 /** Matrix / curriculum parallels only — excludes catalog overlap (מקצועות ללא זיכוי נוסף). */
 export function buildMatrixMandatoryEquivalenceGroups(options?: {
   curriculumGraph?: CurriculumGraph | null
@@ -109,10 +150,10 @@ export function buildMandatoryEquivalenceGroups(options?: {
   remainingMandatory?: Array<{ courseNumber?: string | null }>
   completedMandatory?: Array<{ courseNumber?: string | null }>
 }): Array<Set<string>> {
-  return mergeOverlappingEquivalenceGroups([
-    ...buildMatrixMandatoryEquivalenceGroups(options),
-    ...catalogOverlapEquivalenceGroupsFromSources(options),
-  ])
+  return widenWithOverlapPartners(
+    mergeOverlappingEquivalenceGroups(buildMatrixMandatoryEquivalenceGroups(options)),
+    catalogOverlapEquivalenceGroupsFromSources(options),
+  )
 }
 
 export function buildCourseEquivalenceGroups(options?: {
@@ -130,9 +171,11 @@ export function buildCourseEquivalenceGroups(options?: {
     groups.push(keysForMembers([course.courseNumber, ...(course.alternatives ?? [])]))
   }
 
-  groups.push(...catalogOverlapEquivalenceGroupsFromSources(options))
   groups.push(...crossTrackEquivalenceGroupsFromGraph(options?.curriculumGraph))
-  return mergeOverlappingEquivalenceGroups(groups)
+  return widenWithOverlapPartners(
+    mergeOverlappingEquivalenceGroups(groups),
+    catalogOverlapEquivalenceGroupsFromSources(options),
+  )
 }
 
 export function equivalenceGroupForCourse(
