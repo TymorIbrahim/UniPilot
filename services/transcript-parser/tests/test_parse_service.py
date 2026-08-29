@@ -141,3 +141,51 @@ async def test_parse_returns_400_when_pipeline_value_error(client, monkeypatch):
     )
     assert response.status_code == 400
     assert response.json()["error"] == "Invalid PDF structure"
+
+
+def test_production_refuses_to_start_without_an_internal_token(monkeypatch):
+    """`api` and `ai` both refuse; this service used to start with no token at all.
+
+    That made it the soft spot between two hard ones: `/parse` accepts an
+    uploaded PDF from anything that can reach the port, and the dependency
+    returns early when no token is configured.
+    """
+    from app.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("INTERNAL_SERVICE_TOKEN", raising=False)
+    get_settings.cache_clear()
+
+    with pytest.raises(RuntimeError, match="required in production"):
+        Settings().validate_production_settings()
+
+
+def test_production_refuses_a_token_short_enough_to_guess(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "short")
+    get_settings.cache_clear()
+
+    with pytest.raises(RuntimeError, match="at least 32 characters"):
+        Settings().validate_production_settings()
+
+
+def test_development_still_starts_without_a_token(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.delenv("INTERNAL_SERVICE_TOKEN", raising=False)
+    get_settings.cache_clear()
+
+    Settings().validate_production_settings()
+
+
+def test_production_accepts_a_long_token(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("INTERNAL_SERVICE_TOKEN", "x" * 32)
+    get_settings.cache_clear()
+
+    Settings().validate_production_settings()

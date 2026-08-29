@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import DuplicateKeyError
 
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.db.mongo import get_database
 from app.repositories.student_profile_repository import (
@@ -22,7 +23,9 @@ from app.schemas.student_profile import (
     UpdateStudentProfileRequest,
 )
 
-router = APIRouter(prefix="/student-profile", tags=["student-profile"])
+router = APIRouter(prefix="/student-profile", tags=["student-profile"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 _student_profile_indexes_ready = False
 

@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.middleware.auth_rate_limiter import enforce_progress_rate_limit
 from app.db.mongo import get_database
@@ -52,7 +53,9 @@ from app.services.semester_plan_suggestion_service import (
     suggest_semester_schedule,
 )
 
-router = APIRouter(prefix="/semester-plans", tags=["semester-plans"])
+router = APIRouter(prefix="/semester-plans", tags=["semester-plans"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 _semester_plan_indexes_ready = False
 

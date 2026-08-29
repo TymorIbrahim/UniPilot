@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pymongo.errors import DuplicateKeyError
 
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.db.mongo import get_database
 from app.repositories import catalog_repository
@@ -25,7 +26,9 @@ from app.schemas.completed_course import (
     UpdateCompletedCourseRequest,
 )
 
-router = APIRouter(prefix="/completed-courses", tags=["completed-courses"])
+router = APIRouter(prefix="/completed-courses", tags=["completed-courses"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 _completed_course_indexes_ready = False
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from app.clients.transcript_parser_client import TranscriptParserClientError, parse_transcript_pdf
 from app.config import get_settings
 from app.db.mongo import get_database
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.middleware.auth_rate_limiter import enforce_transcript_import_rate_limit
 from app.schemas.transcript_import import (
@@ -16,7 +17,9 @@ from app.schemas.transcript_import import (
 )
 from app.services.transcript_import_service import commit_transcript_import
 
-router = APIRouter(prefix="/transcript-import", tags=["transcript-import"])
+router = APIRouter(prefix="/transcript-import", tags=["transcript-import"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 PDF_CONTENT_TYPES = frozenset({"application/pdf", "application/x-pdf"})
 

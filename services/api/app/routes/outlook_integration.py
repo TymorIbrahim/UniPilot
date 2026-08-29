@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.config import get_settings
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.db.mongo import get_database
 from app.middleware.auth_rate_limiter import enforce_auth_rate_limits
@@ -27,7 +28,9 @@ from app.security.outlook_oauth_state import (
     issue_outlook_oauth_state,
 )
 
-router = APIRouter(prefix="/integrations/outlook", tags=["outlook-integration"])
+router = APIRouter(prefix="/integrations/outlook", tags=["outlook-integration"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 _indexes_ready = False
 
