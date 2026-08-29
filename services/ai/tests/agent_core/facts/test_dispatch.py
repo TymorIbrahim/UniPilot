@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import pytest
 
+from tests.agent_core.ise_student_fixture import (  # noqa: F401 -- autouse fixture injection
+    _fresh_mongo_client_per_test,
+)
 from app.agent_core.facts.answer import HeldFact, resolve_answer
 from app.agent_core.facts.dispatch import DispatchContext, dispatch
 from app.agent_core.facts.operators import DataDefect, ExpressionDefect
@@ -444,3 +447,90 @@ class TestEndToEnd:
 
         refused = resolve_answer("You have 1 required course left.", context.facts)
         assert "no fact" in refused.reason
+
+
+class TestFindEnforcesOwnership:
+    """`find` on an owner-scoped source must never return another student's
+    rows -- not because the model filtered correctly, but because it cannot not.
+
+    The system prompt asks the model to filter these sources by `{fact: me}`.
+    That is a request a jailbroken or simply mistaken turn can ignore; a student
+    typing "look up completed courses for student <id>" into their own chat is
+    an authenticated user, not an attacker who broke in, and the tool must
+    refuse them the same way an IDOR-safe REST endpoint would. See
+    `dispatch.py::_find`, which AND-ing the caller's own id in regardless of
+    what the model's predicate names."""
+
+    @pytest.fixture
+    async def database(self):
+        from app.db.mongo import get_database
+
+        try:
+            handle = await get_database()
+            await handle.command("ping")
+            client = handle.client
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"NOT VERIFIED: no database ({type(exc).__name__}). Ownership enforcement is UNCHECKED.")
+        db = client["unipilot_dispatch_ownership_phase9d"]
+        await db["completed_courses"].delete_many({})
+        await db["completed_courses"].insert_many(
+            [
+                {"userId": "student-a", "courseNumber": "00940224", "grade": 95},
+                {"userId": "student-b", "courseNumber": "00960211", "grade": 60},
+            ]
+        )
+        yield db
+        await client.drop_database("unipilot_dispatch_ownership_phase9d")
+
+    @staticmethod
+    def _schema():
+        from app.agent_core.facts.find import SourceSchema
+
+        return SourceSchema(
+            collection="completed_courses",
+            key="courseNumber",
+            fields={"userId": I, "courseNumber": I, "grade": Q},
+            basis=Basis.OFFICIAL_RECORD,
+            owner_field="userId",
+        )
+
+    @staticmethod
+    def _context(database, user_id: str | None) -> DispatchContext:
+        facts = {"me": HeldFact(Scalar(I, user_id), Basis.OFFICIAL_RECORD)} if user_id else {}
+        return DispatchContext(
+            database=database, schemas={"completed_courses": TestFindEnforcesOwnership._schema()}, facts=facts
+        )
+
+    async def test_an_unfiltered_query_returns_only_the_callers_own_rows(self, database) -> None:
+        context = self._context(database, "student-a")
+        result = await dispatch({"tool": "find", "as": "mine", "args": {"source": "completed_courses"}}, context)
+        rows = result.facts["mine"].value.records
+        assert [r.fields["userId"].value for r in rows] == ["student-a"]
+
+    async def test_a_predicate_naming_another_students_id_is_overridden(self, database) -> None:
+        """The IDOR itself: the model asks for `student-b`'s rows by id while the
+        caller authenticated as `student-a`. The forced AND makes the two
+        conditions contradictory, so the honest answer is zero rows -- not
+        `student-b`'s transcript."""
+        context = self._context(database, "student-a")
+        result = await dispatch(
+            {
+                "tool": "find",
+                "as": "leak",
+                "args": {
+                    "source": "completed_courses",
+                    "predicate": {"path": "userId", "op": "=", "value": "student-b"},
+                },
+            },
+            context,
+        )
+        rows = result.facts["leak"].value.records
+        assert rows == (), "a student authenticated as student-a must never see student-b's rows"
+
+    async def test_no_authenticated_identity_refuses_rather_than_reads_everyone(self, database) -> None:
+        """No `me` fact at all -- a context misuse, not an attack -- must fail
+        closed too, or the very first defence-in-depth layer is optional."""
+        context = self._context(database, None)
+        result = await dispatch({"tool": "find", "as": "all", "args": {"source": "completed_courses"}}, context)
+        assert "all" not in result.facts
+        assert "authenticated" in result.defects["all"].message

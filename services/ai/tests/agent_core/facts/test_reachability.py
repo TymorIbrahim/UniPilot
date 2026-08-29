@@ -47,10 +47,21 @@ from app.agent_core.facts.wiring import (
     obtainable_from,
     prerequisite_edges_source,
 )
+from bson import ObjectId
+
 from app.db.mongo import get_database
 from tests.agent_core.ise_student_fixture import (  # noqa: F401 -- autouse fixture injection
     _fresh_mongo_client_per_test,
 )
+
+
+def _seed_me(context: DispatchContext, user_id: str) -> None:
+    """Stand in for the `me` fact `service.py` seeds from the authenticated
+    caller. `find` now forces every owner-scoped source's field to this value
+    (see `dispatch.py::_find`), so a probe against `completed_courses`,
+    `semester_plans`, `student_profiles`, `moodle_grades`, `passed_courses`, or
+    `remaining_courses` needs a real identity in context, not just a database."""
+    context.facts["me"] = HeldFact(value=Scalar(ScalarKind.IDENTIFIER, user_id), basis=Basis.OFFICIAL_RECORD)
 
 
 @pytest.fixture
@@ -243,6 +254,11 @@ class TestEveryAdvertisedToolCanBeFed:
 
     async def test_find_reads_every_registered_source(self, database) -> None:
         context = DispatchContext(database=database, schemas=REGISTRY)
+        # Reachability, not content: an owner-scoped source just needs SOME
+        # authenticated identity in context to be probed at all now, not a
+        # student with real seeded data. `str(ObjectId())` costs nothing and
+        # does not depend on the local catalog resolving anything.
+        _seed_me(context, str(ObjectId()))
         unusable = []
         for name in REGISTRY:
             result = await dispatch(
@@ -273,6 +289,7 @@ class TestEveryAdvertisedToolCanBeFed:
         )
 
         context = DispatchContext(database=database, schemas={**REGISTRY, **wired})
+        _seed_me(context, str(ObjectId()))
         unusable = []
         for name in wired:
             result = await dispatch(
@@ -308,6 +325,7 @@ class TestEveryAdvertisedToolCanBeFed:
         context = DispatchContext(database=database, schemas={**REGISTRY, **wired})
         empty = set()
         for profile in profiles:
+            _seed_me(context, str(profile["userId"]))
             result = await dispatch(
                 {
                     "tool": "find",
@@ -502,6 +520,7 @@ class TestEveryAdvertisedToolCanBeFed:
         plan = await database["semester_plans"].find_one({"semesters.0.plannedCourses.0": {"$exists": True}})
         if plan is None:
             pytest.skip("NOT VERIFIED: no stored plan has a semester holding courses")
+        _seed_me(context, str(plan["userId"]))
 
         fetched = await dispatch(
             {"tool": "find", "as": "plan", "args": {

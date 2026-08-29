@@ -113,6 +113,7 @@ COMPLETED_COURSES = SourceSchema(
     # every time, and with ties it does not. `_id` is undeclared, so `find` never
     # reads it as a fact; it exists purely to make the sort a total order.
     order_tiebreak=("_id",),
+    owner_field="userId",
 )
 
 SEMESTER_PLANS = SourceSchema(
@@ -177,6 +178,7 @@ SEMESTER_PLANS = SourceSchema(
     # `test_reachability.py` walks it rather than trusting this declaration.
     yields=frozenset({"slots"}),
     object_id_fields=frozenset({"_id", "userId"}),
+    owner_field="userId",
 )
 
 COURSES = SourceSchema(
@@ -238,6 +240,7 @@ STUDENT_PROFILES = SourceSchema(
     basis=Basis.OFFICIAL_RECORD,
     joins=(("degreeId", "degree_programs._id"),),
     object_id_fields=frozenset({"userId", "degreeId"}),
+    owner_field="userId",
 )
 
 DEGREE_PROGRAMS = SourceSchema(
@@ -327,6 +330,7 @@ MOODLE_GRADES = SourceSchema(
     basis=Basis.LIVE_MOODLE,
     joins=(("courseNumber", "courses.courseNumber"),),
     object_id_fields=frozenset({"_id", "userId"}),
+    owner_field="userId",
 )
 
 REGISTRY: dict[str, SourceSchema] = {

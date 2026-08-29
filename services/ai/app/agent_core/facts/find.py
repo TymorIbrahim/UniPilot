@@ -156,6 +156,19 @@ class SourceSchema:
     than buried in a sort clause.
     """
 
+    owner_field: str | None = None
+    """The field holding the row's student, on a source that belongs to one.
+
+    A model must filter this by the asking student's own id, and the prompt
+    says so -- but a prompt is a request, not a control. Declaring the field
+    here lets the dispatcher force it: whatever the model wrote (or left out
+    entirely) for this field, the caller's own id is AND-ed in before the query
+    reaches Mongo, so a source naming this field can never return another
+    student's rows. `None` on a source nobody owns (`courses`, `course_offerings`,
+    the shared knowledge-graph derivations) -- forcing an owner there would be
+    the field-does-not-exist error, not a security boundary.
+    """
+
 
 @dataclass(frozen=True)
 class ViewSchema:
@@ -189,6 +202,10 @@ class ViewSchema:
     yields: frozenset[str] = frozenset()
     object_id_fields: frozenset[str] = frozenset()
     order_tiebreak: tuple[str, ...] = ()
+    owner_field: str | None = None
+    """See `SourceSchema.owner_field` -- `passed_courses` and `remaining_courses`
+    are both per-student views and need the same forced scoping, doubly so since
+    their `produce` reads across every student before `find` filters in memory."""
 
 
 @dataclass(frozen=True)

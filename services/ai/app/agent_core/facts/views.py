@@ -199,6 +199,7 @@ def passed_courses_source(engine: Any) -> ViewSchema:
         # `completed_courses`; without a tie-break a truncated fetch returns a
         # different page each run.
         order_tiebreak=("userId", "attempt"),
+        owner_field="userId",
     )
 
 
@@ -294,6 +295,7 @@ def remaining_courses_source(engine: Any) -> ViewSchema:
         produce=produce,
         # `courseNumber` repeats -- once per student whose track lists it.
         order_tiebreak=("userId",),
+        owner_field="userId",
     )
 
 

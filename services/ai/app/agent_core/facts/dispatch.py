@@ -302,6 +302,23 @@ async def _find(name: str, args: Mapping[str, Any], context: DispatchContext) ->
         predicate = _resolve_fact_refs(predicate, context.facts)
         if isinstance(predicate, ExpressionDefect):
             return _defect(name, predicate)
+
+    owner_field = getattr(schema, "owner_field", None)
+    if owner_field is not None:
+        # A source naming an owner field belongs to one student, and the system
+        # prompt asks the model to filter it by `{fact: me}` -- a request, not a
+        # control. Forced here instead: whatever the model wrote (or left out) for
+        # this field is AND-ed against the CALLER'S OWN id, so a mismatched,
+        # omitted, or adversarial filter can only narrow the result, never widen
+        # it to another student's rows.
+        me = context.facts.get("me")
+        if me is None or not isinstance(me.value, Scalar):
+            return _defect(
+                name, ExpressionDefect(0, "no authenticated student identity is available to scope this source")
+            )
+        owner_constraint = Comparison(Path.parse(owner_field), Op.EQ, me.value)
+        predicate = owner_constraint if predicate is None else And((owner_constraint, predicate))
+
     result = await find(context.database, schema, predicate=predicate, limit=args.get("limit", 200))
     if isinstance(result, (ExpressionDefect, DataDefect)):
         return _defect(name, result)
