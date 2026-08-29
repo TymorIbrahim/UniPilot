@@ -290,3 +290,57 @@ class TestPersonalisation:
         )
 
         assert ranked[0].course_number == "00940111"
+
+
+class TestUnlocking:
+    def _shelf(self):
+        return [
+            {"courseNumber": "00960111", "credits": 3.0, "semestersOffered": [200, 201]},
+            {"courseNumber": "00960222", "credits": 3.0, "semestersOffered": [200, 201]},
+        ]
+
+    def test_a_course_others_on_the_shelf_depend_on_goes_first(self) -> None:
+        """Chain B has 19 members and 7 prerequisite edges among themselves.
+        Taking a leaf before its unlocker wastes the ordering."""
+        ranked = rank_candidates(
+            self._shelf(),
+            ratings={
+                "00960111": {"meanGeneralRank": 2.5, "responseCount": 50},
+                "00960222": {"meanGeneralRank": 4.5, "responseCount": 50},
+            },
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.0,
+            unlocks_within_shelf={"00960111": 3},
+        )
+
+        assert ranked[0].course_number == "00960111"
+        assert "unlocks_later_courses" in ranked[0].reasons
+
+    def test_unlocking_counts_even_with_plenty_of_runway(self) -> None:
+        """Sequencing is not a deadline fact -- whenever a student means to take
+        several courses from a chain, the unlocker goes first."""
+        ranked = rank_candidates(
+            self._shelf(),
+            ratings={"00960222": {"meanGeneralRank": 4.5, "responseCount": 50}},
+            credits_remaining_overall=URGENCY_RUNWAY_CREDITS + 40,
+            credits_remaining_in_bucket=3.0,
+            unlocks_within_shelf={"00960111": 2},
+        )
+
+        assert ranked[0].course_number == "00960111"
+
+    def test_urgency_is_a_count_of_reasons_not_a_blend(self) -> None:
+        ranked = rank_candidates(
+            [
+                {"courseNumber": "00960111", "credits": 3.5, "semestersOffered": [200]},
+                {"courseNumber": "00960222", "credits": 3.5, "semestersOffered": [200]},
+            ],
+            ratings={},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.5,
+            unlocks_within_shelf={"00960111": 1},
+        )
+
+        # closes + scarce + unlocks against closes + scarce
+        assert ranked[0].band == 3
+        assert ranked[1].band == 2

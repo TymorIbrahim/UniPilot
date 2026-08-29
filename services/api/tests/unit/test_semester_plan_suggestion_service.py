@@ -91,7 +91,7 @@ async def test_suggest_semester_courses_sets_partial_and_empty_flags():
             },
         ),
         patch(
-            "app.services.semester_plan_suggestion_service._load_exact_term_offerings",
+            "app.services.semester_plan_suggestion_service.load_exact_term_offerings",
             new_callable=AsyncMock,
             return_value={
                 "10001": {
@@ -144,11 +144,11 @@ async def test_suggest_semester_schedule_requires_active_courses():
 
 
 @pytest.mark.asyncio
-async def test_load_exact_term_offerings_returns_empty_for_no_numbers():
-    from app.services.semester_plan_suggestion_service import _load_exact_term_offerings
+async def testload_exact_term_offerings_returns_empty_for_no_numbers():
+    from app.services.semester_plan_suggestion_service import load_exact_term_offerings
 
     database = object()
-    result = await _load_exact_term_offerings(
+    result = await load_exact_term_offerings(
         database,
         [],
         academic_year=2025,
@@ -185,7 +185,7 @@ async def test_suggest_semester_schedule_returns_optimized_selections():
             return_value={"status": "ok"},
         ),
         patch(
-            "app.services.semester_plan_suggestion_service._load_exact_term_offerings",
+            "app.services.semester_plan_suggestion_service.load_exact_term_offerings",
             new_callable=AsyncMock,
             return_value={
                 "10001": {
@@ -233,8 +233,8 @@ async def test_suggest_semester_schedule_propagates_planning_context_error():
 
 
 @pytest.mark.asyncio
-async def test_load_exact_term_offerings_indexes_canonical_number_aliases():
-    from app.services.semester_plan_suggestion_service import _load_exact_term_offerings
+async def testload_exact_term_offerings_indexes_canonical_number_aliases():
+    from app.services.semester_plan_suggestion_service import load_exact_term_offerings
 
     offering = {
         "courseNumber": "00940345",
@@ -248,7 +248,7 @@ async def test_load_exact_term_offerings_indexes_canonical_number_aliases():
         new_callable=AsyncMock,
         return_value={"00940345": [offering]},
     ) as list_offerings:
-        result = await _load_exact_term_offerings(
+        result = await load_exact_term_offerings(
             database,
             ["0940345"],
             academic_year=2025,

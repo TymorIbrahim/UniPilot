@@ -8,7 +8,7 @@ to show it at all -- is computed upstream and then discarded.
 
 from __future__ import annotations
 
-from app.planning.course_shelves import build_course_shelves, rank_choice_courses
+from app.planning.course_shelves import build_course_shelves
 
 
 def _bucket(group_id, title, *, status="in_progress", remaining=(), credits_remaining=3.0,
@@ -241,62 +241,6 @@ class TestShelfMetadata:
         assert shelves[0].course_numbers == ("00970209",)
 
 
-class TestRankChoiceCourses:
-    def test_better_rated_courses_come_first(self) -> None:
-        ranked = rank_choice_courses(
-            ["00940412", "00940423"],
-            ratings={
-                "00940412": {"meanGeneralRank": 2.86},
-                "00940423": {"meanGeneralRank": 3.64},
-            },
-        )
-
-        assert ranked == ("00940423", "00940412")
-
-    def test_pass_rate_does_not_order_a_menu(self) -> None:
-        """A 98% pass rate means the course is easy, not that it is good.
-        Ordering a free choice by easiness is a worse recommendation dressed up
-        as a data-driven one."""
-        ranked = rank_choice_courses(
-            ["00940820", "00940591"],
-            ratings={
-                # 00940820 passes 98% of its cohort but reviewers rate it 2.9;
-                # 00940591 passes 92% and reviewers rate it 3.98.
-                "00940820": {"meanGeneralRank": 2.9, "passRate": 0.98},
-                "00940591": {"meanGeneralRank": 3.98, "passRate": 0.92},
-            },
-        )
-
-        assert ranked[0] == "00940591"
-
-    def test_unrated_courses_trail_the_rated_ones_in_catalog_order(self) -> None:
-        """Absence of an opinion is not a bad opinion -- a third of the catalog
-        has no rating, and burying those courses would be a claim we cannot
-        support."""
-        ranked = rank_choice_courses(
-            ["00940999", "00940412", "00940111"],
-            ratings={"00940412": {"meanGeneralRank": 1.5}},
-        )
-
-        assert ranked == ("00940412", "00940111", "00940999")
-
-    def test_a_malformed_rating_is_treated_as_no_rating(self) -> None:
-        ranked = rank_choice_courses(
-            ["00940412", "00940423"],
-            ratings={
-                "00940412": {"meanGeneralRank": "excellent"},
-                "00940423": {"meanGeneralRank": 3.0},
-            },
-        )
-
-        assert ranked == ("00940423", "00940412")
-
-    def test_course_numbers_are_normalised_before_ranking(self) -> None:
-        ranked = rank_choice_courses(["940412"], ratings={"00940412": {"meanGeneralRank": 4.0}})
-
-        assert ranked == ("00940412",)
-
-
 class TestMomentum:
     def test_a_chain_the_student_has_started_leads_its_bucket(self) -> None:
         """The closest thing this data has to "because you watched that".
@@ -339,3 +283,29 @@ class TestMomentum:
         )
 
         assert [shelf.title for shelf in shelves] == ["A chain", "Z chain"]
+
+
+class TestPlannedCourses:
+    def test_a_course_already_in_the_draft_is_not_offered_again(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[_bucket("p:elective-faculty", "Faculty electives")],
+            pool_documents=[
+                _pool("p:chain", "p:elective-faculty", "Chain", "00960111", "00960222")
+            ],
+            planned_course_numbers={"00960111"},
+        )
+
+        assert shelves[0].course_numbers == ("00960222",)
+
+    def test_planning_a_course_is_not_the_same_as_passing_it(self) -> None:
+        """Momentum measures what the student has passed. Counting intentions
+        would let a draft they never submit rewrite their history."""
+        shelves = build_course_shelves(
+            requirement_progress=[_bucket("p:elective-faculty", "Faculty electives")],
+            pool_documents=[
+                _pool("p:chain", "p:elective-faculty", "Chain", "00960111", "00960222")
+            ],
+            planned_course_numbers={"00960111"},
+        )
+
+        assert shelves[0].started_count == 0

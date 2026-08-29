@@ -29,17 +29,27 @@ with `m` the median response count. A course with no rating lands exactly on
 the corpus mean rather than at the bottom -- a third of the catalog is unrated,
 and the absence of an opinion is not a bad opinion.
 
-Why urgency is banded, and why it is conditional
-------------------------------------------------
-Two facts about a course change what a semester slot is worth, and neither is
-a matter of taste: whether taking it CLOSES the requirement, and whether it is
-one of the 70% of courses offered once a year, where the alternative to taking
-it now is a twelve-month wait.
+Why urgency is a count, and what is in it
+-----------------------------------------
+Three facts about a course change what a semester slot is worth, and none is a
+matter of taste:
 
-Both only matter near the end. A student three years out loses almost nothing
-by deferring a once-a-year course, so letting scarcity outrank quality there
-would be wrong. The gate is the student's own remaining credits, not a guess
-about their intentions.
+  closes  -- taking it finishes the requirement outright
+  scarce  -- it is one of the 70% offered once a year, so the alternative to
+             taking it now is a twelve-month wait
+  unlocks -- other courses ON THIS SHELF list it as a prerequisite, so taking a
+             leaf before its unlocker wastes the ordering
+
+Urgency is how many of the three hold, not a weighted blend of them. A count
+needs no invented coefficients and states itself on the card: "two reasons to
+take this now".
+
+`closes` and `scarce` are deadline facts and apply only near the end -- a
+student three years out loses almost nothing by deferring a once-a-year course,
+so letting scarcity outrank quality there would be wrong. `unlocks` is a
+SEQUENCING fact rather than a deadline one: whenever a student means to take
+several courses from a chain, the unlocker goes first regardless of how much
+runway they have.
 """
 
 from __future__ import annotations
@@ -89,6 +99,7 @@ class RankedCourse:
     course_number: str
     score: float
     band: int
+    """How many structural reasons favour taking this course now (0-3)."""
     reasons: tuple[str, ...]
     matches_interest: bool = False
 
@@ -151,6 +162,7 @@ def rank_candidates(
     credits_remaining_in_bucket: float,
     prior_mean: float | None = None,
     faculty_affinity: dict[str, float] | None = None,
+    unlocks_within_shelf: dict[str, int] | None = None,
 ) -> list[RankedCourse]:
     """Order one shelf's candidates, best use of the slot first.
 
@@ -185,16 +197,18 @@ def rank_candidates(
         closes = _closes_requirement(course, credits_remaining_in_bucket)
         scarce = _is_once_a_year(course)
 
-        band = 2
-        if urgency_applies:
-            if closes and scarce:
-                band = 0
-            elif closes or scarce:
-                band = 1
+        unlocks = int((unlocks_within_shelf or {}).get(number, 0))
+
+        urgency = 0
         if urgency_applies and closes:
+            urgency += 1
             reasons.append("closes_requirement")
         if urgency_applies and scarce:
+            urgency += 1
             reasons.append("offered_once_a_year")
+        if unlocks:
+            urgency += 1
+            reasons.append("unlocks_later_courses")
         if score >= WELL_REVIEWED_SCORE:
             reasons.append("well_reviewed")
 
@@ -209,7 +223,7 @@ def rank_candidates(
             RankedCourse(
                 course_number=number,
                 score=score,
-                band=band,
+                band=urgency,
                 reasons=tuple(reasons),
                 matches_interest=matches_interest,
             )
@@ -217,7 +231,7 @@ def rank_candidates(
 
     ranked.sort(
         key=lambda entry: (
-            entry.band,
+            -entry.band,
             not entry.matches_interest,
             -entry.score,
             entry.course_number,

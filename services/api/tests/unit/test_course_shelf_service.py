@@ -20,6 +20,7 @@ def stub(monkeypatch):
         "ratings": {},
         "published": {},
         "prerequisiteTexts": [],
+        "offerings": {},
     }
 
     async def _context(database, user_id):
@@ -49,6 +50,9 @@ def stub(monkeypatch):
     async def _prereq_texts(database):
         return state["prerequisiteTexts"]
 
+    async def _term_offerings(database, numbers, **kwargs):  # noqa: D401
+        return {n: o for n, o in state["offerings"].items() if n in set(numbers)}
+
     async def _statistics(database):
         return []
 
@@ -67,6 +71,9 @@ def stub(monkeypatch):
     )
     monkeypatch.setattr(
         course_shelf_service.catalog_repository, "list_course_prerequisite_texts", _prereq_texts
+    )
+    monkeypatch.setattr(
+        course_shelf_service, "load_exact_term_offerings", _term_offerings
     )
     return state
 
@@ -279,3 +286,88 @@ async def test_courses_already_planned_are_not_offered_again(stub) -> None:
 
     assert len(shelves[0]["courses"]) == 2
     assert [c["courseNumber"] for c in planned["shelves"][0]["courses"]] == ["00940222"]
+
+
+def _offering(number, day, time_range, *, exams=None):
+    return {
+        "courseNumber": number,
+        "academicYear": 2025,
+        "semesterCode": 200,
+        "scheduleGroups": [{"day": day, "time": time_range, "type": "lecture", "group": "10"}],
+        "examDates": exams or {},
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_course_clashing_with_the_draft_is_dropped_and_counted(stub) -> None:
+    """A course that cannot coexist with what the student already picked is as
+    unactionable as one the term does not offer."""
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00940222"))
+    ]
+    stub["courses"] = [_course("00940111"), _course("00940222")]
+    stub["offered"] = {"00940111", "00940222", "00940999"}
+    stub["offerings"] = {
+        "00940999": _offering("00940999", "Sunday", "10:30-12:30"),
+        "00940111": _offering("00940111", "Sunday", "11:30-13:30"),  # clashes
+        "00940222": _offering("00940222", "Tuesday", "09:30-11:30"),
+    }
+
+    result = await course_shelf_service.build_course_shelves_for_user(
+        object(),
+        "user-1",
+        semester_code="2025-1",
+        existing_planned_courses=[{"courseNumber": "00940999", "isActive": True}],
+    )
+
+    shelf = result["shelves"][0]
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940222"]
+    assert shelf["conflictsWithDraftCount"] == 1
+
+
+@pytest.mark.asyncio
+async def test_an_empty_draft_never_filters_on_conflicts(stub) -> None:
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940111",))]
+    stub["courses"] = [_course("00940111")]
+    stub["offered"] = {"00940111"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert len(shelf["courses"]) == 1
+    assert shelf["conflictsWithDraftCount"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_course_giving_no_additional_credit_is_dropped(stub) -> None:
+    """It shares credit with one the student already passed, so it advances the
+    requirement by zero while the row would advertise it as progress."""
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00940222"))
+    ]
+    stub["completedCourseRecords"] = [{"courseNumber": "00949999", "grade": 80}]
+    courses = [_course("00940111"), _course("00940222")]
+    courses[0]["noAdditionalCreditText"] = "00949999"
+    stub["courses"] = courses
+    stub["offered"] = {"00940111", "00940222"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940222"]
+    assert shelf["noAdditionalCreditCount"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_course_others_on_the_shelf_need_is_ranked_first(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00960111", "00960222"))
+    ]
+    unlocker = _course("00960111")
+    dependent = _course("00960222", prerequisites_text="00960111")
+    stub["courses"] = [unlocker, dependent]
+    stub["offered"] = {"00960111", "00960222"}
+    stub["ratings"] = {"00960222": {"meanGeneralRank": 5.0, "responseCount": 60}}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert shelf["courses"][0]["courseNumber"] == "00960111"
+    assert "unlocks_later_courses" in shelf["courses"][0]["reasons"]

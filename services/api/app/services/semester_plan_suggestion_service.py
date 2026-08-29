@@ -56,7 +56,7 @@ def _index_offering_aliases(
         offerings_by_number[key] = offering
 
 
-async def _load_exact_term_offerings(
+async def load_exact_term_offerings(
     database: AsyncIOMotorDatabase,
     course_numbers: list[str],
     *,
@@ -156,7 +156,7 @@ async def suggest_semester_courses(
         for course in existing_planned_courses or []
         if course.get("courseNumber")
     ]
-    offerings_by_number = await _load_exact_term_offerings(
+    offerings_by_number = await load_exact_term_offerings(
         database,
         sorted(set([*candidate_numbers, *existing_numbers])),
         academic_year=academic_year,
@@ -281,7 +281,7 @@ async def suggest_semester_schedule(
         for course in active_courses
         if course.get("courseNumber")
     ]
-    offerings_by_number = await _load_exact_term_offerings(
+    offerings_by_number = await load_exact_term_offerings(
         database,
         course_numbers,
         academic_year=academic_year,

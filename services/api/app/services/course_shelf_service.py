@@ -12,8 +12,9 @@ carries the cost of postponing: when the course next runs, and how much waits
 on it (`course_deferral`).
 
 On a `pool` or `open` row the choice is genuinely free, so the card carries
-what previous students scored and thought, and the row is ordered by the
-latter (`rank_choice_courses`).
+what previous students scored and thought, and the row is ordered by
+`course_ranking.rank_candidates` -- structural urgency first, then evidence-
+weighted opinion, then what this student has shown interest in.
 
 An `open` row -- a credit bucket that accepts anything -- has no pool to draw
 from, so its candidates are the term's offerings minus everything already
@@ -24,7 +25,7 @@ so the count is not mistaken for the whole field.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -42,15 +43,22 @@ from app.planning.prerequisite_expression import (
     parse_prerequisite_expression,
 )
 from app.planning.prerequisite_resolver import canonical_course_number
+from app.planning.schedule_fit import build_occupied_schedule, can_schedule_alongside
 from app.planning.semester_codes import plan_semester_to_offering_keys
 from app.planning.student_affinity import build_elective_affinity, describe_readiness
 from app.repositories import catalog_repository
 from app.repositories.completed_course_repository import (
     find_completed_courses_for_statistics,
 )
+from app.planning.prerequisite_expression import course_numbers as expression_course_numbers
+from app.services.catalog_overlap_groups import (
+    build_catalog_overlap_conflicts,
+    conflicts_for_course,
+)
 from app.services.course_outcome_stats import CourseSignal, build_course_outcomes
 from app.services.graduation_progress_service import get_graduation_progress_for_user
 from app.services.semester_plan_service import load_planning_context
+from app.services.semester_plan_suggestion_service import load_exact_term_offerings
 
 OPEN_SHELF_PER_FACULTY = 3
 """Most courses one faculty may contribute to an "anything counts" row.
@@ -92,6 +100,31 @@ def _eligibility(
             sorted(option) for option in missing_alternatives(expression, completed_numbers)
         ],
     }
+
+
+def _unlocks_within(
+    course_numbers_on_shelf: Iterable[str],
+    *,
+    courses_by_number: dict[str, dict[str, Any]],
+) -> dict[str, int]:
+    """How many OTHER courses on this shelf list each one as a prerequisite.
+
+    Restricted to the shelf on purpose: the question is how to order the
+    courses the student is choosing between, not how much the course gates
+    across the whole catalog.
+    """
+    members = set(course_numbers_on_shelf)
+    unlocks: dict[str, int] = {}
+    for number in members:
+        try:
+            expression = parse_prerequisite_expression(
+                (courses_by_number.get(number) or {}).get("prerequisitesText")
+            )
+        except PrerequisiteParseError:
+            continue
+        for prerequisite in expression_course_numbers(expression) & members:
+            unlocks[prerequisite] = unlocks.get(prerequisite, 0) + 1
+    return unlocks
 
 
 def _card(
@@ -164,6 +197,7 @@ async def build_course_shelves_for_user(
         requirement_progress=requirement_progress,
         pool_documents=context["poolDocuments"],
         completed_course_numbers=completed_numbers,
+        planned_course_numbers=planned_numbers,
     )
 
     offered_numbers = await catalog_repository.list_course_numbers_with_semester_offerings(
@@ -205,10 +239,20 @@ async def build_course_shelves_for_user(
     # course that is not offered, or whose prerequisites are unmet, is not a
     # weaker suggestion -- it is not a suggestion at all, so it is filtered out
     # rather than ranked low. The row still reports how many it dropped.
+    # A course that shares credit with one the student already has or has
+    # planned contributes ZERO toward the requirement, while the row would
+    # still advertise it as progress.
+    overlap_conflicts = build_catalog_overlap_conflicts(course_documents)
+    already_credited = completed_numbers | planned_numbers
+
+    def _gives_no_additional_credit(number: str) -> bool:
+        return bool(conflicts_for_course(number, overlap_conflicts) & already_credited)
+
     selectable = {
         number
         for number in needed_numbers
         if number in offered_numbers
+        and not _gives_no_additional_credit(number)
         and _eligibility(
             (courses_by_number.get(number) or {}).get("prerequisitesText"),
             completed_numbers,
@@ -218,6 +262,7 @@ async def build_course_shelves_for_user(
 
     # One prior for the whole request, so a course cannot score differently in
     # two rows of the same screen.
+
     prior_mean = prior_mean_rating(ratings)
     grades = {
         number: float(grade)
@@ -244,6 +289,24 @@ async def build_course_shelves_for_user(
         (progress_result.get("progress") or {}).get("creditsRemaining") or 0.0
     )
 
+    # What the draft semester already commits. Loading offerings is only worth
+    # it once something is planned -- an empty draft clashes with nothing.
+    occupied = build_occupied_schedule({}, planned_course_numbers=())
+    candidate_offerings: dict[str, dict[str, Any]] = {}
+    if planned_numbers:
+        # NOT `list_offerings_for_courses_in_semester`: that returns a summary
+        # (slot types, instructors) with no `scheduleGroups` or `examDates`, so
+        # every conflict check silently passed.
+        candidate_offerings = await load_exact_term_offerings(
+            database,
+            sorted(planned_numbers | set(needed_numbers)),
+            academic_year=academic_year,
+            semester_code=term_semester_code,
+        )
+        occupied = build_occupied_schedule(
+            candidate_offerings, planned_course_numbers=planned_numbers
+        )
+
     payload_shelves: list[dict[str, Any]] = []
     for shelf in shelves:
         reasons_by_number: dict[str, tuple[str, ...]] = {}
@@ -264,14 +327,38 @@ async def build_course_shelves_for_user(
             candidate_count = len(shelf.course_numbers)
             dropped_not_offered = 0
             dropped_ineligible = 0
+            dropped_no_credit = 0
+            dropped_conflicting = 0
         else:
             pool = list(open_candidates) if shelf.kind == OPEN else list(shelf.course_numbers)
             candidate_count = len(pool)
-            actionable = [number for number in pool if number in selectable]
+            selectable_here = [number for number in pool if number in selectable]
+            # A course that cannot coexist with the draft is not a weaker
+            # suggestion either -- same reason "not offered" is filtered.
+            actionable = [
+                number
+                for number in selectable_here
+                if can_schedule_alongside(
+                    candidate_offerings.get(number),
+                    course_number=number,
+                    occupied=occupied,
+                )
+            ]
             dropped_not_offered = sum(
                 1 for number in pool if number not in offered_numbers
             )
-            dropped_ineligible = len(pool) - len(actionable) - dropped_not_offered
+            dropped_no_credit = sum(
+                1
+                for number in pool
+                if number in offered_numbers and _gives_no_additional_credit(number)
+            )
+            dropped_conflicting = len(selectable_here) - len(actionable)
+            dropped_ineligible = (
+                len(pool)
+                - len(selectable_here)
+                - dropped_not_offered
+                - dropped_no_credit
+            )
 
             ranked = rank_candidates(
                 [courses_by_number[number] for number in actionable if number in courses_by_number],
@@ -280,6 +367,9 @@ async def build_course_shelves_for_user(
                 credits_remaining_in_bucket=shelf.credits_remaining,
                 prior_mean=prior_mean,
                 faculty_affinity=faculty_affinity,
+                unlocks_within_shelf=_unlocks_within(
+                    pool, courses_by_number=courses_by_number
+                ),
             )
             reasons_by_number = {entry.course_number: entry.reasons for entry in ranked}
             ordered_numbers = [entry.course_number for entry in ranked]
@@ -337,6 +427,8 @@ async def build_course_shelves_for_user(
         payload["candidateCount"] = candidate_count
         payload["notOfferedCount"] = dropped_not_offered
         payload["ineligibleCount"] = dropped_ineligible
+        payload["noAdditionalCreditCount"] = dropped_no_credit
+        payload["conflictsWithDraftCount"] = dropped_conflicting
         payload_shelves.append(payload)
 
     return {
