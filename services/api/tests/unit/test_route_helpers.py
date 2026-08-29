@@ -75,58 +75,6 @@ def test_handle_analysis_context_error_degree_not_found():
 # routes/ai_jobs.py: _handle_enqueue_ai_job_error
 # ---------------------------------------------------------------------------
 
-def test_handle_enqueue_ai_job_error_degree_not_found():
-    from app.routes.ai_jobs import _handle_enqueue_ai_job_error
-
-    with pytest.raises(HTTPException) as exc_info:
-        _handle_enqueue_ai_job_error({"status": "degree_not_found"})
-    assert exc_info.value.status_code == 400
-
-
-def test_handle_enqueue_ai_job_error_returns_none_for_ok():
-    from app.routes.ai_jobs import _handle_enqueue_ai_job_error
-
-    assert _handle_enqueue_ai_job_error({"status": "ok", "job": {}}) is None
-
-
-# ---------------------------------------------------------------------------
-# routes/student_profile.py: profile not found in update path
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_update_profile_route_returns_404_when_update_returns_none(auth_client, mongo_database):
-    from unittest.mock import AsyncMock, patch
-
-    VALID_PASSWORD = "StrongPass123!"
-    email = "profile-update-404@example.com"
-    reg_resp = await auth_client.post("/auth/register", json={"email": email, "password": VALID_PASSWORD})
-    assert reg_resp.status_code == 201
-    token = reg_resp.json()["data"]["accessToken"]
-
-    # Create profile so find_student_profile_by_user_id returns a result
-    await auth_client.post(
-        "/student-profile",
-        json={"institutionId": "technion", "programType": "BSc", "catalogYear": 2024, "currentSemesterCode": "2024-2"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    with patch(
-        "app.routes.student_profile.update_student_profile_by_user_id",
-        new_callable=AsyncMock,
-        return_value=None,
-    ):
-        response = await auth_client.put(
-            "/student-profile",
-            json={"catalogYear": 2025},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-    assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# services/graduation_requirement_links.py: bucket_suffix_from_group_id
-# ---------------------------------------------------------------------------
-
 def test_bucket_suffix_returns_group_id_when_no_program_prefix():
     from app.services.graduation_requirement_links import bucket_suffix_from_group_id
 

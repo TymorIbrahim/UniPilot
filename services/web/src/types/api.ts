@@ -177,6 +177,36 @@ export type CourseProgressEntry = {
   creditsEarned?: number
   grade?: string | number
   semesterCode?: string
+  assignedPoolGroupId?: string | null
+}
+
+export type PoolConstraintEvaluation = {
+  requirementGroupId?: string
+  title?: string
+  operator?: string
+  status?: string
+  stepsCompleted?: number
+  stepsRequired?: number
+  creditsCompleted?: number
+  creditsRequired?: number
+  satisfied?: boolean
+  usedPhysics1mRule?: boolean
+}
+
+export type PoolConstraintsSummary = {
+  constraintsSatisfied?: boolean
+  mandatoryPools?: PoolConstraintEvaluation[]
+  focusChains?: PoolConstraintEvaluation[]
+  scienceSupplement?: PoolConstraintEvaluation | null
+  allPools?: PoolConstraintEvaluation[]
+}
+
+export type ProgressAdvisoryWarning = {
+  code: string
+  severity?: string
+  message: string
+  courseNumber?: string
+  completedSemesterIndex?: number
 }
 
 export type RequirementProgressEntry = {
@@ -194,6 +224,7 @@ export type RequirementProgressEntry = {
   creditsRemaining: number
   completedCourses?: CourseProgressEntry[]
   remainingCourses?: CourseProgressEntry[]
+  poolConstraints?: PoolConstraintsSummary | null
 }
 
 export type MissingRequirementEntry = {
@@ -213,6 +244,7 @@ export type MissingRequirementEntry = {
 export type IneligibleCreditEntry = {
   courseId: string
   courseNumber?: string
+  courseTitle?: string
   creditsEarned: number
   reason?: string
   linkedPoolGroupId?: string
@@ -226,6 +258,8 @@ export type GraduationProgress = {
   catalogYear?: number
   catalogVersion?: string
   completedCredits: number
+  transcriptCreditsTotal?: number
+  degreeAppliedCredits?: number
   totalRequiredCredits: number
   creditsRemaining: number
   completionPercentage: number
@@ -237,6 +271,9 @@ export type GraduationProgress = {
   missingRequirements?: MissingRequirementEntry[]
   ineligibleCredits?: IneligibleCreditEntry[]
   assumptions?: string[]
+  assumptionKeys?: string[]
+  catalogOverlapEquivalenceGroups?: string[][]
+  advisoryWarnings?: ProgressAdvisoryWarning[]
   statusSummary: string
 }
 
@@ -274,6 +311,7 @@ export type CurriculumGraphNode = {
     | 'verify_with_registrar'
   missingPrerequisites: string[]
   isBottleneck: boolean
+  satisfiedViaAlternative?: string
 }
 
 export type CurriculumGraphEdge = {
@@ -298,6 +336,7 @@ export type ElectivePoolCourse = {
   title?: string
   titleHe?: string
   credits?: number | null
+  alternatives?: string[]
   notes?: string[]
 }
 
@@ -345,6 +384,10 @@ export type CurriculumGraph = {
   electiveBuckets?: ElectiveBucket[]
   advisories?: Array<{ code: string; severity: string; message: string }>
   bottlenecks: Array<{ courseNumber: string; blockedBy: string[]; reason: string }>
+  /** Same course under different track catalog codes (from vault). */
+  crossTrackEquivalenceGroups?: string[][]
+  /** Parallel courses with no additional credit (מקצועות ללא זיכוי נוסף). */
+  catalogOverlapEquivalenceGroups?: string[][]
   transcriptSummary?: {
     completedCount: number
     failedCount: number
@@ -544,19 +587,20 @@ export type AcademicRiskAnalysis = {
   }>
 }
 
-export type AiJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
-export type AiJobType = 'academic_risk_narrative' | 'course_recommendation_narrative'
-export type AiJob = {
-  id: string
-  jobType: AiJobType
-  status: AiJobStatus
-  input: Record<string, unknown>
-  result: { narrative: string; stats: Record<string, unknown> } | null
-  error: { code: string; message: string } | null
-  attempts: number
-  queuedAt: string
-  startedAt: string | null
-  completedAt: string | null
-  createdAt: string
-  updatedAt: string
+export type AdvisorReply = {
+  question: string
+  answer: string
+  confidence: 'high' | 'medium' | 'low' | string
+  courseIds: string[]
+  /** Same ids carrying their catalog/wiki display name, so a citation can read
+   *  "E-Commerce Models" rather than "00960211". Optional: an older response
+   *  shape has only `courseIds`. */
+  courses?: { id: string; name: string }[]
+  wikiSlugs: string[]
+  sources: string[]
+  contacts: string[]
+  eligibility?: Record<string, unknown> | null
+  semesterResolution?: Record<string, unknown> | null
+  retrievalStatus?: string | null
+
 }

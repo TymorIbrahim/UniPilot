@@ -494,7 +494,10 @@ def test_export_biology_expected_program_codes_match_per_track_programs() -> Non
     biology_doc, _ = export_faculty_vault_catalog(faculty_id="biology")
     program_codes = [program["programCode"] for program in biology_doc["programs"]]
     assert biology_doc["source"]["expectedProgramCodes"] == sorted(program_codes)
-    assert program_codes.count("013043-1-000") > 1
+    assert "013043-1-000" in program_codes
+    exported_slugs = biology_doc["parserReport"]["trackPagesExported"]
+    assert "track-biology-general" in exported_slugs
+    assert "track-biology-human-development" in exported_slugs
 
 
 def test_export_cross_faculty_canonical_mirrors_have_elective_pools() -> None:
@@ -532,7 +535,7 @@ def test_export_cross_faculty_canonical_mirrors_have_elective_pools() -> None:
 def test_export_faculty_vault_catalog_exports_each_primary_track_slug(
     monkeypatch,
 ) -> None:
-    """Each exportable track slug gets its own program document (codes may repeat)."""
+    """Each exportable track slug is recorded; shared program codes collapse to one document."""
     program_code = "099999-1-000"
     pages = {
         "track-dup-a": WikiPage(
@@ -592,25 +595,23 @@ def test_export_faculty_vault_catalog_exports_each_primary_track_slug(
         lambda readiness: readiness,
     )
     doc, _ = export_faculty_vault_catalog(faculty_id="test")
-    assert len(doc["programs"]) == 2
-    assert {program["metadata"]["wikiPage"] for program in doc["programs"]} == {
-        "track-dup-a",
-        "track-dup-b",
-    }
+    assert len(doc["programs"]) == 1
+    assert doc["parserReport"]["trackPagesExported"] == ["track-dup-a", "track-dup-b"]
+    assert doc["programs"][0]["metadata"]["wikiPage"] == "track-dup-a"
 
 
 def test_export_faculty_vault_catalog_exports_shared_code_per_track_slug() -> None:
     biology_doc, _ = export_faculty_vault_catalog(faculty_id="biology")
     biology_slugs = {(program["programCode"], program["metadata"]["wikiPage"]) for program in biology_doc["programs"]}
     assert ("013043-1-000", "track-biology-general") in biology_slugs
-    assert ("013043-1-000", "track-biology-human-development") in biology_slugs
-    assert len(biology_doc["programs"]) >= 4
+    assert "track-biology-human-development" in biology_doc["parserReport"]["trackPagesExported"]
+    assert len(biology_doc["programs"]) >= 2
 
     cs_doc, _ = export_faculty_vault_catalog(faculty_id="computer-science")
     cs_slugs = [program["metadata"]["wikiPage"] for program in cs_doc["programs"]]
     assert "track-computer-science-general-3year" in cs_slugs
     assert "track-computer-science-general-4year" in cs_slugs
-    assert len(cs_doc["programs"]) >= 8
+    assert len(cs_doc["programs"]) >= 7
 
 
 def test_export_faculty_vault_catalog_skips_duplicate_slug(monkeypatch) -> None:
@@ -658,6 +659,15 @@ def test_export_faculty_vault_catalog_skips_duplicate_slug(monkeypatch) -> None:
     assert len(doc["programs"]) == 1
 
 
+def test_build_course_reference_parses_slash_separated_alternatives() -> None:
+    from app.vault.export_dds_catalog import build_course_reference
+
+    ref = build_course_reference("00440252 / 02340252", title_hint="Digital systems")
+    assert ref is not None
+    assert ref["courseNumber"] == "02340252"
+    assert any("00440252" in str(note) for note in (ref.get("notes") or []))
+
+
 def test_semester_matrix_groups_merge_variant_headings() -> None:
     from app.paths import catalog_vault_root
     from app.vault.export_dds_catalog import _semester_matrix_groups
@@ -692,3 +702,62 @@ def test_semester_matrices_inherit_from_elective_source() -> None:
     groups = _semester_matrices_for_track(barak, "034034-2-000", pages)
     assert len(groups) >= 6
     assert all(group["groupId"].startswith("034034-2-000:") for group in groups)
+
+
+def test_cs_3year_semester_matrices_merge_parent_and_local() -> None:
+    from app.paths import catalog_vault_root
+    from app.vault.export_faculty_vault_catalog import _semester_matrices_for_track
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    cs_3year = pages["track-computer-science-general-3year"]
+    groups = _semester_matrices_for_track(cs_3year, "023044-1-000", pages)
+    semesters = sorted(
+        int((group.get("ruleExpression") or {}).get("semester") or 0) for group in groups
+    )
+    assert semesters == [1, 2, 3, 4, 5]
+    semester_one = next(group for group in groups if group["groupId"].endswith("semester-1-matrix"))
+    semester_one_numbers = {
+        ref["courseNumber"] for ref in semester_one.get("courseReferences") or []
+    }
+    assert "01040031" in semester_one_numbers
+    assert "01340058" not in semester_one_numbers
+
+    semester_four = next(group for group in groups if group["groupId"].endswith("semester-4-matrix"))
+    semester_four_numbers = {
+        ref["courseNumber"] for ref in semester_four.get("courseReferences") or []
+    }
+    assert "02340118" in semester_four_numbers
+    assert "01340058" not in semester_four_numbers
+    assert "01250001" not in semester_four_numbers
+
+    semester_five = next(group for group in groups if group["groupId"].endswith("semester-5-matrix"))
+    semester_five_numbers = {
+        ref["courseNumber"] for ref in semester_five.get("courseReferences") or []
+    }
+    assert {"02360343", "02360267"} <= semester_five_numbers
+
+
+def test_cs_export_collapses_duplicate_program_code_to_general_track_matrix() -> None:
+    from app.paths import catalog_vault_root
+    from app.vault.export_faculty_vault_catalog import export_faculty_vault_catalog
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    document, _ = export_faculty_vault_catalog(faculty_id="computer-science")
+    cs_programs = [program for program in document["programs"] if program["programCode"] == "023044-1-000"]
+    assert len(cs_programs) == 1
+    assert (cs_programs[0].get("metadata") or {}).get("wikiPage") == "track-computer-science-general-3year"
+    matrices = [
+        group
+        for group in cs_programs[0].get("requirementGroups", [])
+        if (group.get("ruleExpression") or {}).get("type") == "semester_matrix"
+    ]
+    semesters = sorted(int((group.get("ruleExpression") or {}).get("semester") or 0) for group in matrices)
+    assert semesters == [1, 2, 3, 4, 5]
+    semester_four = next(group for group in matrices if group["groupId"].endswith("semester-4-matrix"))
+    assert {ref["courseNumber"] for ref in semester_four.get("courseReferences") or []} == {
+        "02340118",
+        "02340123",
+        "02340247",
+    }

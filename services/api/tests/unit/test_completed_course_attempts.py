@@ -16,6 +16,8 @@ def test_semester_code_rank_returns_zero_zero_for_malformed_codes():
     assert semester_code_rank("2024-4") == (0, 0)
 
 
+
+
 def test_resolve_available_attempt_returns_requested_when_free():
     assert resolve_available_attempt(set(), 1) == 1
     assert resolve_available_attempt({1}, 2) == 2

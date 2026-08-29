@@ -1,12 +1,20 @@
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, Search } from 'lucide-react'
 import { hasStructuredChainLayout } from '../../lib/chainRequirementSteps'
 import {
+  buildCourseEquivalenceGroups,
+  expandNumbersWithEquivalence,
+  isCountedViaEquivalence,
+} from '../../lib/courseEquivalence'
+import {
   catalogLinkForPool,
+  countDedupedPoolCourses,
   interpolateTemplate,
   isChainPool,
+  isRequiredCurriculumCourse,
   localizedCourseTitle,
+  poolCourseFilterCounts,
   poolCountedCourseNumbers,
   preparePoolCourseView,
   VIRTUAL_LIST_THRESHOLD,
@@ -16,21 +24,28 @@ import { ChainRequirementView } from './ChainRequirementView'
 import { PoolCourseListItem } from './PoolCourseListItem'
 import { VirtualPoolCourseList } from './VirtualPoolCourseList'
 import { cn } from '../../lib/utils'
-import type { ElectiveBucket, RequirementProgressEntry } from '../../types/api'
+import type { CurriculumGraph, ElectiveBucket, GraduationProgress, RequirementProgressEntry } from '../../types/api'
+import type { PoolCourseFilter } from '../../lib/electivePools'
 
 type ElectivePoolCourseListProps = {
   pool: ElectiveBucket
+  allPools: ElectiveBucket[]
   bucket: RequirementProgressEntry
   transcriptNumbers: Set<string>
   requiredCurriculumNumbers: Set<string>
+  curriculumGraph?: CurriculumGraph | null
+  graduationProgress?: GraduationProgress | null
   t: (key: string) => string
 }
 
 export function ElectivePoolCourseList({
   pool,
+  allPools,
   bucket,
-  transcriptNumbers,
+  transcriptNumbers: _transcriptNumbers,
   requiredCurriculumNumbers,
+  curriculumGraph,
+  graduationProgress,
   t,
 }: ElectivePoolCourseListProps) {
   const { locale } = useTranslation()
@@ -38,24 +53,83 @@ export function ElectivePoolCourseList({
   const deferredSearch = useDeferredValue(searchQuery.trim().toLowerCase())
 
   const countedNumbers = useMemo(
-    () => poolCountedCourseNumbers(pool, bucket, transcriptNumbers),
-    [bucket, pool, transcriptNumbers],
+    () => poolCountedCourseNumbers(pool, bucket, allPools),
+    [allPools, bucket, pool],
   )
+
+  const filterCounts = useMemo(
+    () =>
+      poolCourseFilterCounts(pool.courses, countedNumbers, {
+        curriculumGraph,
+        graduationProgress,
+        requiredCurriculumNumbers,
+      }),
+    [countedNumbers, curriculumGraph, graduationProgress, pool.courses, requiredCurriculumNumbers],
+  )
+
+  const defaultCourseFilter = useMemo((): PoolCourseFilter => {
+    if (filterCounts.remaining > 0 && filterCounts.counted > 0) return 'remaining'
+    if (filterCounts.counted > 0) return 'counted'
+    return 'all'
+  }, [filterCounts.counted, filterCounts.remaining])
+
+  const [courseFilter, setCourseFilter] = useState<PoolCourseFilter>(defaultCourseFilter)
+
+  useEffect(() => {
+    setCourseFilter(defaultCourseFilter)
+  }, [defaultCourseFilter, pool.groupId])
 
   const useChainRequirementView = isChainPool(pool) && hasStructuredChainLayout(pool)
 
   const showChainLayout = isChainPool(pool) && pool.courses.length > 0 && !useChainRequirementView
   const useVirtualList = !showChainLayout && !useChainRequirementView && pool.courses.length >= VIRTUAL_LIST_THRESHOLD
 
+  const equivalenceGroups = useMemo(
+    () =>
+      buildCourseEquivalenceGroups({
+        curriculumGraph,
+        progress: graduationProgress,
+        poolCourses: pool.courses,
+      }),
+    [curriculumGraph, graduationProgress, pool.courses],
+  )
+
+  const expandedCountedNumbers = useMemo(
+    () => expandNumbersWithEquivalence(countedNumbers, equivalenceGroups),
+    [countedNumbers, equivalenceGroups],
+  )
+
   const visibleCourses = useMemo(
     () =>
       preparePoolCourseView(pool.courses, {
         query: deferredSearch,
         completedNumbers: countedNumbers,
-        filter: 'all',
-        sort: 'catalog',
+        filter: courseFilter,
+        sort: courseFilter === 'counted' ? 'counted_first' : 'catalog',
+        curriculumGraph,
+        graduationProgress,
+        requiredCurriculumNumbers,
       }),
-    [countedNumbers, deferredSearch, pool.courses],
+    [
+      countedNumbers,
+      courseFilter,
+      curriculumGraph,
+      graduationProgress,
+      deferredSearch,
+      pool.courses,
+      requiredCurriculumNumbers,
+    ],
+  )
+
+  const dedupedCourseCount = useMemo(
+    () =>
+      countDedupedPoolCourses(pool.courses, {
+        countedNumbers,
+        requiredCurriculumNumbers,
+        curriculumGraph,
+        progress: graduationProgress,
+      }),
+    [countedNumbers, curriculumGraph, graduationProgress, pool.courses, requiredCurriculumNumbers],
   )
 
   if (useChainRequirementView) {
@@ -63,9 +137,10 @@ export function ElectivePoolCourseList({
       <div data-testid={`elective-pool-detail-${pool.groupId}`}>
         <ChainRequirementView
           pool={pool}
+          allPools={allPools}
           bucket={bucket}
-          transcriptNumbers={transcriptNumbers}
           requiredCurriculumNumbers={requiredCurriculumNumbers}
+          curriculumGraph={curriculumGraph}
           t={t}
         />
       </div>
@@ -85,10 +160,29 @@ export function ElectivePoolCourseList({
         />
       </label>
 
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t('progress.electiveExplorer.courseFilterLabel')}>
+        {(['all', 'counted', 'remaining'] as const).map((filterKey) => (
+          <button
+            key={filterKey}
+            type="button"
+            aria-pressed={courseFilter === filterKey}
+            onClick={() => setCourseFilter(filterKey)}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-medium transition',
+              courseFilter === filterKey
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                : 'border-[var(--color-border)] bg-white text-[var(--color-text-muted)] hover:bg-[var(--color-surface-muted)]',
+            )}
+          >
+            {t(`progress.electiveExplorer.courseFilters.${filterKey}`)} ({filterCounts[filterKey]})
+          </button>
+        ))}
+      </div>
+
       <p className="text-xs text-[var(--color-text-muted)]">
         {interpolateTemplate(t('progress.electiveExplorer.showingCourses'), {
           shown: visibleCourses.length,
-          total: pool.courses.length,
+          total: dedupedCourseCount,
         })}
       </p>
 
@@ -97,7 +191,7 @@ export function ElectivePoolCourseList({
           useVirtualList ? (
             <VirtualPoolCourseList
               courses={visibleCourses}
-              completedNumbers={countedNumbers}
+              completedNumbers={expandedCountedNumbers}
               requiredCurriculumNumbers={requiredCurriculumNumbers}
               countedLabel={t('progress.electiveExplorer.counted')}
               requiredLabel={t('progress.electiveExplorer.requiredCourse')}
@@ -111,8 +205,15 @@ export function ElectivePoolCourseList({
                   key={course.courseNumber}
                   course={course}
                   displayTitle={localizedCourseTitle(course, locale)}
-                  isCounted={countedNumbers.has(course.courseNumber)}
-                  isRequiredCurriculum={requiredCurriculumNumbers.has(course.courseNumber)}
+                  isCounted={isCountedViaEquivalence(
+                    course.courseNumber,
+                    countedNumbers,
+                    equivalenceGroups,
+                  )}
+                  isRequiredCurriculum={isRequiredCurriculumCourse(
+                    course.courseNumber,
+                    requiredCurriculumNumbers,
+                  )}
                   countedLabel={t('progress.electiveExplorer.counted')}
                   requiredLabel={t('progress.electiveExplorer.requiredCourse')}
                   showChainStep={showChainLayout}

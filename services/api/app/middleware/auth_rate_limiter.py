@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 RATE_LIMIT_PREFIX = "rl:auth:"
 AI_RATE_LIMIT_PREFIX = "rl:ai:"
 PROGRESS_RATE_LIMIT_PREFIX = "rl:progress:"
-JOB_RATE_LIMIT_PREFIX = "rl:job:"
 TRANSCRIPT_IMPORT_RATE_LIMIT_PREFIX = "rl:transcript-import:"
 
 
@@ -166,18 +165,6 @@ async def enforce_progress_rate_limit(request: Request, user_id: str) -> None:
         window_ms=settings.progress_rate_limit_window_ms,
         max_requests=settings.progress_rate_limit_max,
         detail="Too many progress requests. Please try again later.",
-    )
-
-
-async def enforce_job_rate_limit(request: Request, user_id: str) -> None:
-    settings = get_settings()
-    path = request.url.path
-    key = f"{JOB_RATE_LIMIT_PREFIX}{user_id}:{path}"
-    await _enforce_rate_limit(
-        key=key,
-        window_ms=settings.job_rate_limit_window_ms,
-        max_requests=settings.job_rate_limit_max,
-        detail="Too many AI job requests. Please try again later.",
     )
 
 

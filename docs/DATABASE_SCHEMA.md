@@ -210,6 +210,7 @@ Source of truth inputs: `docs/DOMAIN_MODEL.md`, `docs/PROJECT_CONTEXT.md`
 **Status:** Implemented (Phase 5).
 
 - **Purpose:** transcript records per student
+- **Import note:** Technion **summary** official PDFs list one row per course (latest grade only). Full retake history is not on that PDF; students may add extra attempts manually (`source: manual`). Progress logic still resolves multiple stored attempts to the latest when present.
 - **Fields:**
   - `_id`
   - `userId` (ObjectId -> users._id)
@@ -230,7 +231,7 @@ Source of truth inputs: `docs/DOMAIN_MODEL.md`, `docs/PROJECT_CONTEXT.md`
   - required: `userId`, `courseId`, `semesterCode`, `grade`, `creditsEarned`, `attempt`, `source`, `recordedAt`
   - grade enum (see `docs/API_SPEC.md` §4.3)
   - `creditsEarned` number >= 0, max 36, in **0.5 increments** (Technion-style half credits allowed)
-  - `attempt` integer > 0 (API: 1–5)
+  - `attempt` integer > 0 (API: 1–10)
   - `courseId` must reference a published `courses` document (production catalog after Phase 12 promotion on Python API)
   - unique `(userId, courseId, attempt)`
 - **Ownership rules:**
@@ -398,9 +399,13 @@ Graduation progress is **computed at read time** — not stored in a separate co
 | `semester_matrix` | `catalog_rules` | No — planning-only |
 
 **Allocation:**
-- Passing numeric grades only (0–100 scale, **strictly above 55**); 55 and below excluded
-- One effective completion per `courseId` (best passing `creditsEarned`, latest on tie)
-- Top-level `completedCredits` sums each course **once**
+- Bucket evaluation order: `required` / matrix mandatory first, then faculty electives (strict pools), then technion-wide (enrichment, PE, free), then legacy `core` (skipped when required + technion split exist)
+- Required bucket: semester-matrix courses and overlap/cross-track substitutes only (not PE overlap groups)
+- Passing numeric grades only (grade ≥ 55); 55 and below excluded
+- One effective completion per `courseId` (latest by semester, then attempt number, then `recordedAt`; must be passing)
+- Top-level `completedCredits` and `transcriptCreditsTotal` match official transcript accumulated credits (latest passing row per course, credits > 0)
+- `degreeAppliedCredits` counts only credits assigned to requirement buckets (pool/overlap placement)
+- Catalog overlap groups still flag duplicate rows in `ineligibleCredits`; they do not reduce headline transcript totals
 - Strict pools: only pool-eligible courses count toward linked buckets
 - Other buckets: greedy credit fill from unassigned passing completions
 

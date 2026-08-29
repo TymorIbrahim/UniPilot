@@ -1,7 +1,32 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_API_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _resolve_repo_root() -> Path:
+    """Repo root on host (UniPilot/); in Docker fall back to API root (/app)."""
+    config_path = Path(__file__).resolve()
+    for parent in config_path.parents:
+        if (parent / "docker-compose.yml").is_file():
+            return parent
+    return _API_ROOT
+
+
+_REPO_ROOT = _resolve_repo_root()
+
+
+def _settings_env_files() -> tuple[str, ...]:
+    paths: list[str] = []
+    for candidate in (_REPO_ROOT / ".env", _API_ROOT / ".env", Path.cwd() / ".env"):
+        if candidate.is_file():
+            resolved = str(candidate.resolve())
+            if resolved not in paths:
+                paths.append(resolved)
+    return tuple(paths) if paths else (".env",)
 
 # Dev-only default for Docker first-run; rejected when ENVIRONMENT=production.
 DEV_JWT_SECRET = "unipilot_dev_jwt_secret_change_in_production"
@@ -47,10 +72,13 @@ class Settings(BaseSettings):
     ai_rate_limit_max: int = 10
     progress_rate_limit_window_ms: int = 60_000
     progress_rate_limit_max: int = 60
-    job_rate_limit_window_ms: int = 60_000
-    job_rate_limit_max: int = 10
     transcript_import_rate_limit_window_ms: int = 60_000
     transcript_import_rate_limit_max: int = 10
+    ai_service_url: str | None = None
+    # Must stay comfortably above services/ai's own agent_turn_timeout_seconds
+    # (180s default) so that service's own ceiling has a chance to return a
+    # clean, honest timeout answer before this client gives up on it first.
+    ai_advisor_timeout_seconds: int = 300
     transcript_parser_url: str | None = None
     transcript_parser_timeout_seconds: int = 60
     transcript_import_max_upload_bytes: int = 5 * 1024 * 1024
@@ -71,19 +99,22 @@ class Settings(BaseSettings):
     completed_courses_collection: str = "completed_courses"
     semester_plans_collection: str = "semester_plans"
     academic_risks_collection: str = "academic_risks"
-    ai_jobs_collection: str = "ai_jobs"
-    worker_queue_name: str = "ai_jobs"
     web_app_url: str = "http://localhost:3000"
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None
     e2e_google_oauth_stub: bool = False
+    microsoft_client_id: str | None = None
+    microsoft_tenant_id: str = "common"
+    microsoft_redirect_uri: str | None = None
+    microsoft_scopes: str = "User.Read Mail.Read offline_access"
+    microsoft_token_encryption_key: str | None = None
     refresh_token_session_ttl_seconds: int = 24 * 60 * 60
     refresh_token_remember_ttl_seconds: int = 30 * 24 * 60 * 60
     technion_raw_dir: str | None = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_settings_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -128,6 +159,12 @@ class Settings(BaseSettings):
             return configured.rstrip("/")
         return "http://transcript-parser:8010"
 
+    def resolved_ai_service_url(self) -> str:
+        configured = (self.ai_service_url or "").strip()
+        if configured:
+            return configured.rstrip("/")
+        return "http://ai:3001"
+
     def resolved_internal_service_token(self) -> str:
         return (self.internal_service_token or "").strip()
 
@@ -146,6 +183,28 @@ class Settings(BaseSettings):
         if self.environment == "production":
             return False
         return bool(self.e2e_google_oauth_stub and self.google_oauth_enabled())
+
+    def resolved_microsoft_redirect_uri(self) -> str:
+        configured = (self.microsoft_redirect_uri or "").strip()
+        if configured:
+            return configured
+        return f"{self.resolved_web_app_url()}/api/integrations/outlook/callback"
+
+    def resolved_microsoft_scopes(self) -> list[str]:
+        return [scope.strip() for scope in self.microsoft_scopes.split() if scope.strip()]
+
+    def microsoft_oauth_enabled(self) -> bool:
+        client_id = (self.microsoft_client_id or "").strip()
+        encryption_key = (self.microsoft_token_encryption_key or "").strip()
+        return bool(client_id and encryption_key)
+
+    def require_microsoft_token_encryption_key(self) -> bytes:
+        raw = (self.microsoft_token_encryption_key or "").strip()
+        if not raw:
+            raise RuntimeError(
+                "MICROSOFT_TOKEN_ENCRYPTION_KEY is required for Outlook token storage."
+            )
+        return raw.encode("utf-8")
 
     @field_validator("mongo_root_password", mode="before")
     @classmethod
@@ -175,11 +234,6 @@ class Settings(BaseSettings):
         if self.ai_rate_limit_max > 10:
             raise RuntimeError(
                 "AI_RATE_LIMIT_MAX must be <= 10 in production (recommended: 5)."
-            )
-
-        if self.job_rate_limit_max > 10:
-            raise RuntimeError(
-                "JOB_RATE_LIMIT_MAX must be <= 10 in production (recommended: 5)."
             )
 
         if self.transcript_import_rate_limit_max > 10:

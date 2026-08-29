@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.curriculum.cross_track_equivalence import KNOWN_CROSS_TRACK_EQUIVALENCE_GROUPS
+
 from app.curriculum.data_quality import (
     build_credits_display,
     build_data_quality_flags,
@@ -17,6 +19,18 @@ from app.planning.prerequisite_resolver import (
     canonical_course_number,
     extract_course_numbers_from_text,
 )
+
+
+def _serialize_cross_track_equivalence_groups() -> list[list[str]]:
+    return [list(group) for group in KNOWN_CROSS_TRACK_EQUIVALENCE_GROUPS]
+
+
+def _serialize_catalog_overlap_equivalence_groups(
+    catalog_courses: list[dict[str, Any]],
+) -> list[list[str]]:
+    from app.services.catalog_overlap_groups import build_catalog_overlap_groups
+
+    return [sorted(group) for group in build_catalog_overlap_groups(catalog_courses)]
 
 
 def _course_number(document: dict[str, Any]) -> str | None:
@@ -270,6 +284,10 @@ def build_base_curriculum_graph(
         "nodes": list(nodes_by_number.values()),
         "edges": edges,
         "electiveBuckets": elective_buckets,
+        "crossTrackEquivalenceGroups": _serialize_cross_track_equivalence_groups(),
+        "catalogOverlapEquivalenceGroups": _serialize_catalog_overlap_equivalence_groups(
+            catalog_courses,
+        ),
         "advisories": advisories,
         "bottlenecks": [],
     }

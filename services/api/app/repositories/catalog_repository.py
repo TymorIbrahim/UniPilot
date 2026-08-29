@@ -350,11 +350,16 @@ async def find_course_by_number(
     settings: Settings | None = None,
 ) -> dict[str, Any] | None:
     """Return raw published course document (includes _id)."""
-    if is_production_excluded_course_number(course_number):
+    from app.planning.prerequisite_resolver import canonical_course_number
+
+    normalized = canonical_course_number(course_number)
+    if not normalized:
+        return None
+    if is_production_excluded_course_number(normalized):
         return None
     settings = settings or get_settings()
     return await database[settings.courses_collection].find_one(
-        {**PUBLISHED_FILTER, "courseNumber": course_number}
+        {**PUBLISHED_FILTER, "courseNumber": normalized}
     )
 
 
@@ -364,11 +369,16 @@ async def get_course_by_number(
     *,
     settings: Settings | None = None,
 ) -> dict[str, Any] | None:
-    if is_production_excluded_course_number(course_number):
+    from app.planning.prerequisite_resolver import canonical_course_number
+
+    normalized = canonical_course_number(course_number)
+    if not normalized:
+        return None
+    if is_production_excluded_course_number(normalized):
         return None
     settings = settings or get_settings()
     document = await database[settings.courses_collection].find_one(
-        {**PUBLISHED_FILTER, "courseNumber": course_number}
+        {**PUBLISHED_FILTER, "courseNumber": normalized}
     )
     if not document:
         return None
@@ -583,6 +593,19 @@ async def get_degree_program_by_code(
     if not document:
         return None
     return to_public_degree_program(document)
+
+
+async def find_degree_program_by_code(
+    database: AsyncIOMotorDatabase,
+    program_code: str,
+    *,
+    settings: Settings | None = None,
+) -> dict[str, Any] | None:
+    """Return raw published degree program document for a program code."""
+    settings = settings or get_settings()
+    return await database[settings.degree_programs_collection].find_one(
+        {**PUBLISHED_STATUS_FILTER, "programCode": program_code}
+    )
 
 
 async def find_degree_program_by_id(

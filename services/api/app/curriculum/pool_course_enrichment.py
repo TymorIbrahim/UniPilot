@@ -8,11 +8,28 @@ from typing import Any
 FACULTY_ELECTIVE_PREFIXES: tuple[str, ...] = ("0094", "0095", "0096", "0097")
 EXPLORER_PREFIX_QUERY_LIMIT = 500
 
+# CHE university enrichment: legacy 039405* plus humanities-center 0324xxxx series.
+ENRICHMENT_CHE_PREFIXES: tuple[str, ...] = (
+    "039405",
+    "032402",
+    "032403",
+    "032404",
+    "032405",
+    "032406",
+    "032409",
+)
+
+# Mandatory English / scientific-writing courses must not count as enrichment.
+ENRICHMENT_EXCLUDED_COURSE_NUMBERS: tuple[str, ...] = (
+    "03240033",
+    "03240455",
+)
+
 KNOWN_POOL_PREFIXES_BY_SUFFIX: dict[str, tuple[str, ...]] = {
     "elective-faculty-pool": FACULTY_ELECTIVE_PREFIXES,
     "ie-additional-faculty-electives": FACULTY_ELECTIVE_PREFIXES,
     "is-additional-faculty-electives": FACULTY_ELECTIVE_PREFIXES,
-    "enrichment-pool": ("039405",),
+    "enrichment-pool": ENRICHMENT_CHE_PREFIXES,
     "physical-education-pool": ("039408", "039409"),
 }
 
@@ -116,14 +133,70 @@ FOCUS_CHAIN_FALLBACK_NUMBERS: dict[str, tuple[str, ...]] = {
         "0960311",
         "0960335",
     ),
+    "ie-focus-chain-data-systems": (
+        "0960311",
+        "0960335",
+        "0960327",
+        "0960570",
+    ),
+    "ie-focus-chain-or-game-theory": (
+        "0960327",
+        "0960226",
+        "0960578",
+        "0970317",
+    ),
+    "ie-focus-chain-statistics": (
+        "0960414",
+        "0960415",
+        "0960425",
+        "0960450",
+    ),
+    "ie-focus-chain-economics": (
+        "0960226",
+        "0960570",
+        "0970317",
+        "0960606",
+    ),
+    "ie-focus-chain-behavior-management": (
+        "0960600",
+        "0960620",
+        "0960617",
+        "0960690",
+    ),
 }
+
+_DNE_STARRED_PROJECT_NUMBERS: tuple[str, ...] = (
+    "0960222",
+    "0960231",
+    "0960235",
+    "0960262",
+    "0960324",
+    "0960693",
+    "0970135",
+    "0970200",
+    "0970215",
+    "0970216",
+    "0970222",
+    "0970247",
+    "0970248",
+    "0970272",
+    "0970400",
+)
+
+CHOOSE_N_CHAIN_FALLBACK_NUMBERS.update(
+    {
+        "dne-starred-project-pool": _DNE_STARRED_PROJECT_NUMBERS,
+    }
+)
 
 _PREFIX_TOKEN_PATTERN = re.compile(r"0?9[4-7]")
 
 
 def normalize_catalog_prefix(prefix: str) -> str:
     token = prefix.strip()
-    if len(token) == 3 and token.isdigit():
+    # Pad bare 3-digit faculty codes (e.g. "940") but keep already-zero-prefixed
+    # codes like "094" so they still match 8-digit numbers such as 09400101.
+    if len(token) == 3 and token.isdigit() and not token.startswith("0"):
         return f"0{token}"
     return token
 
@@ -158,12 +231,24 @@ def resolve_pool_allowed_prefixes(
         for prefix in (rule.get("allowedPrefixes") or [])
         if prefix
     ]
-    if explicit:
-        return explicit
 
     group_id = str(pool_document.get("requirementGroupId") or "")
     suffix = _pool_suffix(group_id, program_code)
     known = KNOWN_POOL_PREFIXES_BY_SUFFIX.get(suffix)
+
+    if suffix == "enrichment-pool":
+        merged: list[str] = []
+        seen: set[str] = set()
+        for prefix in [*explicit, *(known or ENRICHMENT_CHE_PREFIXES)]:
+            normalized = normalize_catalog_prefix(str(prefix))
+            if normalized not in seen:
+                seen.add(normalized)
+                merged.append(normalized)
+        return merged
+
+    if explicit:
+        return explicit
+
     if known:
         return list(known)
 

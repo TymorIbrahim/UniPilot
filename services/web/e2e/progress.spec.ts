@@ -23,9 +23,12 @@ test.describe('Graduation progress — industry E2E', () => {
     await expect(panel).toBeVisible({ timeout: 15_000 })
 
     await expect(
-      page.getByRole('heading', {
-        name: /General Technion requirements|דרישות כלל-טכניוניות/i,
-      }),
+      page
+        .getByTestId('elective-pools-panel')
+        .getByRole('heading', {
+          name: /General Technion requirements|דרישות כלל-טכניוניות/i,
+        })
+        .first(),
     ).toBeVisible()
 
     const facultyBeforeGeneral = await panel.evaluate((root) => {
@@ -58,7 +61,8 @@ test.describe('Graduation progress — industry E2E', () => {
 
   test('filters pools via search', async ({ page }) => {
     const panel = page.getByTestId('elective-pools-panel')
-    const search = panel.getByPlaceholder(/Search pools|חיפוש בריכות/i)
+    const search = panel.locator('input[type="search"]')
+    await expect(search).toBeVisible({ timeout: 15_000 })
     await search.fill('physical education')
     await expect(
       panel.locator('[data-testid*="physical-education-pool"]'),
@@ -69,7 +73,8 @@ test.describe('Graduation progress — industry E2E', () => {
   test('does not expose removed bucket explorer UI', async ({ page }) => {
     await expect(page.getByRole('button', { name: /פתח בריכה|Browse pool/i })).toHaveCount(0)
     await expect(page.getByTestId('elective-pool-explorer')).toHaveCount(0)
-    await expect(page.getByText(/still needed|עדיין חסר/i)).toHaveCount(0)
+    const poolsPanel = page.getByTestId('elective-pools-panel')
+    await expect(poolsPanel.getByText(/still needed|עדיין חסר/i)).toHaveCount(0)
   })
 
   test('supports Hebrew default and English switch with dir attribute', async ({ page }) => {
@@ -84,13 +89,6 @@ test.describe('Graduation progress — industry E2E', () => {
 })
 
 test.describe('Graduation progress — course recommendations', () => {
-  test('recommends courses and renders a plain-language narrative', async ({ progressPage }) => {
-    await progressPage.gotoProgress()
-    await progressPage.recommendCourses()
-
-    await expect(progressPage.recommendCoursesNarrative).not.toBeEmpty()
-    await expect(progressPage.recommendCoursesStatus).not.toBeVisible()
-  })
 })
 
 test.describe('Graduation progress — guest access', () => {

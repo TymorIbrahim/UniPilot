@@ -8,6 +8,8 @@ from pymongo.errors import DuplicateKeyError
 
 from app.schemas.transcript_import import CommitTranscriptCourseInput, CommitTranscriptImportRequest
 from app.services.transcript_import_service import _import_grade_key, commit_transcript_import
+
+from app.services.transcript_import_service import commit_transcript_import
 from tests.fixtures.completed_course_fixtures import (
     build_completed_course_payload,
     seed_production_course_fixture,

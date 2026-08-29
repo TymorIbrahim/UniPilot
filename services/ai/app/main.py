@@ -1,0 +1,72 @@
+"""UniPilot AI FastAPI application."""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from app.agent_core.loop.course_names import load_catalog_names
+from app.config import get_settings
+from app.core.responses import error_response
+from app.retrieval.graph_engine.graph_registry import graph_registry
+from app.routes.advise import router as advise_router
+from app.routes.health import router as health_router
+
+# Without this, INFO-level logs (including reasoning_block_trace -- the
+# per-call duration/status data emitted by every real reasoning call, see
+# app/agent_core/reasoning/tracing.py) are silently dropped: with no handler
+# configured anywhere, Python's logging module only surfaces WARNING+ via its
+# "handler of last resort." A live latency investigation found zero trace
+# output in `docker logs` for this exact reason.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Before anything is served. An unset INTERNAL_SERVICE_TOKEN leaves /advise
+    # answering for any user_id with no authentication, and a service that starts
+    # without its boundary is worse than one that does not start.
+    get_settings().validate_production_settings()
+    graph_registry.refresh_stats(get_settings())
+    # Course names for answers about courses the wiki does not cover. Returns 0
+    # and logs rather than raising if the catalog is unreachable -- a bare code is
+    # a worse answer, not a broken service.
+    loaded = await load_catalog_names()
+    logging.getLogger(__name__).info("catalog course names loaded: %d", loaded)
+    yield
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    is_production = settings.environment == "production"
+    app = FastAPI(
+        title="UniPilot AI Service",
+        description="Internal academic advisor and graph retrieval service",
+        version="0.2.0",
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc",
+        openapi_url=None if is_production else "/openapi.json",
+        lifespan=lifespan,
+    )
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.include_router(health_router)
+    app.include_router(advise_router)
+    return app
+
+
+async def validation_exception_handler(_request, exc: RequestValidationError) -> JSONResponse:
+    payload = error_response("Validation failed")
+    payload["errors"] = exc.errors()
+    return JSONResponse(status_code=400, content=payload)
+
+
+async def http_exception_handler(_request, exc: HTTPException) -> JSONResponse:
+    detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
+    payload = error_response(detail)
+    return JSONResponse(status_code=exc.status_code, content=payload)
+
+
+app = create_app()

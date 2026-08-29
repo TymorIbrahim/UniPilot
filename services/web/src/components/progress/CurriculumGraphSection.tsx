@@ -21,16 +21,15 @@ import { nodeStatusTone } from '../../lib/academicPath'
 
 type CurriculumGraphSectionProps = {
   graph: CurriculumGraph
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string | number>) => string
 }
+
+type TranslateFn = CurriculumGraphSectionProps['t']
 
 function displayNodeStatus(
   node: CurriculumGraphNode,
-  compact: boolean,
+  _compact: boolean,
 ): CurriculumGraphNode['status'] {
-  if (compact && node.status === 'verify_with_registrar') {
-    return 'available'
-  }
   return node.status
 }
 
@@ -43,7 +42,7 @@ function NodeCard({
   highlightRole = 'none',
 }: {
   node: CurriculumGraphNode
-  t: (key: string) => string
+  t: TranslateFn
   compact?: boolean
   highlightRole?: NodeHighlightRole
 }) {
@@ -86,6 +85,13 @@ function NodeCard({
           {t('progress.curriculum.alternatives')}: {node.alternatives.join(', ')}
         </p>
       ) : null}
+      {node.satisfiedViaAlternative ? (
+        <p className="mt-1 text-xs text-emerald-800">
+          {t('progress.curriculum.satisfiedViaAlternative', {
+            courseNumber: node.satisfiedViaAlternative,
+          })}
+        </p>
+      ) : null}
       {!compact && node.missingPrerequisites.length > 0 ? (
         <p className="mt-1 text-xs text-amber-800">
           {t('progress.curriculum.missingPrereqs')}: {node.missingPrerequisites.join(', ')}
@@ -95,7 +101,7 @@ function NodeCard({
   )
 }
 
-function MindMapView({ graph, t }: { graph: CurriculumGraph; t: (key: string) => string }) {
+function MindMapView({ graph, t }: { graph: CurriculumGraph; t: TranslateFn }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const layoutRef = useRef<HTMLDivElement>(null)
   const transformRef = useRef<HTMLDivElement>(null)
@@ -531,10 +537,13 @@ function MindMapView({ graph, t }: { graph: CurriculumGraph; t: (key: string) =>
 }
 
 export function CurriculumGraphSection({ graph, t }: CurriculumGraphSectionProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => graph.nodes.length > 0)
+  const completedNodes = graph.nodes.filter((node) => node.status === 'completed').length
+  const inProgressNodes = graph.nodes.filter((node) => node.status === 'in_progress').length
+  const bottleneckCount = graph.bottlenecks.length
 
   return (
-    <Card className="space-y-4" data-testid="curriculum-graph-section">
+    <Card className="scroll-mt-24 space-y-4" data-testid="curriculum-graph-section">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">{t('progress.curriculum.title')}</h2>
@@ -555,6 +564,41 @@ export function CurriculumGraphSection({ graph, t }: CurriculumGraphSectionProps
             : t('progress.curriculum.expandMindMap')}
         </button>
       </div>
+
+      {!expanded ? (
+        <div
+          className="grid gap-3 sm:grid-cols-3"
+          data-testid="curriculum-graph-preview"
+        >
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-muted)]/40 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+              {t('progress.curriculum.previewCourses')}
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{graph.nodes.length}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+              {t('progress.curriculum.previewCompleted')}
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-900">
+              {completedNodes}
+              {inProgressNodes ? (
+                <span className="ms-2 text-sm font-normal text-emerald-800">
+                  · {t('progress.curriculum.previewInProgress', { count: inProgressNodes })}
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-amber-900">
+              {t('progress.curriculum.previewBottlenecks')}
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-amber-950">
+              {bottleneckCount}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {expanded ? <MindMapView graph={graph} t={t} /> : null}
     </Card>

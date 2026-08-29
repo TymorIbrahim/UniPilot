@@ -65,9 +65,9 @@ Legend — Priority: P0 (must), P1 (should), P2 (nice). Status: `todo` / `in-pro
 
 | ID | Feature | Priority | Phase | Status |
 |----|---------|----------|-------|--------|
-| DEC-1 | Course/path recommendation request | P1 | 4 | todo |
+| DEC-1 | Course/path recommendation request | P1 | 4 | done |
 | DEC-2 | "What-if" academic scenario analysis | P1 | 4 | todo |
-| DEC-3 | Decision history per student | P2 | 4 | todo |
+| DEC-3 | Decision history per student | P2 | 4 | done |
 
 ## Quality & Delivery
 

@@ -1,8 +1,7 @@
 import { apiRequest, apiUpload, getApiBaseUrl } from '../lib/api'
 import type {
   AcademicRiskAnalysis,
-  AiJob,
-  AiJobType,
+  AdvisorReply,
   AuthPayload,
   CatalogFaculty,
   CatalogPathOption,
@@ -289,6 +288,24 @@ export const plansApi = {
     }),
 }
 
+export const advisorApi = {
+  ask: (question: string) =>
+    apiRequest<{ advisor: AdvisorReply }>('/advisor/ask', {
+      method: 'POST',
+      body: { question },
+    }),
+  askStream: (question: string) => {
+    return fetch(`${getApiBaseUrl()}/advisor/ask/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ question }),
+      credentials: 'include',
+    })
+  },
+}
+
 export const risksApi = {
   list: () =>
     apiRequest<{ academicRiskAnalyses: AcademicRiskAnalysis[]; pagination: { total: number } }>(
@@ -303,11 +320,3 @@ export const risksApi = {
     apiRequest<{ academicRiskAnalysis: AcademicRiskAnalysis }>(`/academic-risks/${id}`),
 }
 
-export const aiJobsApi = {
-  create: (jobType: AiJobType, body: Record<string, unknown> = {}) =>
-    apiRequest<{ aiJob: AiJob }>('/ai-jobs', {
-      method: 'POST',
-      body: { jobType, ...body },
-    }),
-  get: (id: string) => apiRequest<{ aiJob: AiJob }>(`/ai-jobs/${id}`),
-}

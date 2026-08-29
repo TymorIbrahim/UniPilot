@@ -113,6 +113,7 @@ async def test_generate_accepts_summer_semester_code(auth_client, mongo_database
         json={"semesterCode": "2025-3", "maxCredits": 6},
     )
     assert response.status_code != 400
+    assert response.status_code == 201
 
 
 @pytest.mark.asyncio

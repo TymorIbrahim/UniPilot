@@ -5,10 +5,6 @@ import { BasePage } from './BasePage'
 // and "Run analysis" button text are always English, in every locale.
 export class RisksPage extends BasePage {
   readonly runAnalysisButton = this.page.getByRole('button', { name: /Run analysis/i })
-  readonly explainButton = this.page.getByTestId('explain-risk-button')
-  readonly explainStatus = this.page.getByTestId('explain-risk-status')
-  readonly explainNarrative = this.page.getByTestId('explain-risk-narrative')
-  readonly explainError = this.page.getByTestId('explain-risk-error')
 
   async gotoRisks() {
     await this.goto('/risks')
@@ -24,16 +20,4 @@ export class RisksPage extends BasePage {
     await analyzeResponse
   }
 
-  async explainAnalysis() {
-    const enqueueResponse = this.page.waitForResponse(
-      (response) =>
-        response.url().includes('/ai-jobs') &&
-        response.request().method() === 'POST' &&
-        response.status() === 202,
-      { timeout: 15_000 },
-    )
-    await this.explainButton.click()
-    await enqueueResponse
-    await expect(this.explainNarrative).toBeVisible({ timeout: 20_000 })
-  }
 }
