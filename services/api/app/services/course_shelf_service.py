@@ -36,6 +36,7 @@ from app.planning.course_ranking import (
     rank_candidates,
 )
 from app.planning.course_shelves import MANDATORY, OPEN, build_course_shelves
+from app.planning.course_unlocking import build_unlock_index
 from app.planning.prerequisite_expression import (
     PrerequisiteParseError,
     is_satisfied_by,
@@ -59,6 +60,16 @@ from app.services.course_outcome_stats import CourseSignal, build_course_outcome
 from app.services.graduation_progress_service import get_graduation_progress_for_user
 from app.services.semester_plan_service import load_planning_context
 from app.services.semester_plan_suggestion_service import load_exact_term_offerings
+
+UNLOCK_PREVIEW_LIMIT = 6
+"""Course numbers listed on a card alongside the unlock count.
+
+Reported rather than ranked on. A third of the term's courses unlock at least
+one thing and the median unlocks exactly one, so as a rank key it would fire
+constantly while separating almost nothing -- and how much a future option is
+worth depends on how many semesters the student has left to spend, which they
+know and the system does not.
+"""
 
 OPEN_SHELF_PER_FACULTY = 3
 """Most courses one faculty may contribute to an "anything counts" row.
@@ -134,6 +145,7 @@ def _card(
     completed_numbers: set[str],
     signals: dict[str, dict[str, Any]],
     grades: dict[str, float],
+    unlock_index: dict[str, frozenset[str]],
 ) -> dict[str, Any]:
     number = str(course.get("courseNumber") or "")
     return {
@@ -148,6 +160,12 @@ def _card(
         # How the student did in this course's OWN prerequisites -- reported,
         # never ranked on. See `student_affinity`.
         "readiness": describe_readiness(course.get("prerequisitesText"), grades=grades),
+        # What taking this would open next term, among courses that could still
+        # count toward something the student needs.
+        "unlocks": {
+            "count": len(opened := unlock_index.get(number, frozenset())),
+            "courseNumbers": sorted(opened)[:UNLOCK_PREVIEW_LIMIT],
+        },
         "catalogKnown": True,
     }
 
@@ -263,6 +281,12 @@ async def build_course_shelves_for_user(
     # One prior for the whole request, so a course cannot score differently in
     # two rows of the same screen.
 
+    # Restricted to courses that could still advance an unsatisfied requirement:
+    # unlocking something that counts toward nothing is worth nothing.
+    unlock_index = build_unlock_index(
+        course_documents, completed=completed_numbers, relevant=needed_numbers
+    )
+
     prior_mean = prior_mean_rating(ratings)
     grades = {
         number: float(grade)
@@ -367,8 +391,14 @@ async def build_course_shelves_for_user(
                 credits_remaining_in_bucket=shelf.credits_remaining,
                 prior_mean=prior_mean,
                 faculty_affinity=faculty_affinity,
-                unlocks_within_shelf=_unlocks_within(
-                    pool, courses_by_number=courses_by_number
+                # Only for a curated pool. An "anything counts" row is the whole
+                # term, so "unlocks others on this shelf" would degenerate into
+                # "gates anything at all" -- which is not a reason to take a
+                # free elective now, and inflated the urgency count for it.
+                unlocks_within_shelf=(
+                    {}
+                    if shelf.kind == OPEN
+                    else _unlocks_within(pool, courses_by_number=courses_by_number)
                 ),
             )
             reasons_by_number = {entry.course_number: entry.reasons for entry in ranked}
@@ -401,6 +431,8 @@ async def build_course_shelves_for_user(
                         "offeredThisTerm": number in offered_numbers,
                         "eligibility": {"status": "unknown", "missingOptions": []},
                         "signal": signals.get(number),
+                        "readiness": None,
+                        "unlocks": {"count": 0, "courseNumbers": []},
                         "catalogKnown": False,
                         "reasons": [],
                     }
@@ -412,6 +444,7 @@ async def build_course_shelves_for_user(
                 completed_numbers=completed_numbers,
                 signals=signals,
                 grades=grades,
+                unlock_index=unlock_index,
             )
             card["reasons"] = list(reasons_by_number.get(number, ()))
             if shelf.kind == MANDATORY:
@@ -429,6 +462,19 @@ async def build_course_shelves_for_user(
         payload["ineligibleCount"] = dropped_ineligible
         payload["noAdditionalCreditCount"] = dropped_no_credit
         payload["conflictsWithDraftCount"] = dropped_conflicting
+        # 11 of 14 real students have at least one row with nothing in it --
+        # small specialised pools they cannot draw from this term. The row must
+        # still appear, because the requirement is real and unmet, so it says
+        # why instead of rendering as an empty carousel.
+        payload["emptyReason"] = (
+            None
+            if cards
+            else "pool_exhausted"
+            if candidate_count == 0
+            else "none_offered_this_term"
+            if dropped_not_offered == candidate_count
+            else "none_available_to_you"
+        )
         payload_shelves.append(payload)
 
     return {

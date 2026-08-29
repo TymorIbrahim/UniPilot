@@ -371,3 +371,102 @@ async def test_a_course_others_on_the_shelf_need_is_ranked_first(stub) -> None:
 
     assert shelf["courses"][0]["courseNumber"] == "00960111"
     assert "unlocks_later_courses" in shelf["courses"][0]["reasons"]
+
+
+@pytest.mark.asyncio
+async def test_a_card_reports_what_taking_it_would_open(stub) -> None:
+    """435 courses in one real term are a single course away from being
+    available. The course that would open them got no credit for it."""
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111", "00940222", "00940333"))
+    ]
+    stub["courses"] = [
+        _course("00940111"),
+        _course("00940222", prerequisites_text="00940111"),
+        _course("00940333", prerequisites_text="00940111"),
+    ]
+    stub["offered"] = {"00940111", "00940222", "00940333"}
+
+    shelf = (await _build())["shelves"][0]
+    unlocker = next(c for c in shelf["courses"] if c["courseNumber"] == "00940111")
+
+    assert unlocker["unlocks"]["count"] == 2
+    assert unlocker["unlocks"]["courseNumbers"] == ["00940222", "00940333"]
+
+
+@pytest.mark.asyncio
+async def test_unlocking_does_not_reorder_the_row(stub) -> None:
+    """A third of the term unlocks something and the median unlocks exactly
+    one, so ranking on it would fire constantly and separate almost nothing."""
+    stub["requirementProgress"] = [
+        _bucket("p:free", "Free electives", credits_remaining=2.0)
+    ]
+    stub["courses"] = [
+        _course("00940111"),
+        _course("00940222"),
+        _course("00949999", prerequisites_text="00940111"),
+    ]
+    stub["offered"] = {"00940111", "00940222"}
+    stub["ratings"] = {"00940222": {"meanGeneralRank": 4.8, "responseCount": 60}}
+
+    shelf = (await _build())["shelves"][0]
+
+    # 00940111 unlocks a course; 00940222 is simply better reviewed and leads.
+    assert shelf["courses"][0]["courseNumber"] == "00940222"
+
+
+@pytest.mark.asyncio
+async def test_an_empty_row_says_why_rather_than_rendering_blank(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Project courses", remaining=("00940111",))
+    ]
+    stub["courses"] = [_course("00940111", prerequisites_text="00949999")]
+    stub["offered"] = {"00940111"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert shelf["courses"] == []
+    assert shelf["emptyReason"] == "none_available_to_you"
+
+
+@pytest.mark.asyncio
+async def test_a_row_with_nothing_offered_this_term_is_distinguished(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Project courses", remaining=("00940111",))
+    ]
+    stub["courses"] = [_course("00940111")]
+    stub["offered"] = set()
+
+    assert (await _build())["shelves"][0]["emptyReason"] == "none_offered_this_term"
+
+
+@pytest.mark.asyncio
+async def test_a_filled_row_has_no_empty_reason(stub) -> None:
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Electives", remaining=("00940111",))
+    ]
+    stub["courses"] = [_course("00940111")]
+    stub["offered"] = {"00940111"}
+
+    assert (await _build())["shelves"][0]["emptyReason"] is None
+
+
+@pytest.mark.asyncio
+async def test_chain_sequencing_does_not_apply_to_an_anything_counts_row(stub) -> None:
+    """An open row IS the whole term, so "unlocks others on this shelf" would
+    mean "gates anything at all" -- not a reason to take a free elective now."""
+    stub["requirementProgress"] = [
+        _bucket("p:free", "Free electives", credits_remaining=2.0)
+    ]
+    stub["courses"] = [
+        _course("00940111"),
+        _course("00940222", prerequisites_text="00940111"),
+    ]
+    stub["offered"] = {"00940111", "00940222"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert shelf["kind"] == "open"
+    assert all(
+        "unlocks_later_courses" not in (c.get("reasons") or []) for c in shelf["courses"]
+    )
