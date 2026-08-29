@@ -136,6 +136,7 @@ class CourseSignal:
     course_number: str
     outcome: CourseOutcome | None = None
     rating: dict[str, Any] | None = None
+    published: dict[str, Any] | None = None
 
     def as_public_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"courseNumber": self.course_number}
@@ -149,6 +150,22 @@ class CourseSignal:
                 "scaleMax": self.rating.get("scaleMax"),
                 "source": self.rating.get("source"),
             }
+        if self.published is not None:
+            payload["published"] = {
+                key: self.published.get(key)
+                for key in (
+                    "termCount",
+                    "students",
+                    "passed",
+                    "failed",
+                    "passRate",
+                    "minGrade",
+                    "maxGrade",
+                    "averageGrade",
+                    "medianOfTermMedians",
+                    "source",
+                )
+            }
         return payload
 
 
@@ -157,16 +174,21 @@ def build_course_signals(
     *,
     outcomes: dict[str, CourseOutcome],
     ratings: dict[str, dict[str, Any]],
+    published: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """One entry per course we can say anything about, in a stable order."""
+    published = published or {}
     signals = []
     for number in sorted({str(n) for n in course_numbers if n}):
         outcome = outcomes.get(number)
         rating = ratings.get(number)
-        if outcome is None and rating is None:
+        stats = published.get(number)
+        if outcome is None and rating is None and stats is None:
             continue
         signals.append(
-            CourseSignal(course_number=number, outcome=outcome, rating=rating).as_public_dict()
+            CourseSignal(
+                course_number=number, outcome=outcome, rating=rating, published=stats
+            ).as_public_dict()
         )
     return signals
 

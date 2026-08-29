@@ -209,11 +209,11 @@ async def suggest_semester_courses(
     selected_numbers = {
         str(course.get("courseNumber")) for course in selected_courses if course.get("courseNumber")
     }
-    ratings = await catalog_repository.find_course_ratings(
-        database, sorted(selected_numbers)
-    )
+    ordered_numbers = sorted(selected_numbers)
+    ratings = await catalog_repository.find_course_ratings(database, ordered_numbers)
+    published = await catalog_repository.find_course_grade_stats(database, ordered_numbers)
     course_outcomes = build_course_signals(
-        sorted(selected_numbers), outcomes=outcomes, ratings=ratings
+        ordered_numbers, outcomes=outcomes, ratings=ratings, published=published
     )
 
     explanation = {

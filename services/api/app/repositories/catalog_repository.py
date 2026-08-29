@@ -943,3 +943,25 @@ async def find_course_ratings(
         {"_id": 0},
     )
     return {str(document["courseNumber"]): document async for document in cursor}
+
+
+async def find_course_grade_stats(
+    database: AsyncIOMotorDatabase,
+    course_numbers: list[str],
+    *,
+    settings: Settings | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Published Technion grade distributions, keyed by course number.
+
+    Loaded by `services/data-engineering/scripts/fetch_technion_grade_stats.py`.
+    Absence is ordinary -- not every course has published statistics -- and must
+    read as "unknown", never as "no one passed".
+    """
+    settings = settings or get_settings()
+    if not course_numbers:
+        return {}
+    cursor = database["course_grade_stats"].find(
+        {"courseNumber": {"$in": [str(number) for number in course_numbers]}},
+        {"_id": 0},
+    )
+    return {str(document["courseNumber"]): document async for document in cursor}

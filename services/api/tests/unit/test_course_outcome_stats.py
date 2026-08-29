@@ -166,3 +166,52 @@ class TestCourseSignals:
             ["00000003", "", "00000001", None, "00000002"], outcomes={}, ratings=ratings
         )
         assert [s["courseNumber"] for s in signals] == ["00000001", "00000002", "00000003"]
+
+
+class TestPublishedStatistics:
+    def test_reports_the_published_distribution_alongside_the_others(self) -> None:
+        published = {
+            "00140102": {
+                "termCount": 5, "students": 711, "passed": 384, "failed": 327,
+                "passRate": 0.54, "minGrade": 0.0, "maxGrade": 100.0,
+                "averageGrade": 54.64, "medianOfTermMedians": 59.0,
+                "source": "technion-histograms",
+            }
+        }
+
+        signal = build_course_signals(
+            ["00140102"], outcomes={}, ratings={}, published=published
+        )[0]
+
+        assert signal["published"]["students"] == 711
+        assert signal["published"]["passRate"] == 0.54
+        assert signal["published"]["averageGrade"] == 54.64
+        assert signal["published"]["medianOfTermMedians"] == 59.0
+        assert signal["published"]["minGrade"] == 0.0
+        assert signal["published"]["maxGrade"] == 100.0
+
+    def test_a_course_known_only_to_the_published_source_still_reports(self) -> None:
+        published = {"00140102": {"students": 711, "passRate": 0.54}}
+
+        signals = build_course_signals(
+            ["00140102"], outcomes={}, ratings={}, published=published
+        )
+
+        assert len(signals) == 1
+        assert "cohort" not in signals[0] and "reviews" not in signals[0]
+
+    def test_all_three_sources_appear_separately(self) -> None:
+        """Never merged into one score: they answer different questions."""
+        outcomes = build_course_outcomes([_row("00940224", g) for g in (90, 80, 70, 60, 50)])
+        ratings = {"00940224": {"responseCount": 31, "meanGeneralRank": 4.2,
+                                "meanDifficultyRank": 4.6, "scaleMax": 5}}
+        published = {"00940224": {"students": 2775, "passRate": 0.945, "averageGrade": 78.4}}
+
+        signal = build_course_signals(
+            ["00940224"], outcomes=outcomes, ratings=ratings, published=published
+        )[0]
+
+        assert set(signal) == {"courseNumber", "cohort", "reviews", "published"}
+
+    def test_omitted_when_no_source_knows_the_course(self) -> None:
+        assert build_course_signals(["00000009"], outcomes={}, ratings={}, published={}) == []
