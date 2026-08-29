@@ -3,6 +3,7 @@
 from app.catalog.course_reference_policy import (
     classify_missing_course_reference,
     derive_production_excluded_course_numbers,
+    expand_ingestible_with_required_cross_faculty_refs,
     is_cross_faculty_course_reference,
     is_dds_scoped_course_number,
 )
@@ -46,6 +47,21 @@ def test_classify_ingestible_reference() -> None:
         production_excluded_course_numbers=set(),
     )
     assert classification == "ingestible"
+
+
+def test_expand_ingestible_includes_required_cross_faculty_refs_with_data() -> None:
+    catalog = {"00940345", "01040042", "01130013"}
+    expanded = expand_ingestible_with_required_cross_faculty_refs(
+        catalog,
+        ingestible_course_numbers={"00940345"},
+        technion_course_numbers={"01040042"},
+    )
+    assert expanded == {"00940345", "01040042"}
+    excluded = derive_production_excluded_course_numbers(
+        catalog,
+        ingestible_course_numbers=expanded,
+    )
+    assert excluded == ["01130013"]
 
 
 def test_ocr_neighbor_skips_same_candidate() -> None:

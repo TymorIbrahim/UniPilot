@@ -17,6 +17,7 @@ from app.catalog.course_reference_policy import (
     collect_catalog_course_numbers,
     derive_production_excluded_course_numbers,
     derive_production_excluded_from_refs,
+    expand_ingestible_with_required_cross_faculty_refs,
 )
 from app.importers.dds_catalog_staging_importer import (
     EXECUTABLE_RULE_TYPES,
@@ -363,10 +364,15 @@ def build_promotion_gate_result(
     ):
         reviewed_document = json.loads(catalog_reviewed_path.read_text(encoding="utf-8"))
         catalog_numbers = set(collect_catalog_course_numbers(reviewed_document))
+        expanded_ingestible = expand_ingestible_with_required_cross_faculty_refs(
+            catalog_numbers,
+            ingestible_course_numbers=ingestible_course_numbers,
+            technion_course_numbers=staging_course_numbers,
+        )
         expected_excluded = set(
             derive_production_excluded_course_numbers(
                 catalog_numbers,
-                ingestible_course_numbers=ingestible_course_numbers,
+                ingestible_course_numbers=expanded_ingestible,
             )
         )
     else:

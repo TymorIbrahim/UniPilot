@@ -12,6 +12,7 @@ from app.catalog.course_reference_policy import (
     build_technion_promotion_course_number_set,
     collect_catalog_course_numbers,
     derive_production_excluded_course_numbers,
+    expand_ingestible_with_required_cross_faculty_refs,
 )
 from app.sources.technion_course_json_index import build_course_index, default_course_json_paths
 from app.utils.course_numbers import normalize_course_number
@@ -79,11 +80,17 @@ def derive_production_excluded_from_document(
     document: dict[str, Any],
     *,
     ingestible_course_numbers: set[str],
+    technion_course_numbers: set[str],
 ) -> list[str]:
     catalog_numbers = collect_catalog_course_numbers(document)
-    return derive_production_excluded_course_numbers(
+    expanded_ingestible = expand_ingestible_with_required_cross_faculty_refs(
         catalog_numbers,
         ingestible_course_numbers=ingestible_course_numbers,
+        technion_course_numbers=technion_course_numbers,
+    )
+    return derive_production_excluded_course_numbers(
+        catalog_numbers,
+        ingestible_course_numbers=expanded_ingestible,
     )
 
 
@@ -139,6 +146,7 @@ def build_vault_signoff_payload(
     document: dict[str, Any],
     *,
     ingestible_course_numbers: set[str],
+    technion_course_numbers: set[str],
     wiki_root_path: Path,
     signed_off_at: str | None = None,
     ingestible_course_scope: str = "dds-faculty-semester-json",
@@ -147,6 +155,7 @@ def build_vault_signoff_payload(
     excluded = derive_production_excluded_from_document(
         document,
         ingestible_course_numbers=ingestible_course_numbers,
+        technion_course_numbers=technion_course_numbers,
     )
     return {
         "signoffSource": SIGNOFF_SOURCE_VAULT,
@@ -162,7 +171,10 @@ def build_vault_signoff_payload(
         "notes": (
             "Vault wiki sign-off: non-executable requirement groups are advisory-only in production. "
             "Catalog course references outside the DDS ingest scope are excluded from production "
-            "course ingestion but remain as reference-only metadata in vault-backed requirements."
+            "course ingestion unless a requirement group formally requires them and real course "
+            "data exists in the Technion-wide semester feed, in which case they are promoted "
+            "despite belonging to another faculty; refs with neither are kept as reference-only "
+            "metadata in vault-backed requirements."
         ),
     }
 
@@ -179,8 +191,9 @@ def apply_vault_signoff_to_catalog(
 
     paths = [path for path in (course_json_paths or default_course_json_paths()) if path.exists()]
     course_index = build_course_index(paths)
+    technion_course_numbers = build_technion_promotion_course_number_set(course_index)
     if ingestible_course_scope == "technion-semester-json":
-        ingestible_course_numbers = build_technion_promotion_course_number_set(course_index)
+        ingestible_course_numbers = technion_course_numbers
     else:
         ingestible_course_numbers = build_dds_promotion_course_number_set(course_index)
     wiki_titles = build_wiki_course_title_index(pages)
@@ -197,6 +210,7 @@ def apply_vault_signoff_to_catalog(
     vault_signoff = build_vault_signoff_payload(
         document,
         ingestible_course_numbers=ingestible_course_numbers,
+        technion_course_numbers=technion_course_numbers,
         wiki_root_path=root,
         ingestible_course_scope=ingestible_course_scope,
     )

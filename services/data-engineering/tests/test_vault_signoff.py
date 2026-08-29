@@ -28,8 +28,17 @@ def test_vault_signoff_marks_production_exclusions():
     assert vault["nonExecutableRulesPolicy"] == "advisory-only"
     assert vault.get("ingestibleCourseScope") == "dds-faculty-semester-json"
     assert len(vault["productionExcludedCourseNumbers"]) >= 10
-    assert "01040042" in vault["productionExcludedCourseNumbers"]
     assert len(vault["signedOffNonExecutableRuleGroupIds"]) >= 30
+
+
+def test_vault_signoff_promotes_required_cross_faculty_refs_with_staged_data():
+    """01040042 (Calculus 1M2) is required by track-information-systems-engineering and is
+    taught by the Math faculty, not DDS. It should still be promoted because Technion's
+    semester JSON feed (now committed to this repo) has real course data for it — only
+    refs with no real data anywhere stay excluded."""
+    document, _ = export_vault_catalog(vault_path=VAULT_ROOT, faculty="dds")
+    vault = document["curationReport"]["vaultSignoff"]
+    assert "01040042" not in vault["productionExcludedCourseNumbers"]
 
 
 def test_apply_vault_signoff_adds_source_refs():

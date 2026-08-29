@@ -6289,12 +6289,22 @@
             "type": "course_pool",
             "operator": "min_credits",
             "allowedPrefixes": [
-              "039405"
+              "039405",
+              "032402",
+              "032403",
+              "032404",
+              "032405",
+              "032406",
+              "032409"
+            ],
+            "excludedCourseNumbers": [
+              "03240033",
+              "03240455"
             ]
           },
           "pageNumbers": [],
           "notes": [
-            "Eligible courses use catalog prefix 039405 (CHE enrichment)."
+            "Eligible CHE enrichment courses use prefixes 039405 or humanities-center 032402–032409 (excluding mandatory English 03240033)."
           ],
           "manualReviewRequired": false,
           "confidence": "low",
@@ -11882,12 +11892,22 @@
             "type": "course_pool",
             "operator": "min_credits",
             "allowedPrefixes": [
-              "039405"
+              "039405",
+              "032402",
+              "032403",
+              "032404",
+              "032405",
+              "032406",
+              "032409"
+            ],
+            "excludedCourseNumbers": [
+              "03240033",
+              "03240455"
             ]
           },
           "pageNumbers": [],
           "notes": [
-            "Eligible courses use catalog prefix 039405 (CHE enrichment)."
+            "Eligible CHE enrichment courses use prefixes 039405 or humanities-center 032402–032409 (excluding mandatory English 03240033)."
           ],
           "manualReviewRequired": false,
           "confidence": "low",
@@ -14447,12 +14467,22 @@
             "type": "course_pool",
             "operator": "min_credits",
             "allowedPrefixes": [
-              "039405"
+              "039405",
+              "032402",
+              "032403",
+              "032404",
+              "032405",
+              "032406",
+              "032409"
+            ],
+            "excludedCourseNumbers": [
+              "03240033",
+              "03240455"
             ]
           },
           "pageNumbers": [],
           "notes": [
-            "Eligible courses use catalog prefix 039405 (CHE enrichment)."
+            "Eligible CHE enrichment courses use prefixes 039405 or humanities-center 032402–032409 (excluding mandatory English 03240033)."
           ],
           "manualReviewRequired": false,
           "confidence": "low",
@@ -15514,13 +15544,13 @@
       "data/raw/technion/courses_2025_201.json",
       "data/raw/technion/courses_2025_202.json"
     ],
-    "exportedAt": "2026-07-03T09:10:26+00:00",
+    "exportedAt": "2026-08-29T20:17:51+00:00",
     "pathOptionsExported": 31,
     "facultiesExported": 17
   },
   "curationMetadata": {
     "curatedBy": "vault-export",
-    "curatedAt": "2026-07-03T09:10:26+00:00",
+    "curatedAt": "2026-08-29T20:17:51+00:00",
     "sourceDraftPath": "data/catalog_valut/catalog_valut/wiki",
     "sourceMarkdownPath": "data/catalog_valut/catalog_valut/wiki",
     "courseJsonSources": [
@@ -15536,7 +15566,7 @@
     "knownLimitations": [
       "Focus-chain choose-N semantics are encoded as non-executable pools.",
       "Science placeholder rows without course codes are omitted.",
-      "Vault wiki sign-off: non-executable rules are advisory-only; 55 catalog refs are production-excluded."
+      "Vault wiki sign-off: non-executable rules are advisory-only; 27 catalog refs are production-excluded."
     ],
     "countsBefore": {},
     "countsAfter": {
@@ -15548,20 +15578,15 @@
       "executableRuleGroups": 16,
       "nonExecutableRuleGroups": 56
     },
-    "unresolvedIssues": [
-      "missing program 027396-1-000 (track-medicine-dual-data-information-engineering) for pool dual-hash-project-pool"
-    ]
+    "unresolvedIssues": []
   },
   "curationReport": {
-    "warnings": [
-      "missing program 027396-1-000 (track-medicine-dual-data-information-engineering) for pool dual-hash-project-pool",
-      "missing program 027396-1-000 (track-medicine-dual-data-information-engineering) for pool dual-hash-project-pool"
-    ],
+    "warnings": [],
     "ocrResolutions": [],
     "vaultSignoff": {
       "signoffSource": "vault-wiki",
       "signedOffBy": "vault-wiki",
-      "signedOffAt": "2026-07-03T09:10:28+00:00",
+      "signedOffAt": "2026-08-29T20:18:06+00:00",
       "wikiRoot": "data/catalog_valut/catalog_valut/wiki",
       "nonExecutableRulesPolicy": "advisory-only",
       "enforceNonExecutableRulesInProduction": false,
@@ -15647,47 +15672,19 @@
         "00970510",
         "00970540",
         "00980312",
-        "01040030",
-        "01040031",
-        "01040032",
-        "01040042",
-        "01040044",
-        "01040065",
-        "01040158",
-        "01040166",
-        "01040295",
-        "01140032",
-        "01140051",
-        "01140052",
-        "01140054",
-        "01140075",
         "01200124",
-        "01240510",
-        "01250001",
-        "01250013",
-        "01250801",
-        "01340020",
-        "01340058",
-        "02160003",
         "02160016",
         "02160019",
-        "02160020",
-        "02160028",
-        "02160030",
-        "02160035",
-        "02340117",
-        "02340221",
-        "02740300",
-        "03240033"
+        "02740300"
       ],
       "productionExcludedCoursePolicy": "omit-from-production-do-not-ingest",
       "ingestibleCourseScope": "dds-faculty-semester-json",
-      "notes": "Vault wiki sign-off: non-executable requirement groups are advisory-only in production. Catalog course references outside the DDS ingest scope are excluded from production course ingestion but remain as reference-only metadata in vault-backed requirements."
+      "notes": "Vault wiki sign-off: non-executable requirement groups are advisory-only in production. Catalog course references outside the DDS ingest scope are excluded from production course ingestion unless a requirement group formally requires them and real course data exists in the Technion-wide semester feed, in which case they are promoted despite belonging to another faculty; refs with neither are kept as reference-only metadata in vault-backed requirements."
     }
   },
   "signoffReview": {
     "reviewedBy": "vault-wiki",
-    "reviewedAt": "2026-07-03T09:10:28+00:00",
+    "reviewedAt": "2026-08-29T20:18:06+00:00",
     "reviewStatus": "vault-signed-ready-for-staging",
     "sourceFilesReviewed": [
       "data/catalog_valut/catalog_valut/wiki"
@@ -15707,12 +15704,10 @@
     "verifiedItems": [
       "Vault export: 3 DDS programs from wiki track pages.",
       "56 non-executable groups signed off as advisory-only from wiki structure.",
-      "55 catalog references excluded from production (not in 2025 semester JSON).",
+      "27 catalog references excluded from production (not in 2025 semester JSON).",
       "18 titleHint values enriched from wiki/semester sources."
     ],
-    "unresolvedItems": [
-      "missing program 027396-1-000 (track-medicine-dual-data-information-engineering) for pool dual-hash-project-pool"
-    ],
+    "unresolvedItems": [],
     "phase8Recommendation": "Safe to import to staging; vault wiki is authoritative for catalog structure.",
     "productionPromotionRecommendation": "Vault sign-off recorded: non-executable groups are advisory-only; excluded catalog references must not become production course records."
   }

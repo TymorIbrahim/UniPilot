@@ -13,7 +13,7 @@
   "vaultSignoff": {
     "signoffSource": "vault-wiki",
     "signedOffBy": "vault-wiki",
-    "signedOffAt": "2026-07-03T09:10:28+00:00",
+    "signedOffAt": "2026-08-29T20:18:06+00:00",
     "wikiRoot": "data/catalog_valut/catalog_valut/wiki",
     "nonExecutableRulesPolicy": "advisory-only",
     "enforceNonExecutableRulesInProduction": false,
@@ -99,42 +99,14 @@
       "00970510",
       "00970540",
       "00980312",
-      "01040030",
-      "01040031",
-      "01040032",
-      "01040042",
-      "01040044",
-      "01040065",
-      "01040158",
-      "01040166",
-      "01040295",
-      "01140032",
-      "01140051",
-      "01140052",
-      "01140054",
-      "01140075",
       "01200124",
-      "01240510",
-      "01250001",
-      "01250013",
-      "01250801",
-      "01340020",
-      "01340058",
-      "02160003",
       "02160016",
       "02160019",
-      "02160020",
-      "02160028",
-      "02160030",
-      "02160035",
-      "02340117",
-      "02340221",
-      "02740300",
-      "03240033"
+      "02740300"
     ],
     "productionExcludedCoursePolicy": "omit-from-production-do-not-ingest",
     "ingestibleCourseScope": "dds-faculty-semester-json",
-    "notes": "Vault wiki sign-off: non-executable requirement groups are advisory-only in production. Catalog course references outside the DDS ingest scope are excluded from production course ingestion but remain as reference-only metadata in vault-backed requirements."
+    "notes": "Vault wiki sign-off: non-executable requirement groups are advisory-only in production. Catalog course references outside the DDS ingest scope are excluded from production course ingestion unless a requirement group formally requires them and real course data exists in the Technion-wide semester feed, in which case they are promoted despite belonging to another faculty; refs with neither are kept as reference-only metadata in vault-backed requirements."
   },
   "counts": {
     "programs": 3,
@@ -144,7 +116,7 @@
     "manualReviewRequiredItems": 4,
     "executableRuleGroups": 16,
     "nonExecutableRuleGroups": 56,
-    "productionExcludedCourseNumbers": 55,
+    "productionExcludedCourseNumbers": 27,
     "nonExecutableRuleGroupsSignedOff": 56
   }
 }

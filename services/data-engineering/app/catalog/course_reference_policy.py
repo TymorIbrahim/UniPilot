@@ -104,6 +104,19 @@ def derive_production_excluded_from_refs(
     return catalog_refs - ingestible_course_numbers
 
 
+def expand_ingestible_with_required_cross_faculty_refs(
+    catalog_numbers: set[str],
+    *,
+    ingestible_course_numbers: set[str],
+    technion_course_numbers: set[str],
+) -> set[str]:
+    """Cross-faculty prerequisites that a requirement group formally requires (e.g. Math/Physics
+    service courses required by an ISE track) are promotable too, as long as real course data
+    exists for them in the Technion-wide semester feed — DDS just doesn't own their metadata."""
+    required_with_data = catalog_numbers & technion_course_numbers
+    return ingestible_course_numbers | required_with_data
+
+
 def _similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, left, right).ratio()
 
