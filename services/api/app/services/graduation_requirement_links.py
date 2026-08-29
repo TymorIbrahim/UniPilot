@@ -6,6 +6,7 @@ from typing import Any
 
 # Pool suffix → credit-bucket suffix for explorer / progress linking.
 EXPLORER_POOL_CREDIT_BUCKET_SUFFIX: dict[str, str] = {
+    "core-mandatory-pool": "core-mandatory",
     "elective-ds-pool": "elective-ds",
     "elective-faculty-pool": "elective-faculty",
     "ie-statistics-elective-chain": "elective-faculty",
@@ -23,6 +24,7 @@ EXPLORER_POOL_CREDIT_BUCKET_SUFFIX: dict[str, str] = {
 
 # Maps credit-bucket suffix (after programCode) to course_pool group suffix.
 ENFORCED_BUCKET_POOL_SUFFIXES: dict[str, str] = {
+    "core-mandatory": "core-mandatory-pool",
     "elective-ds": "elective-ds-pool",
     "elective-faculty": "elective-faculty-pool",
     "enrichment": "enrichment-pool",

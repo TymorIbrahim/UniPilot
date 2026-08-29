@@ -645,6 +645,99 @@ def _retire_superseded_catalog_rules(
     return int(result.deleted_count)
 
 
+def _build_core_mandatory_pool_documents(
+    semester_matrix_documents: list[dict[str, Any]],
+    *,
+    promotion_run_id: str,
+    promoted_at: str,
+    catalog_version: str,
+) -> list[dict[str, Any]]:
+    """Synthesize one core-mandatory course_pool per program from its (already
+    promoted) semester_matrix advisory groups.
+
+    semester_matrix data was previously "planning-only" -- excluded from
+    graduation-progress eligibility -- because it's schedule guidance, not a
+    verified requirements list. Cross-checked against the official Technion
+    catalog PDF for DDS's programs: the union of a program's semester_matrix
+    course references matches the catalog's stated mandatory-course list
+    exactly (all 30 courses, all 7 semesters, for 009118-1-000). Reusing it
+    here gives graduation-progress a real course pool for "core-mandatory"
+    (previously none existed at all -- the bucket just credited whatever the
+    student had completed, up to the credit minimum, regardless of which
+    specific courses).
+    """
+    by_program: dict[str, dict[str, Any]] = {}
+    numbers_by_program: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for document in semester_matrix_documents:
+        if (document.get("ruleExpression") or {}).get("type") != "semester_matrix":
+            continue
+        program_code = str(document.get("programCode") or "")
+        if not program_code:
+            continue
+        by_program.setdefault(program_code, document)
+        seen = numbers_by_program.setdefault(program_code, {})
+        for reference in document.get("courseReferences") or []:
+            number = reference.get("courseNumber")
+            if number and number not in seen:
+                seen[number] = reference
+
+    pools: list[dict[str, Any]] = []
+    for program_code, sample_document in by_program.items():
+        course_references = list(numbers_by_program[program_code].values())
+        if not course_references:
+            continue
+        group_id = f"{program_code}:core-mandatory-pool"
+        linked_credit_bucket_id = f"{program_code}:core-mandatory"
+        production_key = production_advisory_requirement_key(
+            _faculty_id_from_production_key(str(sample_document.get("productionKey") or "")),
+            group_id,
+            catalog_version,
+        )
+        pool_document = {
+            "productionKey": production_key,
+            "institutionId": sample_document.get("institutionId", "technion"),
+            "programCode": program_code,
+            "requirementGroupId": group_id,
+            "recordType": "advisory_requirement_group",
+            "title": "Core mandatory courses",
+            "requirementType": "core",
+            "courseReferences": course_references,
+            "catalogDescription": None,
+            "ruleExpression": {"type": "course_pool", "operator": "all_of"},
+            "ruleIsExecutable": False,
+            "advisoryOnly": True,
+            "enforceInGraduationProgress": False,
+            "manualReviewRequired": False,
+            "isMandatory": False,
+            "catalogYear": sample_document.get("catalogYear"),
+            "catalogVersion": catalog_version,
+            "sourceName": sample_document.get("sourceName"),
+            "sourceType": sample_document.get("sourceType"),
+            "sourceMetadata": {
+                "derivedFrom": "semester_matrix_union",
+                "graduationPoolLinkPhase": "15.2",
+                "linkedCreditBucketId": linked_credit_bucket_id,
+            },
+            "sourceRefs": [],
+            "status": "published",
+            "promotedAt": promoted_at,
+            "promotionRunId": promotion_run_id,
+            "updatedAt": promoted_at,
+            "linkedCreditBucketId": linked_credit_bucket_id,
+        }
+        _validate_document_safety(pool_document, context=f"core_mandatory_pool {group_id}")
+        pools.append(pool_document)
+
+    return pools
+
+
+def _faculty_id_from_production_key(production_key: str) -> str:
+    """productionKey format is "technion-<faculty>:...:<catalogVersion>"."""
+    prefix = production_key.split(":", 1)[0]
+    return prefix.removeprefix("technion-")
+
+
 def build_production_documents(
     database: Database,
     gate: PromotionGateResult,
@@ -778,6 +871,16 @@ def build_production_documents(
             raise ProductionPromotionError(f"Advisory rule {doc['productionKey']} must not be enforced.")
         documents[settings.production_catalog_rules_collection].append(doc)
         planned_keys[settings.production_catalog_rules_collection].add(doc["productionKey"])
+
+    core_mandatory_pools = _build_core_mandatory_pool_documents(
+        documents[settings.production_catalog_rules_collection],
+        promotion_run_id=promotion_run_id,
+        promoted_at=promoted_at,
+        catalog_version=catalog_version,
+    )
+    for pool_document in core_mandatory_pools:
+        documents[settings.production_catalog_rules_collection].append(pool_document)
+        planned_keys[settings.production_catalog_rules_collection].add(pool_document["productionKey"])
 
     for item in plan.courses:
         staging = courses_by_key.get(item.stagingKey)

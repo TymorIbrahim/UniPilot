@@ -12,6 +12,7 @@ from app.importers.dds_catalog_staging_importer import PROMOTION_WRITE_COLLECTIO
 from app.main import run_promote_dds_to_production, run_rollback_dds_production_promotion
 from app.promotion.dds_production_promoter import (
     ProductionPromotionError,
+    _build_core_mandatory_pool_documents,
     _retire_superseded_catalog_rules,
     run_dds_production_promotion,
     run_dds_production_rollback,
@@ -541,3 +542,79 @@ def test_repromotion_preserves_degree_program_id_across_key_format_change(
     )
     assert len(docs) == 1
     assert docs[0]["_id"] == legacy_id
+
+
+def test_build_core_mandatory_pool_unions_semester_matrix_course_numbers() -> None:
+    program_a_semester_1 = {
+        "productionKey": "technion-dds:advisory-rule:req:009216-1-000:semester-1-matrix:2025-2026",
+        "institutionId": "technion",
+        "programCode": "009216-1-000",
+        "requirementGroupId": "009216-1-000:semester-1-matrix",
+        "ruleExpression": {"type": "semester_matrix", "operator": "all_of", "semester": 1},
+        "courseReferences": [{"courseNumber": "00940345"}, {"courseNumber": "01040031"}],
+        "catalogYear": 2025,
+        "sourceName": "technion-dds-catalog",
+        "sourceType": "dds_catalog_curated_reviewed",
+    }
+    program_a_semester_2 = {
+        "productionKey": "technion-dds:advisory-rule:req:009216-1-000:semester-2-matrix:2025-2026",
+        "institutionId": "technion",
+        "programCode": "009216-1-000",
+        "requirementGroupId": "009216-1-000:semester-2-matrix",
+        "ruleExpression": {"type": "semester_matrix", "operator": "all_of", "semester": 2},
+        # duplicate course number across semesters must be deduped
+        "courseReferences": [{"courseNumber": "01040031"}, {"courseNumber": "00940219"}],
+        "catalogYear": 2025,
+        "sourceName": "technion-dds-catalog",
+        "sourceType": "dds_catalog_curated_reviewed",
+    }
+    unrelated_advisory_doc = {
+        "productionKey": "technion-dds:advisory-rule:req:009216-1-000:elective-ds-pool:2025-2026",
+        "programCode": "009216-1-000",
+        "ruleExpression": {"type": "course_pool", "operator": "choose_credits"},
+        "courseReferences": [{"courseNumber": "00940411"}],
+    }
+
+    pools = _build_core_mandatory_pool_documents(
+        [program_a_semester_1, program_a_semester_2, unrelated_advisory_doc],
+        promotion_run_id="run-1",
+        promoted_at="2026-01-01T00:00:00Z",
+        catalog_version="2025-2026",
+    )
+
+    assert len(pools) == 1
+    pool = pools[0]
+    assert pool["requirementGroupId"] == "009216-1-000:core-mandatory-pool"
+    assert pool["linkedCreditBucketId"] == "009216-1-000:core-mandatory"
+    assert pool["ruleExpression"]["type"] == "course_pool"
+    assert pool["enforceInGraduationProgress"] is False
+    numbers = sorted(ref["courseNumber"] for ref in pool["courseReferences"])
+    assert numbers == ["00940219", "00940345", "01040031"]
+
+
+def test_build_core_mandatory_pool_skips_programs_with_no_matrix_data() -> None:
+    assert _build_core_mandatory_pool_documents(
+        [], promotion_run_id="run-1", promoted_at="2026-01-01T00:00:00Z", catalog_version="2025-2026"
+    ) == []
+
+
+def test_promotion_writes_no_core_mandatory_pool_when_matrix_data_is_empty(mongo_database) -> None:
+    """The shared seed fixture's semester_matrix groups carry no course
+    references (nothing previously consumed them) -- promotion must not
+    write an empty/useless core-mandatory-pool in that case."""
+    _seed_signed_off_promotion_staging(mongo_database)
+    settings = get_settings()
+
+    result = run_dds_production_promotion(
+        mongo_database,
+        confirm_dangerous=True,
+        allow_warnings=True,
+    )
+    assert result.productionWritesPerformed is True
+
+    pools = list(
+        mongo_database[settings.production_catalog_rules_collection].find(
+            {"requirementGroupId": {"$regex": "core-mandatory-pool$"}}
+        )
+    )
+    assert pools == []

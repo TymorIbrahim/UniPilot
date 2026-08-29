@@ -10,6 +10,7 @@ DDS_PROGRAM_CODES: tuple[str, ...] = (
 
 # Pool suffix (after program code) → credit-bucket suffix within the same program.
 _POOL_SUFFIX_TO_BUCKET_SUFFIX: dict[str, str] = {
+    "core-mandatory-pool": "core-mandatory",
     "elective-ds-pool": "elective-ds",
     "elective-faculty-pool": "elective-faculty",
     "ie-statistics-elective-chain": "elective-faculty",
