@@ -28,9 +28,18 @@ def _serialize_cross_track_equivalence_groups() -> list[list[str]]:
 def _serialize_catalog_overlap_equivalence_groups(
     catalog_courses: list[dict[str, Any]],
 ) -> list[list[str]]:
-    from app.services.catalog_overlap_groups import build_catalog_overlap_groups
+    # Pairwise, matching what graduation progress publishes. The merged closure
+    # invents equivalences the registrar never declared, and the web unions
+    # whatever it is given -- so sending the closure pushed the same wrong
+    # grouping into the UI's course-equivalence badges.
+    from app.services.catalog_overlap_groups import (
+        build_catalog_overlap_conflicts,
+        serialize_catalog_overlap_conflicts,
+    )
 
-    return [sorted(group) for group in build_catalog_overlap_groups(catalog_courses)]
+    return serialize_catalog_overlap_conflicts(
+        build_catalog_overlap_conflicts(catalog_courses)
+    )
 
 
 def _course_number(document: dict[str, Any]) -> str | None:

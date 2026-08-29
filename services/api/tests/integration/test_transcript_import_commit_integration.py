@@ -91,3 +91,28 @@ async def test_transcript_import_commit_reports_unresolved_catalog(auth_client):
     assert payload["created"][0]["courseId"] is None
     assert payload["created"][0]["courseNumber"] == "00000000"
     assert payload["created"][0]["creditsEarned"] == 3
+
+
+@pytest.mark.asyncio
+async def test_self_scoped_routes_reject_an_attempt_to_name_another_user(auth_client):
+    """Every self-scoped router refuses a `userId` query param, not just one.
+
+    None of these routes READ a user id from the request -- they take it from
+    the token -- so an extra param was simply ignored. That is the quiet version
+    of the failure: an impersonation attempt looked like a success, and the day
+    someone adds a `userId` filter to one of them there is nothing to catch it.
+    `graduation_progress` had the guard; the other seven did not.
+    """
+    token = await register_access_token(auth_client, "impersonation-guard@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    for path in (
+        "/completed-courses",
+        "/student-profile",
+        "/graduation-progress",
+        "/semester-plans",
+        "/academic-risks",
+    ):
+        response = await auth_client.get(f"{path}?userId=507f1f77bcf86cd799439011", headers=headers)
+        assert response.status_code == 403, f"{path} accepted a cross-user query param"
+        assert "Cross-user access" in response.json()["error"]

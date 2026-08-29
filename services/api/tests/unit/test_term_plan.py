@@ -15,7 +15,7 @@ and no Mongo -- the DB wiring lives in the service layer (Phase 2).
 from __future__ import annotations
 
 from app.planning.term_plan import Candidate, TermInput, plan_terms
-from app.services.catalog_overlap_groups import build_catalog_overlap_groups
+from app.services.catalog_overlap_groups import build_catalog_overlap_conflicts
 
 
 # --- fixtures -----------------------------------------------------------------
@@ -101,7 +101,7 @@ def test_places_eligible_offered_candidates_up_to_the_credit_cap():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(a, b, c),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=6.0,  # only two of the three 3-credit courses fit
     )
 
@@ -122,7 +122,7 @@ def test_the_built_weekly_schedule_is_conflict_free():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(a),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -150,7 +150,7 @@ def test_a_conflicting_course_is_dropped_not_seated():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(a, b),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -176,7 +176,7 @@ def test_an_exam_date_collision_is_skipped():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(a, b),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -200,7 +200,7 @@ def test_a_no_additional_credit_overlap_with_a_completed_course_is_excluded():
         courses_by_number=_courses_by_number(b),
         # Built the production way (course_number_keys on both sides), from b's
         # "no additional credit" text referencing the completed course 00110001.
-        overlap_groups=build_catalog_overlap_groups([b]),
+        overlap_conflicts=build_catalog_overlap_conflicts([b]),
         max_credits_limit=20.0,
     )
 
@@ -219,7 +219,7 @@ def test_an_already_completed_course_is_not_replanned():
         completed_course_ids={"a"},
         completed_course_numbers={"00110001"},
         courses_by_number=_courses_by_number(a),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -240,7 +240,7 @@ def test_multi_term_dedups_and_carries_satisfied_forward():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(a),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -262,7 +262,7 @@ def test_an_unmet_prerequisite_is_flagged_not_dropped():
         completed_course_ids=set(),
         completed_course_numbers=set(),
         courses_by_number=_courses_by_number(b),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 
@@ -281,7 +281,7 @@ def test_a_met_prerequisite_reads_satisfied():
         completed_course_ids={"a"},
         completed_course_numbers={"00110001"},
         courses_by_number=_courses_by_number(b),
-        overlap_groups=[],
+        overlap_conflicts={},
         max_credits_limit=20.0,
     )
 

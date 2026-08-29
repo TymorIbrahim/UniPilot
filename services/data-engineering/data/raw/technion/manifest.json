@@ -7,13 +7,83 @@
   "phase": "semester-offerings-only",
   "sources": [
     {
+      "id": "courses_2021_200",
+      "path": "courses_2021_200.json",
+      "type": "json",
+      "semesterCode": "2021-200",
+      "semesterLabelHe": "סמסטר חורף (200)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2021_201",
+      "path": "courses_2021_201.json",
+      "type": "json",
+      "semesterCode": "2021-201",
+      "semesterLabelHe": "סמסטר אביב (201)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2021_202",
+      "path": "courses_2021_202.json",
+      "type": "json",
+      "semesterCode": "2021-202",
+      "semesterLabelHe": "סמסטר קיץ (202)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2022_200",
+      "path": "courses_2022_200.json",
+      "type": "json",
+      "semesterCode": "2022-200",
+      "semesterLabelHe": "סמסטר חורף (200)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2022_201",
+      "path": "courses_2022_201.json",
+      "type": "json",
+      "semesterCode": "2022-201",
+      "semesterLabelHe": "סמסטר אביב (201)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2022_202",
+      "path": "courses_2022_202.json",
+      "type": "json",
+      "semesterCode": "2022-202",
+      "semesterLabelHe": "סמסטר קיץ (202)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
+      "id": "courses_2023_200",
+      "path": "courses_2023_200.json",
+      "type": "json",
+      "semesterCode": "2023-200",
+      "semesterLabelHe": "סמסטר חורף (200)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
+    },
+    {
       "id": "courses_2023_201",
       "path": "courses_2023_201.json",
       "type": "json",
       "semesterCode": "2023-201",
       "semesterLabelHe": "סמסטר אביב (201)",
       "scope": "university-wide semester offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2024_200",
@@ -22,7 +92,7 @@
       "semesterCode": "2024-200",
       "semesterLabelHe": "סמסטר חורף (200)",
       "scope": "university-wide semester offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2024_201",
@@ -31,7 +101,7 @@
       "semesterCode": "2024-201",
       "semesterLabelHe": "סמסטר אביב (201)",
       "scope": "university-wide semester offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2024_202",
@@ -40,7 +110,7 @@
       "semesterCode": "2024-202",
       "semesterLabelHe": "סמסטר קיץ (202)",
       "scope": "university-wide summer offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2025_200",
@@ -49,7 +119,7 @@
       "semesterCode": "2025-200",
       "semesterLabelHe": "סמסטר חורף (200)",
       "scope": "university-wide semester offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2025_201",
@@ -58,7 +128,7 @@
       "semesterCode": "2025-201",
       "semesterLabelHe": "סמסטר אביב (201)",
       "scope": "university-wide semester offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
     },
     {
       "id": "courses_2025_202",
@@ -67,7 +137,17 @@
       "semesterCode": "2025-202",
       "semesterLabelHe": "סמסטר קיץ (202)",
       "scope": "university-wide summer offerings (semester planner)",
-      "gitignored": true
+      "gitignored": false
+    },
+    {
+      "id": "courses_2026_200",
+      "path": "courses_2026_200.json",
+      "type": "json",
+      "semesterCode": "2026-200",
+      "semesterLabelHe": "סמסטר חורף (200)",
+      "scope": "university-wide semester offerings (semester planner)",
+      "gitignored": false,
+      "retrievedVia": "scripts/fetch_cheesefork_archive.py"
     }
   ],
   "catalogVault": {
@@ -80,6 +160,7 @@
     "Semester JSON files feed the semester planner via import-technion-courses-staging.",
     "Planner semester dropdown lists every on-disk courses_YYYY_20X.json file (any academic year).",
     "Catalog knowledge is maintained in catalog_valut wiki; export to JSON is planned (see docs/planning/CATALOG_VAULT_INTEGRATION_PLAN.md).",
-    "Large JSON files are gitignored."
+    "Large JSON files are gitignored.",
+    "Coverage extended to 2021-2026 via scripts/fetch_cheesefork_archive.py; pre-2023 terms come from the older archive and carry 6-digit course numbers, converted on import."
   ]
 }

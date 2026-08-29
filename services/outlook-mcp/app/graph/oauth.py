@@ -165,8 +165,12 @@ async def refresh_access_token(
         error_body: dict[str, Any] = {}
         try:
             error_body = response.json()
-        except Exception:
-            pass
+        except ValueError:
+            # A non-JSON error body means no OAuth error code to read, and the
+            # request still failed -- the raise below is unconditional. Narrowed
+            # from a bare `Exception` so a genuine fault in this path surfaces
+            # instead of being read as "Microsoft sent us something odd".
+            error_body = {}
         error_code = str(error_body.get("error", ""))
         if error_code in {"invalid_grant", "interaction_required", "consent_required"}:
             from app.graph.errors import OutlookConsentRequiredError

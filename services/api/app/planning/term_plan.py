@@ -48,7 +48,7 @@ from app.planning.semester_planner import (
     prerequisites_met,
 )
 from app.planning.weekly_schedule import build_weekly_schedule_payload, parse_time_range
-from app.services.catalog_overlap_groups import overlap_group_for_course
+from app.services.catalog_overlap_groups import conflicts_for_course
 from app.services.course_reference_keys import course_number_keys
 from app.services.graduation_progress_calculator import round_credits
 
@@ -81,7 +81,7 @@ def plan_terms(
     completed_course_ids: set[str],
     completed_course_numbers: set[str],
     courses_by_number: dict[str, dict[str, Any]],
-    overlap_groups: list[set[str]],
+    overlap_conflicts: dict[str, frozenset[str]],
     max_credits_limit: float,
 ) -> dict[str, Any]:
     """Place candidates into the given terms, conflict-free, mandatory first."""
@@ -111,7 +111,7 @@ def plan_terms(
             if course_id in satisfied_ids or number_key in satisfied_numbers:
                 continue  # already completed or placed in an earlier term
 
-            if _overlaps_credited(number, overlap_groups, credited_raw):
+            if _overlaps_credited(number, overlap_conflicts, credited_raw):
                 last_reason[number] = "No additional credit: overlaps an already-credited course"
                 continue
 
@@ -260,13 +260,21 @@ def _offering_for(
 
 
 def _overlaps_credited(
-    number: str, overlap_groups: list[set[str]], credited_raw: set[str]
+    number: str, overlap_conflicts: dict[str, frozenset[str]], credited_raw: set[str]
 ) -> bool:
-    """True when `number` shares a no-additional-credit group with a credited course."""
-    group = overlap_group_for_course(number, overlap_groups)
-    if not group:
+    """True when the catalog NAMES `number` as overlapping a credited course.
+
+    Pairwise, because "מקצועות ללא זיכוי נוסף" is. Reading it out of merged
+    equivalence groups refused to schedule a course whenever it shared a single
+    partner with something the student had already passed -- `02340221` and
+    `00940219` name nine and seven partners respectively, share one, and name
+    each other nowhere, yet a student holding either could not be planned into
+    the other.
+    """
+    partners = conflicts_for_course(number, overlap_conflicts)
+    if not partners:
         return False
-    return any(set(course_number_keys(credited)) & group for credited in credited_raw)
+    return any(set(course_number_keys(credited)) & partners for credited in credited_raw)
 
 
 def _chosen_options(

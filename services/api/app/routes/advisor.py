@@ -7,13 +7,16 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.db.mongo import get_database
 from app.middleware.auth_rate_limiter import enforce_ai_rate_limit
 from app.schemas.advisor import AskAdvisorRequest
 from app.services.advisor_service import ask_advisor_for_user, stream_advisor_for_user
 
-router = APIRouter(prefix="/advisor", tags=["advisor"])
+router = APIRouter(prefix="/advisor", tags=["advisor"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 
 def success_response(data: Any) -> dict[str, Any]:

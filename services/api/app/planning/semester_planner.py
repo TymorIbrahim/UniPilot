@@ -394,6 +394,7 @@ def _elective_from_pools(
     program_code: str,
     catalog_courses: list[dict[str, Any]],
     completed_course_ids: set[str],
+    excluded_course_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not _has_remaining_elective_need(graduation_progress, program_code):
         return []
@@ -438,6 +439,10 @@ def _elective_from_pools(
         for course in normalized_catalog:
             course_id = normalize_course_id(course["_id"])
             if course_id in completed_course_ids or course_id in seen_ids:
+                continue
+            if excluded_course_ids and course_id in excluded_course_ids:
+                # Already coming from the mandatory pass; offering it here
+                # too puts one course in a semester twice.
                 continue
             course_number = str(course.get("number") or course.get("courseNumber") or "")
             if is_course_eligible_for_pools(
@@ -509,12 +514,23 @@ def build_candidate_pools(
             continue
         elective_remaining_refs.extend(entry.get("remainingCourses") or [])
 
+    # A course can sit in BOTH lists: `00940704` is an outstanding mandatory
+    # course and also a member of the faculty-elective pool, so it arrived from
+    # the matrix and again from that bucket's remaining options. The selection
+    # passes run one after the other and neither knew about the other's picks,
+    # which put the same course in one semester twice -- counted twice against
+    # the credit cap, so a real course was dropped as "would exceed maxCredits".
+    # Mandatory wins; the elective list yields.
+    mandatory_candidate_ids = {
+        normalize_course_id(course["_id"]) for course in mandatory_candidates
+    }
     elective_candidates = sort_courses_by_number(
         [
             course
             for course_ref in elective_remaining_refs
             if (course := resolve_catalog_course(courses_by_id, course_ref)) is not None
             and normalize_course_id(course["_id"]) not in completed_course_ids
+            and normalize_course_id(course["_id"]) not in mandatory_candidate_ids
         ]
     )
 
@@ -526,6 +542,7 @@ def build_candidate_pools(
             program_code=program_code,
             catalog_courses=catalog_courses,
             completed_course_ids=completed_course_ids,
+            excluded_course_ids=mandatory_candidate_ids,
         )
 
     return {

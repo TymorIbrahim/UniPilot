@@ -18,7 +18,7 @@ from app.planning.prerequisite_resolver import build_courses_by_number, canonica
 from app.planning.semester_codes import resolve_plan_term
 from app.planning.term_plan import Candidate, TermInput, plan_terms
 from app.repositories import catalog_repository
-from app.services.catalog_overlap_groups import build_catalog_overlap_groups
+from app.services.catalog_overlap_groups import build_catalog_overlap_conflicts
 from app.services.graduation_progress_calculator import build_effective_completions, round_credits
 from app.services.semester_plan_service import load_planning_context
 
@@ -69,7 +69,7 @@ async def build_term_plan(
     completed_records = context["completedCourseRecords"]
     completed_course_ids = set(build_effective_completions(completed_records).keys())
     completed_course_numbers = _completed_numbers(completed_records, courses_by_id)
-    overlap_groups = build_catalog_overlap_groups(catalog_courses)
+    overlap_conflicts = build_catalog_overlap_conflicts(catalog_courses)
 
     resolved, unknown = _resolve_candidates(candidates, courses_by_number)
     candidate_numbers = sorted(
@@ -99,7 +99,7 @@ async def build_term_plan(
         completed_course_ids=completed_course_ids,
         completed_course_numbers=completed_course_numbers,
         courses_by_number=courses_by_number,
-        overlap_groups=overlap_groups,
+        overlap_conflicts=overlap_conflicts,
         max_credits_limit=max_credits_limit,
     )
 

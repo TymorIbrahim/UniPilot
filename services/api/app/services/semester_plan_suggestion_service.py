@@ -18,6 +18,10 @@ from app.planning.semester_planner import (
 )
 from app.planning.prerequisite_resolver import build_courses_by_number, canonical_course_number
 from app.repositories import catalog_repository
+from app.repositories.completed_course_repository import (
+    find_completed_courses_for_statistics,
+)
+from app.services.course_outcome_stats import build_course_outcomes
 from app.services.graduation_progress_calculator import build_effective_completions, round_credits
 from app.services.semester_plan_service import load_planning_context
 
@@ -194,6 +198,23 @@ async def suggest_semester_courses(
         len(selected_courses) > 0 or reserved_credits > 0
     )
 
+    # What the transcripts we hold say about the courses being recommended.
+    # Surfaced rather than used to re-rank: sorting a plan by pass rate steers
+    # students away from hard courses they need and toward easy ones they do
+    # not. `course_outcome_stats.outcome_sort_key` is there for tie-breaking
+    # when that is wanted; the student seeing the number is the useful part.
+    outcomes = build_course_outcomes(
+        await find_completed_courses_for_statistics(database)
+    )
+    selected_numbers = {
+        str(course.get("courseNumber")) for course in selected_courses if course.get("courseNumber")
+    }
+    course_outcomes = [
+        outcomes[number].as_public_dict()
+        for number in sorted(selected_numbers)
+        if number in outcomes
+    ]
+
     explanation = {
         "semesterCode": semester_code,
         "maxCredits": max_credits_limit,
@@ -203,6 +224,7 @@ async def suggest_semester_courses(
         "selectedCount": len(selected_courses),
         "partialPlan": partial_plan,
         "emptyPlan": len(selected_courses) == 0 and reserved_credits == 0,
+        "courseOutcomes": course_outcomes,
         "skippedDueToWorkload": selection["skippedDueToWorkload"],
         "skippedDueToConflicts": selection.get("skippedDueToConflicts") or [],
         "skippedDueToUnavailable": selection.get("skippedDueToUnavailable") or [],
@@ -215,6 +237,7 @@ async def suggest_semester_courses(
             "Respect maxCredits workload limit",
             "Skip courses with exam-date or lesson-schedule conflicts",
             "Add electives only after mandatory priorities are exhausted",
+            "Report how previous students fared, where enough transcripts exist to say",
         ],
     }
 

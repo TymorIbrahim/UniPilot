@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.security.impersonation_guard import reject_impersonation_query_params
 from app.dependencies.auth import AuthContext, require_auth
 from app.middleware.auth_rate_limiter import enforce_ai_rate_limit
 from app.db.mongo import get_database
@@ -22,7 +23,9 @@ from app.services.academic_risk_service import (
     list_academic_risk_analyses_for_user,
 )
 
-router = APIRouter(prefix="/academic-risks", tags=["academic-risks"])
+router = APIRouter(prefix="/academic-risks", tags=["academic-risks"],
+    dependencies=[Depends(reject_impersonation_query_params)],
+)
 
 _academic_risk_indexes_ready = False
 

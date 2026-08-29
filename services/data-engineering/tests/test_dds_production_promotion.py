@@ -618,3 +618,76 @@ def test_promotion_writes_no_core_mandatory_pool_when_matrix_data_is_empty(mongo
         )
     )
     assert pools == []
+
+
+def test_build_core_mandatory_pool_skips_a_matrix_document_with_no_program_code() -> None:
+    """A semester_matrix row that names no program cannot be attributed to one.
+
+    Silently attributing it to whichever program came last would put another
+    track's mandatory courses into this one's core pool, so it is dropped.
+    """
+    orphan = {
+        "productionKey": "technion-dds:advisory-rule:req::semester-1-matrix:2025-2026",
+        "institutionId": "technion",
+        "programCode": "",
+        "requirementGroupId": ":semester-1-matrix",
+        "ruleExpression": {"type": "semester_matrix", "operator": "all_of", "semester": 1},
+        "courseReferences": [{"courseNumber": "00940345"}],
+    }
+
+    assert (
+        _build_core_mandatory_pool_documents(
+            [orphan],
+            promotion_run_id="run-1",
+            promoted_at="2026-01-01T00:00:00Z",
+            catalog_version="2025-2026",
+        )
+        == []
+    )
+
+
+def test_promotion_writes_the_core_mandatory_pool_when_matrix_data_has_courses(
+    mongo_database,
+) -> None:
+    """The pool reaches production, which nothing checked end to end.
+
+    `test_promotion_writes_no_core_mandatory_pool_when_matrix_data_is_empty`
+    pins the empty case, and the seed fixture's matrix groups carry no course
+    references -- so the branch that appends these documents never ran, and the
+    100% coverage gate was failing on it. Graduation progress reads this pool:
+    without it the core-mandatory bucket has no course list and credits
+    whatever the student completed, up to the credit minimum.
+    """
+    _seed_signed_off_promotion_staging(mongo_database)
+    settings = get_settings()
+
+    # Course numbers the seed also promotes, so the pool's references resolve.
+    matrix_numbers = ["00940345", "01040031"]
+    mongo_database[settings.staging_degree_requirements_collection].update_one(
+        {"requirementGroup.groupId": "009216-1-000:semester-1-matrix"},
+        {
+            "$set": {
+                "requirementGroup.courseReferences": [
+                    {"courseNumber": number, "titleHint": f"Matrix course {number}"}
+                    for number in matrix_numbers
+                ]
+            }
+        },
+    )
+
+    result = run_dds_production_promotion(
+        mongo_database,
+        confirm_dangerous=True,
+        allow_warnings=True,
+    )
+    assert result.productionWritesPerformed is True, result.promotionRun.errors
+
+    pools = list(
+        mongo_database[settings.production_catalog_rules_collection].find(
+            {"requirementGroupId": "009216-1-000:core-mandatory-pool"}
+        )
+    )
+    assert len(pools) == 1
+    pool = pools[0]
+    assert pool["linkedCreditBucketId"] == "009216-1-000:core-mandatory"
+    assert sorted(ref["courseNumber"] for ref in pool["courseReferences"]) == matrix_numbers

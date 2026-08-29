@@ -10,6 +10,7 @@ from app.routes.parse import router as parse_router
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings.validate_production_settings()
     is_production = settings.environment == "production"
     app = FastAPI(
         title="UniPilot Transcript Parser",
