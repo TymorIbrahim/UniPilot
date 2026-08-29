@@ -21,7 +21,7 @@ from app.repositories import catalog_repository
 from app.repositories.completed_course_repository import (
     find_completed_courses_for_statistics,
 )
-from app.services.course_outcome_stats import build_course_outcomes
+from app.services.course_outcome_stats import build_course_outcomes, build_course_signals
 from app.services.graduation_progress_calculator import build_effective_completions, round_credits
 from app.services.semester_plan_service import load_planning_context
 
@@ -209,11 +209,12 @@ async def suggest_semester_courses(
     selected_numbers = {
         str(course.get("courseNumber")) for course in selected_courses if course.get("courseNumber")
     }
-    course_outcomes = [
-        outcomes[number].as_public_dict()
-        for number in sorted(selected_numbers)
-        if number in outcomes
-    ]
+    ratings = await catalog_repository.find_course_ratings(
+        database, sorted(selected_numbers)
+    )
+    course_outcomes = build_course_signals(
+        sorted(selected_numbers), outcomes=outcomes, ratings=ratings
+    )
 
     explanation = {
         "semesterCode": semester_code,

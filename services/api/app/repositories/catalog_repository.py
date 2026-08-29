@@ -920,3 +920,26 @@ async def list_faculties(
         {**PUBLISHED_STATUS_FILTER, "nameHe": {"$exists": True, "$nin": [None, ""]}},
     )
     return sorted(str(value).strip() for value in values if str(value).strip())
+
+
+async def find_course_ratings(
+    database: AsyncIOMotorDatabase,
+    course_numbers: list[str],
+    *,
+    settings: Settings | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Public course feedback for the given courses, keyed by course number.
+
+    Loaded by `services/data-engineering/scripts/fetch_cheesefork_feedback.py`.
+    An empty result is ordinary -- the collection is optional, and roughly half
+    the catalog has no reviews -- so callers must treat absence as "no opinion",
+    never as "badly reviewed".
+    """
+    settings = settings or get_settings()
+    if not course_numbers:
+        return {}
+    cursor = database["course_ratings"].find(
+        {"courseNumber": {"$in": [str(number) for number in course_numbers]}},
+        {"_id": 0},
+    )
+    return {str(document["courseNumber"]): document async for document in cursor}

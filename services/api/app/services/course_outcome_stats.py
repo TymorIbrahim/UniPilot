@@ -8,18 +8,20 @@ had no idea which courses students actually struggle with. `01040166` has a
 planning a heavy term deserves to see that, and a tie between two otherwise
 equal electives is better broken by evidence than by course number.
 
-Why not the published histograms
---------------------------------
-`michael-maltsev/technion-histograms` looks like the obvious source and is not
-usable as data: every histogram is a PNG (720x405), roughly 2GB of pictures
-with no numbers in them, so a difficulty signal would have to be recovered by
-image analysis. Its `Staff.json` files carry lecturer and TA names and email
-addresses, which is personal data with no place in a bulk import. CheeseFork's
-course ratings and reviews are not a dataset at all -- they live in that
-project's own Firebase, written by identifiable students.
+Two sources, kept apart
+-----------------------
+Transcripts say what students SCORED. CheeseFork's public course feedback --
+`course_ratings`, loaded by data-engineering -- says what they THOUGHT, on a
+1-5 scale, and covers roughly half the catalog against our own handful of
+courses. They are reported side by side rather than blended: a single score
+would hide which one is talking, including when they disagree, and "hard but
+worth it" is exactly the case a blended number destroys.
 
-Our transcripts are the one source that is ours, current, and free of all three
-problems.
+`michael-maltsev/technion-histograms` is NOT a third source. Every histogram
+there is a PNG (720x405, ~2GB of pictures) with no numbers in it, so a grade
+distribution would have to be recovered by image analysis; its `Staff.json`
+files carry lecturer and TA names and emails, which is personal data with no
+place in a bulk import.
 
 Disclosure
 ----------
@@ -36,7 +38,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.services.grade_evaluation import (
-    PASSING_GRADE_THRESHOLD,
     counts_toward_average,
     is_passing_grade,
     parse_numeric_grade,
@@ -120,6 +121,54 @@ def build_course_outcomes(
             pass_rate=passes[number] / len(values),
         )
     return outcomes
+
+
+@dataclass(frozen=True)
+class CourseSignal:
+    """Everything we can say about a course, from both sources we have.
+
+    Kept separate rather than blended into one score. They measure different
+    things -- our transcripts say what students SCORED, CheeseFork's reviewers
+    say what they THOUGHT -- and a single number would hide which one is
+    driving it, including when they disagree.
+    """
+
+    course_number: str
+    outcome: CourseOutcome | None = None
+    rating: dict[str, Any] | None = None
+
+    def as_public_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"courseNumber": self.course_number}
+        if self.outcome is not None:
+            payload["cohort"] = self.outcome.as_public_dict()
+        if self.rating is not None:
+            payload["reviews"] = {
+                "responseCount": self.rating.get("responseCount"),
+                "meanGeneralRank": self.rating.get("meanGeneralRank"),
+                "meanDifficultyRank": self.rating.get("meanDifficultyRank"),
+                "scaleMax": self.rating.get("scaleMax"),
+                "source": self.rating.get("source"),
+            }
+        return payload
+
+
+def build_course_signals(
+    course_numbers: list[str],
+    *,
+    outcomes: dict[str, CourseOutcome],
+    ratings: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """One entry per course we can say anything about, in a stable order."""
+    signals = []
+    for number in sorted({str(n) for n in course_numbers if n}):
+        outcome = outcomes.get(number)
+        rating = ratings.get(number)
+        if outcome is None and rating is None:
+            continue
+        signals.append(
+            CourseSignal(course_number=number, outcome=outcome, rating=rating).as_public_dict()
+        )
+    return signals
 
 
 def outcome_sort_key(

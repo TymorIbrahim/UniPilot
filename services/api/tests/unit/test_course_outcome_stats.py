@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.services.course_outcome_stats import (
+    build_course_signals,
     MINIMUM_COHORT,
     build_course_outcomes,
     outcome_sort_key,
@@ -112,3 +113,56 @@ class TestOutcomeSortKey:
         outcomes = build_course_outcomes(records)
 
         assert outcome_sort_key("00940345", outcomes) < outcome_sort_key("01040166", outcomes)
+
+
+class TestCourseSignals:
+    def test_reports_both_sources_side_by_side_without_blending_them(self) -> None:
+        """A single score would hide which source is talking -- and "hard but
+        worth it" is exactly the case a blended number destroys."""
+        outcomes = build_course_outcomes([_row("00940224", g) for g in (90, 80, 70, 60, 50)])
+        ratings = {
+            "00940224": {
+                "courseNumber": "00940224",
+                "responseCount": 31,
+                "meanGeneralRank": 4.2,
+                "meanDifficultyRank": 4.6,
+                "scaleMax": 5,
+                "source": "cheesefork-courseFeedback",
+            }
+        }
+
+        signals = build_course_signals(["00940224"], outcomes=outcomes, ratings=ratings)
+
+        assert len(signals) == 1
+        assert signals[0]["cohort"]["passRate"] == 0.8
+        assert signals[0]["reviews"]["meanGeneralRank"] == 4.2
+        assert signals[0]["reviews"]["meanDifficultyRank"] == 4.6
+        assert "score" not in signals[0]
+
+    def test_a_course_known_to_only_one_source_still_reports(self) -> None:
+        ratings = {"00000001": {"courseNumber": "00000001", "responseCount": 9,
+                                "meanGeneralRank": 3.0, "meanDifficultyRank": 3.0, "scaleMax": 5}}
+        outcomes = build_course_outcomes([_row("00000002", g) for g in (90, 80, 70, 60, 50)])
+
+        signals = build_course_signals(
+            ["00000001", "00000002"], outcomes=outcomes, ratings=ratings
+        )
+
+        by_number = {s["courseNumber"]: s for s in signals}
+        assert "reviews" in by_number["00000001"] and "cohort" not in by_number["00000001"]
+        assert "cohort" in by_number["00000002"] and "reviews" not in by_number["00000002"]
+
+    def test_a_course_neither_source_knows_is_omitted(self) -> None:
+        """Absence must read as "no opinion", never as "badly reviewed"."""
+        assert build_course_signals(["00000009"], outcomes={}, ratings={}) == []
+
+    def test_order_is_stable_and_blank_numbers_are_ignored(self) -> None:
+        ratings = {
+            n: {"courseNumber": n, "responseCount": 5, "meanGeneralRank": 3.0,
+                "meanDifficultyRank": 3.0, "scaleMax": 5}
+            for n in ("00000003", "00000001", "00000002")
+        }
+        signals = build_course_signals(
+            ["00000003", "", "00000001", None, "00000002"], outcomes={}, ratings=ratings
+        )
+        assert [s["courseNumber"] for s in signals] == ["00000001", "00000002", "00000003"]
