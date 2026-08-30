@@ -516,17 +516,15 @@ def retire_unplanned_production_documents(
         planned_keys = planned_keys_by_collection.get(collection, set())
         if not planned_keys:
             continue
+        # Only rows this plan does NOT replace. This runs after the upsert now,
+        # so deleting the planned keys would delete the documents just written;
+        # ReplaceOne(upsert=True) has already replaced them in place.
         result = database[collection].delete_many(
             {
+                "sourceName": catalog_source_name,
                 "$or": [
-                    {"productionKey": {"$in": list(planned_keys)}},
-                    {
-                        "sourceName": catalog_source_name,
-                        "$or": [
-                            {"productionKey": {"$exists": False}},
-                            {"productionKey": {"$nin": list(planned_keys)}},
-                        ],
-                    },
+                    {"productionKey": {"$exists": False}},
+                    {"productionKey": {"$nin": list(planned_keys)}},
                 ],
             }
         )
@@ -1112,6 +1110,10 @@ def run_dds_production_promotion(
         return result
 
     promoted_at = _utc_now_iso()
+    # Whether anything that can change production has been attempted. Reporting
+    # `productionWritesPerformed: False` after a partial write is how six
+    # computer-science programs were emptied without the report admitting it.
+    production_mutated = False
     try:
         documents_by_collection, planned_keys = build_production_documents(
             database,
@@ -1138,6 +1140,16 @@ def run_dds_production_promotion(
             write_production_promotion_report(result, json_path=out_json, md_path=out_md)
             return result
 
+        # Write first, retire second. These ran the other way round, so an
+        # upsert that raised left the faculty's old rows already deleted: a
+        # duplicate `_id` on computer-science emptied all six of its programs'
+        # requirement groups, and the run still reported it had written nothing.
+        # `ReplaceOne(upsert=True)` needs no room made for it, so nothing is
+        # destroyed until what replaces it is safely in.
+        ensure_production_promotion_indexes(database, settings)
+        production_mutated = True
+        counts_written = _upsert_production_documents(database, documents_by_collection)
+
         _retire_superseded_catalog_rules(
             database,
             settings=settings,
@@ -1156,6 +1168,8 @@ def run_dds_production_promotion(
             catalog_source_name=gate.sourceName,
         )
 
+        # Now an assertion rather than a precondition: the retires above must
+        # have left nothing for this source outside the plan.
         validate_production_collections_for_promotion(
             database,
             settings=settings,
@@ -1163,8 +1177,6 @@ def run_dds_production_promotion(
             catalog_version=gate.catalogVersion or "2025-2026",
             source_name=gate.sourceName,
         )
-        ensure_production_promotion_indexes(database, settings)
-        counts_written = _upsert_production_documents(database, documents_by_collection)
         purge_production_excluded_courses(
             database,
             settings=settings,
@@ -1218,11 +1230,17 @@ def run_dds_production_promotion(
         run.status = "failed"
         run.finishedAt = _utc_now_iso()
         run.errors.append(str(exc))
+        if production_mutated:
+            run.errors.append(
+                "Production was already being written when this failed. Treat it as "
+                "partially promoted: check this faculty's programs still have their "
+                f"requirement groups, and roll back with promotionRunId={promotion_run_id}."
+            )
         run.productionCollectionCountsAfter = _production_counts(database, settings)
         result = ProductionPromotionResult(
             promotionRun=run,
             gate=gate,
-            productionWritesPerformed=False,
+            productionWritesPerformed=production_mutated,
         )
         out_json = json_path or default_production_promotion_json_path()
         out_md = md_path or default_production_promotion_md_path()

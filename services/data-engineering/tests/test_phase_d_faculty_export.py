@@ -392,6 +392,418 @@ def test_build_generic_program_splits_technion_wide_electives_into_standard_buck
     assert technion_wide_elective_credit_split(10.0) == (6.0, 2.0, 2.0)
 
 
+@pytest.mark.parametrize("total", [12.0, 10.0, 8.0, 7.0, 6.0, 2.0, 0.0])
+def test_the_technion_wide_split_never_hands_out_more_than_it_was_given(total: float) -> None:
+    """`027197-1-000` states a 6-credit university-wide block, physical education
+    included. The old split gave it 6 enrichment AND 2 PE regardless, inventing
+    2 credits the catalogue never granted."""
+    from app.vault.export_dds_catalog import technion_wide_elective_credit_split
+
+    enrichment, free, physical = technion_wide_elective_credit_split(total)
+
+    assert round(enrichment + free + physical, 2) == total
+    assert min(enrichment, free, physical) >= 0.0
+
+
+def test_a_negative_technion_wide_total_splits_to_nothing() -> None:
+    from app.vault.export_dds_catalog import technion_wide_elective_credit_split
+
+    assert technion_wide_elective_credit_split(-5.0) == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "technion-wide-electives",
+        "general-technion-electives",
+        "technion-wide-electives-incl-2-pe",
+    ],
+)
+def test_every_wording_of_the_university_wide_block_is_recognised(slug: str) -> None:
+    """Each faculty names this block in its own words. Matching only the first
+    spelling left the others standing beside the buckets that replace them, and
+    counted the same credits twice."""
+    from app.vault.export_faculty_vault_catalog import _is_technion_wide_aggregate_slug
+
+    assert _is_technion_wide_aggregate_slug(slug)
+
+
+@pytest.mark.parametrize("slug", ["faculty-electives", "required-courses", "enrichment"])
+def test_ordinary_buckets_are_not_mistaken_for_the_university_wide_block(slug: str) -> None:
+    from app.vault.export_faculty_vault_catalog import _is_technion_wide_aggregate_slug
+
+    assert not _is_technion_wide_aggregate_slug(slug)
+
+
+def test_of_which_rows_are_a_breakdown_not_extra_requirements() -> None:
+    """`— of which: Enrichment | 6.0` itemises the row above it. Promoting those
+    rows gave 033033 and 033133 a second copy of the same 12 credits."""
+    from app.vault.export_faculty_vault_catalog import _is_bucket_breakdown_slug
+
+    assert _is_bucket_breakdown_slug("of-which-enrichment")
+    assert _is_bucket_breakdown_slug("of-which-physical-education")
+    assert not _is_bucket_breakdown_slug("enrichment")
+
+
+def _distribution_page(distribution: str, *, english_body: str | None = None) -> WikiPage:
+    return WikiPage(
+        slug="track-test",
+        path=Path("/tmp/track-test.md"),
+        frontmatter={},
+        body="",
+        english_body=english_body
+        if english_body is not None
+        else f"**Distribution:** {distribution}\n",
+    )
+
+
+def test_a_distribution_line_becomes_credit_buckets_when_there_is_no_table() -> None:
+    """`021025-1-000` has a course list and no credit table, so the export gave it
+    12 credits of a 155-credit degree. Its distribution line states the same
+    breakdown a table would."""
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("124.5 required | 18.5 track electives | 6 enrichment | 2 PE | 4 general electives")
+    )
+
+    assert {slug: credits for _, slug, _, credits in buckets} == {
+        "required-courses": 124.5,
+        "track-electives": 18.5,
+        "enrichment": 6.0,
+        "physical-education": 2.0,
+        "free-elective": 4.0,
+    }
+    assert sum(credits for *_, credits in buckets) == 155.0
+
+
+def test_the_standard_slugs_are_reused_so_the_trio_is_not_added_twice() -> None:
+    """If the line's enrichment/PE/general rows landed on their own slugs, the
+    standard buckets would be added on top and the degree would overshoot by 12."""
+    from app.vault.export_faculty_vault_catalog import (
+        _STANDARD_TECHNION_BUCKET_SLUGS,
+        parse_credit_buckets_from_distribution,
+    )
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("120 required | 23 track electives | 6 enrichment | 2 PE | 4 general electives")
+    )
+
+    assert _STANDARD_TECHNION_BUCKET_SLUGS <= {slug for _, slug, _, _ in buckets}
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("track electives", "track-electives"),
+        ("general electives", "free-elective"),
+        ("free electives", "free-elective"),
+        ("PE", "physical-education"),
+        ("physical education", "physical-education"),
+        ("enrichment", "enrichment"),
+        ("required", "required-courses"),
+        ("electives", "faculty-electives"),
+    ],
+)
+def test_distribution_labels_resolve_to_the_right_bucket(label: str, expected: str) -> None:
+    """"track electives" and "general electives" both contain "electives", so
+    order of matching decides whether they land on the right bucket."""
+    from app.vault.export_faculty_vault_catalog import _distribution_bucket_slug
+
+    assert _distribution_bucket_slug(label) == expected
+
+
+def test_an_unrecognised_distribution_label_is_skipped_not_guessed() -> None:
+    from app.vault.export_faculty_vault_catalog import (
+        _distribution_bucket_slug,
+        parse_credit_buckets_from_distribution,
+    )
+
+    assert _distribution_bucket_slug("quantum widgets") is None
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("12 quantum widgets | 6 enrichment")
+    )
+    assert [slug for _, slug, _, _ in buckets] == ["enrichment"]
+
+
+def test_a_segment_without_a_number_is_skipped() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("see the catalog | 6 enrichment")
+    )
+
+    assert [slug for _, slug, _, _ in buckets] == ["enrichment"]
+
+
+def test_a_repeated_bucket_is_taken_once() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("6 enrichment | 4 enrichment")
+    )
+
+    assert [credits for *_, credits in buckets] == [6.0]
+
+
+def test_a_page_with_no_distribution_line_yields_nothing() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    assert parse_credit_buckets_from_distribution(_distribution_page("", english_body="")) == []
+
+
+def test_a_credit_table_still_wins_over_the_distribution_line() -> None:
+    """The fallback must not override a page that states its buckets properly."""
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_page
+
+    page = _distribution_page(
+        "",
+        english_body=(
+            "**Distribution:** 99 required\n\n"
+            "| Category | Credits |\n|---|---|\n| Required courses | 120 |\n"
+        ),
+    )
+
+    assert [credits for *_, credits in parse_credit_buckets_from_page(page)] == [120.0]
+
+
+def _collapse_program(wiki_page: str, kind: str, groups: list[dict]) -> dict:
+    return {
+        "programCode": "023044-1-000",
+        "metadata": {"wikiPage": wiki_page, "programKind": kind},
+        "requirementGroups": groups,
+    }
+
+
+def _rule(group_id: str, rule_type: str, credits: float | None = None) -> dict:
+    return {
+        "groupId": f"023044-1-000:{group_id}",
+        "minCredits": credits,
+        "ruleExpression": {"type": rule_type},
+    }
+
+
+def test_a_specialization_does_not_add_credit_buckets_to_the_track_it_shares_a_code_with() -> None:
+    """Cyber, data-ml and bioinformatics have no program code of their own, so each
+    borrows a parent track's. Merging data-ml's 12.0 "מקצועות ליבה" into the 3-year
+    general track pushed a program that reconciles at 118.5 twelve credits over."""
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    canonical = _collapse_program(
+        "track-computer-science-general-3year", "bsc", [_rule("required", "credit_bucket", 84.0)]
+    )
+    specialization = _collapse_program(
+        "track-computer-science-data-ml", "bsc_specialization", [_rule("core", "credit_bucket", 12.0)]
+    )
+
+    collapsed = _collapse_programs_by_code([canonical, specialization])
+
+    assert len(collapsed) == 1
+    slugs = {g["groupId"].split(":", 1)[-1] for g in collapsed[0]["requirementGroups"]}
+    assert slugs == {"required"}
+
+
+def test_a_specialization_still_contributes_its_course_pools() -> None:
+    """Its course lists are real options for the parent degree; only the credit
+    arithmetic is the canonical page's to state."""
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    collapsed = _collapse_programs_by_code(
+        [
+            _collapse_program(
+                "track-computer-science-general-3year", "bsc", [_rule("required", "credit_bucket", 84.0)]
+            ),
+            _collapse_program(
+                "track-computer-science-data-ml",
+                "bsc_specialization",
+                [_rule("ml-pool", "course_pool"), _rule("core", "credit_bucket", 12.0)],
+            ),
+        ]
+    )
+
+    slugs = {g["groupId"].split(":", 1)[-1] for g in collapsed[0]["requirementGroups"]}
+    assert slugs == {"required", "ml-pool"}
+
+
+def test_a_program_that_shares_its_code_with_nobody_keeps_everything() -> None:
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    only = _collapse_program(
+        "track-computer-science-general-3year",
+        "bsc",
+        [_rule("required", "credit_bucket", 84.0), _rule("matrix", "semester_matrix")],
+    )
+
+    collapsed = _collapse_programs_by_code([only])
+
+    assert len(collapsed[0]["requirementGroups"]) == 2
+
+
+def test_cs_three_year_reconciles_with_its_own_stated_total() -> None:
+    """023044-1-000 states 84.0 + 24.5 + 10.0 = 118.5 and was exporting 130.5."""
+    from app.vault.vault_export_registry import export_vault_catalog
+
+    document, _ = export_vault_catalog(faculty="computer-science")
+    program = next(p for p in document["programs"] if p["programCode"] == "023044-1-000")
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"] == 118.5
+
+
+def _hebrew_table_page(rows: str, code: str = "021095-1-000") -> WikiPage:
+    return WikiPage(
+        slug="track-test",
+        path=Path("/tmp/track-test.md"),
+        frontmatter={},
+        body="",
+        english_body=(
+            f"**Program code:** {code}\n**Total Credits:** 155.0\n\n"
+            "| Category | Credits |\n|----------|---------|\n" + rows
+        ),
+    )
+
+
+def _buckets_by_slug(program: dict) -> dict[str, float]:
+    return {
+        group["groupId"].split(":", 1)[-1]: float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    }
+
+
+def test_a_technion_wide_row_beside_itemised_parts_is_the_free_elective() -> None:
+    """The four education teaching tracks list enrichment and PE as their own
+    rows, so their 4.0 "בחירה כלל טכניונית" row is the remainder, not the whole
+    block. Splitting it as the whole block gave them a 0.0-credit free elective."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 106.5 |\n"
+        "| מקצועות בחירה מומלצת | 36.5 |\n"
+        "| מקצועות העשרה | 6.0 |\n"
+        "| מקצועות בחירה כלל טכניונית | 4.0 |\n"
+        "| חינוך גופני | 2.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+    buckets = _buckets_by_slug(program)
+
+    assert buckets["free-elective"] == 4.0
+    assert buckets["enrichment"] == 6.0
+    assert buckets["physical-education"] == 2.0
+    assert round(sum(buckets.values()), 2) == 155.0
+
+
+def test_a_technion_wide_row_alone_is_still_split_into_the_three_buckets() -> None:
+    """Without itemised parts the row IS the whole block, and must still split."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 143.0 |\n| מקצועות בחירה כלל טכניונית | 12.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+    buckets = _buckets_by_slug(program)
+
+    assert (buckets["enrichment"], buckets["free-elective"], buckets["physical-education"]) == (
+        6.0,
+        4.0,
+        2.0,
+    )
+    assert round(sum(buckets.values()), 2) == 155.0
+
+
+def test_itemised_parts_without_a_technion_wide_row_are_left_alone() -> None:
+    """No aggregate row means nothing to reinterpret; the missing free elective
+    still comes from the default block rather than from a phantom remainder."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 147.0 |\n| מקצועות העשרה | 6.0 |\n| חינוך גופני | 2.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+
+    assert _buckets_by_slug(program)["free-elective"] == 4.0
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "track-education-chemistry",
+        "track-education-physics",
+        "track-education-computer-science",
+        "track-education-biology",
+    ],
+)
+def test_education_teaching_tracks_reconcile(slug: str) -> None:
+    """Each was exactly 4.0 short: a free-elective bucket promoted at 0.0."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(
+        pages[slug], faculty_id="education-science-technology", pages=pages
+    )
+    assert program is not None
+
+    assert round(sum(_buckets_by_slug(program).values()), 2) == program["totalCredits"]
+
+
+@pytest.mark.parametrize(
+    "slug",
+    ["track-education-electronics-electricity", "track-education-technology-machines"],
+)
+def test_education_tracks_now_describe_their_whole_degree(slug: str) -> None:
+    """Both were reporting 12.0 credits of a 155.0-credit degree."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(
+        pages[slug], faculty_id="education-science-technology", pages=pages
+    )
+    assert program is not None
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"] == 155.0
+
+
+@pytest.mark.parametrize(
+    ("slug", "faculty_id"),
+    [
+        ("track-medicine-bsc", "medicine"),
+        ("track-biomedical-engineering", "biomedical-engineering"),
+        ("track-biomedical-engineering-physics", "biomedical-engineering"),
+    ],
+)
+def test_affected_tracks_credit_buckets_sum_to_their_stated_total(
+    slug: str, faculty_id: str
+) -> None:
+    """These three were each exactly 12.0 over their own stated total."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(pages[slug], faculty_id=faculty_id, pages=pages)
+    assert program is not None
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"]
+
+
 def _assert_no_duplicate_group_ids(program: dict) -> None:
     from collections import Counter
 

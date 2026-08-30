@@ -18,6 +18,8 @@ from app.vault.export_dds_catalog import (
     CATALOG_YEAR,
     INSTITUTION_ID,
     DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL,
+    TECHNION_WIDE_ENRICHMENT_CREDITS,
+    TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS,
     _general_technion_credit_bucket_groups,
     _general_technion_elective_groups,
     _merge_unique_course_refs,
@@ -146,6 +148,35 @@ _HEBREW_BUCKET_KEYWORDS: tuple[tuple[str, str], ...] = (
 
 _STANDARD_TECHNION_BUCKET_SLUGS = frozenset({"enrichment", "free-elective", "physical-education"})
 
+# Every track's credit table names the university-wide block in its own faculty's
+# words: "Technion-wide electives", "General Technion electives", "Technion-wide
+# electives (incl. 2 PE)". Whichever it uses, those are the SAME credits the
+# standard enrichment / free-elective / physical-education buckets describe, so
+# the aggregate row has to be recognised and replaced by them. Matching only the
+# one literal slug left the others standing beside the trio, which counted those
+# credits twice and put seven programs exactly 12.0 over their own stated total.
+_TECHNION_WIDE_AGGREGATE_PREFIXES = (
+    "technion-wide-electives",
+    "general-technion-electives",
+)
+
+# "— of which: Enrichment | 6.0" itemises the aggregate row above it. Those rows
+# are a breakdown, not three further requirements, and promoting them added a
+# second copy of the same 12 credits.
+_BUCKET_BREAKDOWN_PREFIX = "of-which"
+
+# The two parts of the university-wide block a track's own table may state
+# separately, leaving its "Technion-wide electives" row as the remainder.
+_ENRICHMENT_AND_PE_SLUGS = frozenset({"enrichment", "physical-education"})
+
+
+def _is_technion_wide_aggregate_slug(slug: str) -> bool:
+    return slug.startswith(_TECHNION_WIDE_AGGREGATE_PREFIXES)
+
+
+def _is_bucket_breakdown_slug(slug: str) -> bool:
+    return slug.startswith(_BUCKET_BREAKDOWN_PREFIX)
+
 
 def _canonical_bucket_slug(slug: str) -> str:
     return _BUCKET_SLUG_ALIASES.get(slug, slug)
@@ -203,8 +234,21 @@ def _program_canonical_sort_key(program: dict[str, Any]) -> tuple[int, int, str]
     return (is_specialization, slug_priority, wiki_slug)
 
 
+# Several CS concentration pages have no program code of their own -- the faculty's
+# own table lists codes for six programs, not for cyber, data-ml or bioinformatics --
+# so each borrows a parent track's code and collapses into it. A concentration's
+# credit table describes how that concentration divides the degree, not a further
+# requirement on top of it: merging them added data-ml's 12.0 "מקצועות ליבה" to the
+# 3-year general track, whose own table already reconciles at 118.5, and pushed it
+# 12.0 over its stated total. Semester matrices are excluded from alternates for
+# exactly this reason, and credit buckets belong on the same list. Pools still merge:
+# a concentration's course lists are real options for the parent degree.
+_ALTERNATE_EXCLUDED_RULE_TYPES = frozenset({"semester_matrix", "credit_bucket"})
+
+
 def _collapse_programs_by_code(programs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep one degree program per programCode; specializations must not pollute matrix rules."""
+    """Keep one degree program per programCode; specializations must not pollute
+    matrix rules or the canonical program's credit arithmetic."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for program in programs:
         code = str(program.get("programCode") or "")
@@ -231,7 +275,7 @@ def _collapse_programs_by_code(programs: list[dict[str, Any]]) -> list[dict[str,
             for group in alternate.get("requirementGroups") or []:
                 rule_type = (group.get("ruleExpression") or {}).get("type")
                 group_id = str(group.get("groupId") or "")
-                if rule_type == "semester_matrix" or group_id in matrix_group_ids:
+                if rule_type in _ALTERNATE_EXCLUDED_RULE_TYPES or group_id in matrix_group_ids:
                     continue
                 merged_groups.append(group)
 
@@ -251,6 +295,70 @@ def _bucket_requirement_type(label: str) -> str:
     if "elective" in lowered or "בחירה" in label:
         return "elective"
     return "core"
+
+
+# Some track pages carry no credit table at all -- only a course list and a
+# one-line distribution: "124.5 required | 18.5 track electives | 6 enrichment |
+# 2 PE | 4 general electives". Without a table the export produced no faculty
+# buckets whatever, so `021025-1-000` described 12 credits of a 155-credit degree
+# and a student's whole core had no requirement to count toward. The line states
+# the same breakdown a table would, and sums to the stated total on both pages
+# that use it.
+_DISTRIBUTION_SEGMENT_PATTERN = re.compile(r"^([\d.]+)\s+(.+)$")
+
+# Ordered: the first keyword found wins, so "track elective" and "general
+# elective" must be tested before the bare "elective" they both contain.
+_DISTRIBUTION_LABEL_SLUGS: tuple[tuple[str, str], ...] = (
+    ("track elective", "track-electives"),
+    ("general elective", "free-elective"),
+    ("free elective", "free-elective"),
+    ("physical education", "physical-education"),
+    ("enrichment", "enrichment"),
+    ("required", "required-courses"),
+    ("elective", "faculty-electives"),
+)
+
+# Taken from the resolved slug rather than the label: `_bucket_requirement_type`
+# reads the abbreviation "PE" as core, and these have to agree with the standard
+# buckets they stand in for or the trio gets added on top of them.
+_SLUG_REQUIREMENT_TYPES: dict[str, str] = {
+    "enrichment": "enrichment",
+    "physical-education": "enrichment",
+    "free-elective": "elective",
+    "track-electives": "elective",
+    "faculty-electives": "elective",
+    "required-courses": "core",
+}
+
+
+def _distribution_bucket_slug(label: str) -> str | None:
+    normalized = label.strip().lower()
+    if normalized in {"pe", "p.e."}:
+        return "physical-education"
+    for keyword, slug in _DISTRIBUTION_LABEL_SLUGS:
+        if keyword in normalized:
+            return slug
+    return None
+
+
+def parse_credit_buckets_from_distribution(page: WikiPage) -> list[tuple[str, str, str, float]]:
+    raw = extract_field(page.english_body, "Distribution") or extract_field(page.body, "Distribution")
+    if not raw:
+        return []
+    buckets: list[tuple[str, str, str, float]] = []
+    seen: set[str] = set()
+    for segment in raw.split("|"):
+        match = _DISTRIBUTION_SEGMENT_PATTERN.match(segment.strip())
+        if not match:
+            continue
+        credits = parse_credits_value(match.group(1))
+        label = match.group(2).strip()
+        slug = _distribution_bucket_slug(label)
+        if credits is None or slug is None or slug in seen:
+            continue
+        seen.add(slug)
+        buckets.append((label, slug, _SLUG_REQUIREMENT_TYPES[slug], credits))
+    return buckets
 
 
 def parse_credit_buckets_from_page(page: WikiPage) -> list[tuple[str, str, str, float]]:
@@ -288,7 +396,7 @@ def parse_credit_buckets_from_page(page: WikiPage) -> list[tuple[str, str, str, 
             buckets.append((label, slug, _bucket_requirement_type(label), credits))
         if buckets:
             break
-    return buckets
+    return buckets or parse_credit_buckets_from_distribution(page)
 
 
 def _credit_bucket_groups(program_code: str, buckets: list[tuple[str, str, str, float]]) -> list[dict[str, Any]]:
@@ -461,21 +569,39 @@ def build_generic_program(
 
     requirement_groups = _credit_bucket_groups(program_code, parse_credit_buckets_from_page(page))
     technion_wide_total = DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL
+    stated_technion_wide_total: float | None = None
     filtered_groups: list[dict[str, Any]] = []
     existing_bucket_slugs: set[str] = set()
     for group in requirement_groups:
         group_id = str(group.get("groupId") or "")
         slug = group_id.split(":", 1)[-1] if ":" in group_id else group_id
-        if slug == "technion-wide-electives":
+        if _is_technion_wide_aggregate_slug(slug):
             if group.get("minCredits") is not None:
-                technion_wide_total = float(group["minCredits"])
+                stated_technion_wide_total = float(group["minCredits"])
+                technion_wide_total = stated_technion_wide_total
+            continue
+        if _is_bucket_breakdown_slug(slug):
             continue
         filtered_groups.append(group)
         if group.get("ruleExpression", {}).get("type") == "credit_bucket":
             existing_bucket_slugs.add(slug)
     requirement_groups = filtered_groups
 
-    standard_technion_buckets = _STANDARD_TECHNION_BUCKET_SLUGS
+    # A table that already lists enrichment and physical education as their own
+    # rows is not describing the whole university-wide block in its "Technion-wide
+    # electives" row -- that row is what is LEFT after them, the free elective.
+    # Splitting it as though it were the whole block gave the four education
+    # teaching tracks a 0.0-credit free elective and left each 4.0 short of its
+    # own stated total. Restoring the itemised parts recovers the block the split
+    # expects, and the parts already present are not added twice.
+    if stated_technion_wide_total is not None and _ENRICHMENT_AND_PE_SLUGS <= {
+        _canonical_bucket_slug(slug) for slug in existing_bucket_slugs
+    }:
+        technion_wide_total = (
+            stated_technion_wide_total
+            + TECHNION_WIDE_ENRICHMENT_CREDITS
+            + TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS
+        )
     missing_standard_buckets = _missing_standard_technion_bucket_slugs(existing_bucket_slugs)
     if missing_standard_buckets:
         for group in _general_technion_credit_bucket_groups(
