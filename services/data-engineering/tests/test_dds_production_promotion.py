@@ -280,9 +280,73 @@ def test_production_promotion_records_failure_on_write_error(mongo_database, mon
         confirm_dangerous=True,
         allow_warnings=True,
     )
-    assert result.productionWritesPerformed is False
     assert result.promotionRun.status == "failed"
     assert "write failed" in result.promotionRun.errors[0]
+    # Once the write has been entered, the run cannot claim it wrote nothing.
+    # `bulk_write(ordered=False)` keeps going past a rejected document, so a
+    # raising upsert may still have landed some of them. This assertion used to
+    # read `is False`, and that is exactly what hid six emptied computer-science
+    # programs behind a report saying no production write had occurred.
+    assert result.productionWritesPerformed is True
+    assert any("partially promoted" in error for error in result.promotionRun.errors)
+
+
+def test_a_failure_before_any_write_still_reports_no_production_change(
+    mongo_database, monkeypatch
+) -> None:
+    """The honest flag must distinguish the two cases, not just always say True."""
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("planning failed")
+
+    monkeypatch.setattr(
+        "app.promotion.dds_production_promoter.build_production_documents",
+        boom,
+    )
+    _seed_signed_off_promotion_staging(mongo_database)
+    result = run_dds_production_promotion(
+        mongo_database,
+        confirm_dangerous=True,
+        allow_warnings=True,
+    )
+
+    assert result.promotionRun.status == "failed"
+    assert result.productionWritesPerformed is False
+    assert not any("partially promoted" in error for error in result.promotionRun.errors)
+
+
+def test_a_failing_promotion_leaves_the_existing_requirements_alone(
+    mongo_database, monkeypatch
+) -> None:
+    """The regression this ordering exists to prevent: computer-science failed on
+    a duplicate _id and its six programs were left with no requirement groups,
+    because the retires had already run before the upsert was attempted."""
+    _seed_signed_off_promotion_staging(mongo_database)
+    settings = get_settings()
+    requirements = mongo_database[settings.production_degree_requirements_collection]
+    requirements.insert_one(
+        {
+            "productionKey": "incumbent-requirement",
+            "programCode": "023044-1-000",
+            "requirementGroupId": "023044-1-000:required",
+            "minCredits": 84.0,
+            "sourceName": "technion-dds-catalog",
+            "catalogVersion": "2025-2026",
+        }
+    )
+
+    monkeypatch.setattr(
+        "app.promotion.dds_production_promoter._upsert_production_documents",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("duplicate key")),
+    )
+    result = run_dds_production_promotion(
+        mongo_database,
+        confirm_dangerous=True,
+        allow_warnings=True,
+    )
+
+    assert result.promotionRun.status == "failed"
+    assert requirements.count_documents({"productionKey": "incumbent-requirement"}) == 1
 
 
 def test_conflicting_production_data_is_retired_on_repromotion(mongo_database) -> None:
