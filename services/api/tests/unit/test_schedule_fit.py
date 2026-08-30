@@ -11,6 +11,7 @@ from app.planning.schedule_fit import (
     build_occupied_schedule,
     can_schedule_alongside,
     option_slot,
+    retake_clashes,
 )
 
 
@@ -185,3 +186,65 @@ class TestBuildOccupiedSchedule:
         occupied = build_occupied_schedule(offerings, planned_course_numbers={"00940222"})
 
         assert occupied.slots == []
+
+
+class TestMoedBIsNotAClash:
+    def _offering_with_both(self, number, day, moed_a, moed_b):
+        return {
+            "courseNumber": number,
+            "academicYear": 2025,
+            "semesterCode": 200,
+            "scheduleGroups": [_group(day, "10:30-12:30")],
+            "examDates": {"examA": moed_a, "examB": moed_b},
+        }
+
+    def test_a_shared_retake_date_does_not_exclude_a_course(self) -> None:
+        """Moed B is sat only by a student who failed moed A. Treating it as a
+        clash excluded 22 of 67 candidates in one measured draft, for an event
+        that requires failing both."""
+        planned = {
+            "00940222": self._offering_with_both(
+                "00940222", "Sunday", "2026-02-10", "2026-03-10"
+            )
+        }
+        occupied = build_occupied_schedule(planned, planned_course_numbers={"00940222"})
+
+        candidate = self._offering_with_both(
+            "00940111", "Tuesday", "2026-02-17", "2026-03-10"
+        )
+
+        assert can_schedule_alongside(
+            candidate, course_number="00940111", occupied=occupied
+        ) is True
+
+    def test_a_shared_first_sitting_still_excludes_it(self) -> None:
+        planned = {
+            "00940222": self._offering_with_both(
+                "00940222", "Sunday", "2026-02-10", "2026-03-10"
+            )
+        }
+        occupied = build_occupied_schedule(planned, planned_course_numbers={"00940222"})
+
+        candidate = self._offering_with_both(
+            "00940111", "Tuesday", "2026-02-10", "2026-03-20"
+        )
+
+        assert can_schedule_alongside(
+            candidate, course_number="00940111", occupied=occupied
+        ) is False
+
+    def test_a_retake_clash_is_still_reported(self) -> None:
+        planned = {
+            "00940222": self._offering_with_both(
+                "00940222", "Sunday", "2026-02-10", "2026-03-10"
+            )
+        }
+        occupied = build_occupied_schedule(planned, planned_course_numbers={"00940222"})
+
+        candidate = self._offering_with_both(
+            "00940111", "Tuesday", "2026-02-17", "2026-03-10"
+        )
+
+        assert retake_clashes(
+            candidate, course_number="00940111", occupied=occupied
+        ) is True

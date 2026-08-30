@@ -46,7 +46,11 @@ from app.planning.prerequisite_expression import (
     parse_prerequisite_expression,
 )
 from app.planning.prerequisite_resolver import canonical_course_number
-from app.planning.schedule_fit import build_occupied_schedule, can_schedule_alongside
+from app.planning.schedule_fit import (
+    build_occupied_schedule,
+    can_schedule_alongside,
+    retake_clashes,
+)
 from app.planning.semester_codes import plan_semester_to_offering_keys
 from app.planning.student_affinity import build_elective_affinity, describe_readiness
 from app.planning.study_level import allowed_frameworks, is_appropriate_level
@@ -149,6 +153,7 @@ def _card(
     signals: dict[str, dict[str, Any]],
     grades: dict[str, float],
     unlock_index: dict[str, frozenset[str]],
+    retake_clash: bool = False,
 ) -> dict[str, Any]:
     number = str(course.get("courseNumber") or "")
     return {
@@ -169,6 +174,9 @@ def _card(
             "count": len(opened := unlock_index.get(number, frozenset())),
             "courseNumbers": sorted(opened)[:UNLOCK_PREVIEW_LIMIT],
         },
+        # Its retake falls on a planned course's retake. Not a reason to hide
+        # the course -- it only bites a student who fails both sittings.
+        "retakeClashesWithDraft": retake_clash,
         "catalogKnown": True,
     }
 
@@ -459,6 +467,7 @@ async def build_course_shelves_for_user(
                         "signal": signals.get(number),
                         "readiness": None,
                         "unlocks": {"count": 0, "courseNumbers": []},
+                        "retakeClashesWithDraft": False,
                         "catalogKnown": False,
                         "reasons": [],
                     }
@@ -471,6 +480,11 @@ async def build_course_shelves_for_user(
                 signals=signals,
                 grades=grades,
                 unlock_index=unlock_index,
+                retake_clash=retake_clashes(
+                    candidate_offerings.get(number),
+                    course_number=number,
+                    occupied=occupied,
+                ),
             )
             card["reasons"] = list(reasons_by_number.get(number, ()))
             if shelf.kind == MANDATORY:

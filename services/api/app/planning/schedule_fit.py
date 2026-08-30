@@ -26,6 +26,15 @@ What a planned course occupies
 Only hours it has actually committed to. A planned course whose group the
 student has not yet chosen reserves NOTHING: treating each of its alternatives
 as occupied would block most of the week on behalf of a decision nobody made.
+
+Only moed A collides
+--------------------
+Every offering publishes two sittings. Moed B is the retake, sat only by a
+student who failed or deferred moed A, so two courses sharing a moed B date
+collide only for someone who fails both. Treating that as a clash excluded 22
+of 67 candidates in one measured draft -- a third of the exclusions -- for an
+event that mostly does not happen. Moed A collisions are real and filter; moed
+B collisions are reported and left to the student.
 """
 
 from __future__ import annotations
@@ -48,6 +57,9 @@ class OccupiedSchedule:
 
     slots: list[dict[str, Any]] = field(default_factory=list)
     exam_dates: frozenset[str] = frozenset()
+    """Moed A days only -- the sitting every student takes."""
+    retake_dates: frozenset[str] = frozenset()
+    """Moed B days, reported rather than filtered on."""
 
 
 def option_slot(option: dict[str, Any]) -> dict[str, Any] | None:
@@ -104,6 +116,7 @@ def build_occupied_schedule(
 
     slots: list[dict[str, Any]] = []
     exam_dates: set[str] = set()
+    retake_dates: set[str] = set()
     for number in sorted(planned):
         offering = offerings_by_number.get(number)
         if offering is None:
@@ -114,10 +127,16 @@ def build_occupied_schedule(
             if len(options) == 1:
                 slots.append(options[0])
         for exam in exams_from_offering(offering, course_number=number, course_name=""):
-            if exam.get("date"):
-                exam_dates.add(str(exam["date"]))
+            if not exam.get("date"):
+                continue
+            target = retake_dates if str(exam.get("moed") or "") == "B" else exam_dates
+            target.add(str(exam["date"]))
 
-    return OccupiedSchedule(slots=slots, exam_dates=frozenset(exam_dates))
+    return OccupiedSchedule(
+        slots=slots,
+        exam_dates=frozenset(exam_dates),
+        retake_dates=frozenset(retake_dates),
+    )
 
 
 def _assignment_exists(
@@ -141,6 +160,25 @@ def _assignment_exists(
     return False
 
 
+def retake_clashes(
+    offering: dict[str, Any] | None,
+    *,
+    course_number: str,
+    occupied: OccupiedSchedule,
+) -> bool:
+    """Whether this course's moed B falls on a planned course's moed B.
+
+    Reported, not filtered on: it costs the student nothing unless they fail
+    both sittings, and that is their judgement to make.
+    """
+    for exam in exams_from_offering(offering, course_number=course_number, course_name=""):
+        if str(exam.get("moed") or "") != "B":
+            continue
+        if exam.get("date") and str(exam["date"]) in occupied.retake_dates:
+            return True
+    return False
+
+
 def can_schedule_alongside(
     offering: dict[str, Any] | None,
     *,
@@ -154,6 +192,8 @@ def can_schedule_alongside(
     on a reason that is not true.
     """
     for exam in exams_from_offering(offering, course_number=course_number, course_name=""):
+        if str(exam.get("moed") or "") == "B":
+            continue  # a retake clash only bites a student who fails both
         if exam.get("date") and str(exam["date"]) in occupied.exam_dates:
             return False
 

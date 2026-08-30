@@ -527,3 +527,36 @@ async def test_the_draft_summary_describes_what_is_planned(stub) -> None:
     assert summary["plannedCourseCount"] == 1
     assert summary["plannedCredits"] == 3.5
     assert summary["difficulty"]["plannedMean"] == 4.5
+
+
+@pytest.mark.asyncio
+async def test_a_retake_clash_is_reported_not_filtered(stub) -> None:
+    """22 of 67 candidates in one measured draft were excluded over a moed B
+    collision -- an event that requires failing both sittings."""
+    def _off(number, day, moed_a, moed_b):
+        return {
+            "courseNumber": number,
+            "academicYear": 2025,
+            "semesterCode": 200,
+            "scheduleGroups": [{"day": day, "time": "10:30-12:30", "type": "lecture", "group": "10"}],
+            "examDates": {"examA": moed_a, "examB": moed_b},
+        }
+
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940111",))]
+    stub["courses"] = [_course("00940111")]
+    stub["offered"] = {"00940111", "00940999"}
+    stub["offerings"] = {
+        "00940999": _off("00940999", "Sunday", "2026-02-10", "2026-03-10"),
+        "00940111": _off("00940111", "Tuesday", "2026-02-17", "2026-03-10"),
+    }
+
+    result = await course_shelf_service.build_course_shelves_for_user(
+        object(),
+        "user-1",
+        semester_code="2025-1",
+        existing_planned_courses=[{"courseNumber": "00940999", "isActive": True}],
+    )
+
+    card = result["shelves"][0]["courses"][0]
+    assert card["courseNumber"] == "00940111"
+    assert card["retakeClashesWithDraft"] is True
