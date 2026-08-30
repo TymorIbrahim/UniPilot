@@ -864,6 +864,32 @@ async def find_courses_by_ids(
     return [doc async for doc in cursor]
 
 
+def _dedupe_requirements_by_group_id(
+    documents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """One document per requirement group.
+
+    Four programs carry every requirement twice -- 023323 has ten documents for
+    five groups -- so their credits doubled: 304.0 where the catalogue states
+    152.0, and a student saw each requirement listed twice. A requirement named
+    twice is one requirement.
+
+    The most recently promoted document wins, so a re-promotion supersedes what
+    it replaced rather than being averaged with it.
+    """
+    best: dict[str, dict[str, Any]] = {}
+    for document in documents:
+        group_id = str(document.get("requirementGroupId") or "")
+        if not group_id:
+            continue
+        current = best.get(group_id)
+        if current is None or str(document.get("promotedAt") or "") >= str(
+            current.get("promotedAt") or ""
+        ):
+            best[group_id] = document
+    return [best[group_id] for group_id in sorted(best)]
+
+
 async def list_hard_requirements_for_program(
     database: AsyncIOMotorDatabase,
     program_code: str,
@@ -881,7 +907,7 @@ async def list_hard_requirements_for_program(
     cursor = database[settings.degree_requirements_collection].find(query).sort(
         "requirementGroupId", 1
     )
-    documents = [doc async for doc in cursor]
+    documents = _dedupe_requirements_by_group_id([doc async for doc in cursor])
     if include_internal:
         return documents
     return [to_public_hard_requirement(doc) for doc in documents]
