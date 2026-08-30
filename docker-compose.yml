@@ -57,9 +57,10 @@ services:
       # API surface. Nothing else in the codebase branches on it.
       ENVIRONMENT: development
       AUTO_SEED_CATALOG: "true"
-      # Seed the real DDS catalog -- the three DDS tracks with their actual
-      # credit buckets and course pools, and the 236 courses they name -- rather
-      # than the small fixture CI and the E2E suite assert against.
+      # Seed the real Technion catalog -- 41 tracks across 17 faculties with
+      # their actual credit buckets and course pools, and the 2,368 published
+      # courses for the year -- rather than the small fixture CI and the E2E
+      # suite assert against.
       SEED_DEMO_CATALOG: "true"
       MONGO_URI: mongodb://unipilot:unipilot_demo_password@mongo:27017/unipilot_demo?authSource=admin
       REDIS_URL: redis://:unipilot_demo_redis_password@redis:6379

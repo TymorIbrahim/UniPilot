@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-"""Build the DDS demo catalog the API seeds into the live demo on startup.
+"""Build the catalog the API seeds into the live demo on startup.
 
 The gallery demo runs in kiosk mode: no volumes, nothing carried over between
 visitors, and no access to the promoted production database. Whatever a visitor
-sees has to be seeded from code every time the stack starts. Until now that was
-a hand-written fixture of five courses, which made the Course Catalog page
-effectively empty next to a poster advertising the real Technion catalog.
+sees has to be seeded from code every time the stack starts, and the seed has to
+be the real catalog -- not a fixture -- or the demo undersells the system.
 
-This script builds a real one instead, from two files already tracked in the
-repo:
+This builds it from files already tracked in the repo:
 
-  * the reviewed DDS catalog export -- the same document the promotion pipeline
-    turns into production `degree_programs` / `degree_requirements` /
-    `catalog_rules`, so the demo's three DDS tracks carry their real credit
-    buckets, semester matrices and course pools rather than invented ones
-  * the raw Technion semester JSON, for course titles, credits and the weekly
-    schedule the semester planner needs
+  * every reviewed faculty catalog export under
+    `data/generated/technion/*/catalog_reviewed.json` -- the same documents the
+    promotion pipeline turns into production `degree_programs` /
+    `degree_requirements` / `catalog_rules`, so every track carries its real
+    credit buckets, semester matrices and course pools
+  * the raw Technion semester JSON for the current catalog year, for course
+    titles, credits, syllabi and the weekly schedule the planner needs
 
 Output is a single deterministic JSON fixture committed alongside the API, so
 the demo image needs no extra build context and startup stays a bulk insert.
 
     python3 scripts/build_demo_seed.py
 
-Re-run it when the DDS export or the raw semester files change.
+Re-run it when a faculty export or the raw semester files change.
 """
 
 from __future__ import annotations
 
+import gzip
 import importlib.util
 import json
 from collections import OrderedDict
@@ -34,14 +34,14 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DDS_EXPORT = (
-    REPO_ROOT
-    / "services/data-engineering/data/generated/technion/catalog/catalog_reviewed.json"
-)
+GENERATED = REPO_ROOT / "services/data-engineering/data/generated/technion"
 RAW_DIR = REPO_ROOT / "services/data-engineering/data/raw/technion"
-OUTPUT = REPO_ROOT / "services/api/app/db/seed_data/dds_demo_catalog.json"
+# Gzipped: the fixture is 12 MB of real catalogue text and 1 MB compressed, and
+# it is derived data regenerated from files already in the repo. Committing the
+# compressed form keeps the clone small; the API decompresses it once at startup.
+OUTPUT = REPO_ROOT / "services/api/app/db/seed_data/demo_catalog.json.gz"
 
-# The two semesters the demo offers. Winter first so a visitor opening the
+# The catalog year the demo presents. Winter first so a visitor opening the
 # planner lands on a term that actually has offerings.
 DEMO_SEMESTERS = ("courses_2025_200.json", "courses_2025_201.json")
 SEMESTER_NAMES = {200: "winter", 201: "spring", 202: "summer"}
@@ -49,7 +49,6 @@ SEMESTER_NAMES = {200: "winter", 201: "spring", 202: "summer"}
 CATALOG_YEAR = 2025
 CATALOG_VERSION = "2025-2026"
 INSTITUTION = "technion"
-DDS_FACULTY_MARKER = "מדעי הנתונים"
 
 # Raw Technion JSON is keyed in Hebrew.
 F_NUMBER = "מספר מקצוע"
@@ -101,14 +100,43 @@ def _clean(value: Any) -> str | None:
     return text or None
 
 
+def load_exports() -> tuple[list[dict], dict[str, dict], dict[str, dict]]:
+    """Merge every faculty export into (programs, faculties, path options).
+
+    A joint program is exported by both of its owning faculties -- 023323-1-000
+    by computer-science and mathematics, for instance -- and production holds a
+    single document per code. Deduplicating by code in sorted directory order
+    keeps that true and keeps the output deterministic.
+    """
+    programs: dict[str, dict] = {}
+    faculties: dict[str, dict] = {}
+    options: dict[str, dict] = {}
+
+    export_files = sorted(GENERATED.glob("*/catalog_reviewed.json"))
+    if not export_files:
+        raise SystemExit(f"no faculty exports found under {GENERATED}")
+
+    for path in export_files:
+        export = json.loads(path.read_text(encoding="utf-8"))
+        for program in export.get("programs") or []:
+            programs.setdefault(program["programCode"], program)
+        for faculty in export.get("faculties") or []:
+            faculties.setdefault(faculty["facultyId"], faculty)
+        for option in export.get("pathOptions") or []:
+            options.setdefault(option["optionKey"], option)
+
+    ordered = [programs[code] for code in sorted(programs)]
+    return ordered, faculties, options
+
+
 def load_fallback_records() -> dict[str, dict]:
     """Course descriptions from every semester the repo has, oldest first.
 
-    A track can name a course that simply isn't offered in either demo
-    semester -- a course on hiatus, or one that only runs in summer. Without
-    this, 15 of them landed in the fixture with `credits: null`, which the
-    progress calculator would silently count as zero. Any semester's record
-    carries the credit value, so the newest one that has the course wins.
+    A track can name a course that simply isn't offered in the demo year -- a
+    course on hiatus, or one that only runs in summer. Without this those land
+    in the fixture with `credits: null`, which the progress calculator would
+    silently read as zero. Any semester's record carries the credit value, so
+    the newest one that has the course wins.
     """
     records: dict[str, dict] = {}
     for path in sorted(RAW_DIR.glob("courses_*.json")):
@@ -141,7 +169,6 @@ def load_raw_courses() -> tuple[dict[str, dict], list[dict]]:
                 continue
             # Later semesters win: the newest description is the truest one.
             courses[number] = general
-            schedule = record.get("schedule") or []
             exams = {
                 key: value
                 for key, value in (
@@ -160,7 +187,7 @@ def load_raw_courses() -> tuple[dict[str, dict], list[dict]]:
                     "semesterName": SEMESTER_NAMES.get(code, str(code)),
                     # Passed through exactly as Technion publishes them -- the
                     # API's schedule normalizer reads these Hebrew keys directly.
-                    "scheduleGroups": schedule,
+                    "scheduleGroups": record.get("schedule") or [],
                     "examDates": exams,
                     "instructors": _clean(general.get(F_INSTRUCTORS)),
                     "sourceFile": filename,
@@ -173,7 +200,7 @@ def load_raw_courses() -> tuple[dict[str, dict], list[dict]]:
 
 
 def collect_course_references(programs: list[dict]) -> dict[str, dict]:
-    """Every distinct course the DDS tracks point at, with its catalogue hints."""
+    """Every distinct course the tracks point at, with its catalogue hints."""
     references: dict[str, dict] = {}
     for program in programs:
         for group in program.get("requirementGroups") or []:
@@ -234,6 +261,10 @@ def build_course_document(
     return document
 
 
+def faculty_slug(program: dict) -> str:
+    return (program.get("metadata") or {}).get("faculty") or "technion"
+
+
 def credit_bucket_slugs(program: dict) -> set[str]:
     return {
         group["groupId"].split(":", 1)[1]
@@ -244,8 +275,10 @@ def credit_bucket_slugs(program: dict) -> set[str]:
 
 def build_program_document(program: dict) -> dict[str, Any]:
     code = program["programCode"]
+    slug = faculty_slug(program)
+    metadata = program.get("metadata") or {}
     return {
-        "productionKey": f"{INSTITUTION}-dds:program:{code}:{CATALOG_VERSION}",
+        "productionKey": f"{INSTITUTION}-{slug}:program:{code}:{CATALOG_VERSION}",
         "institutionId": INSTITUTION,
         "programCode": code,
         "name": program.get("name"),
@@ -256,10 +289,10 @@ def build_program_document(program: dict) -> dict[str, Any]:
         "status": "published",
         "paths": program.get("paths") or [],
         "metadata": {
-            "facultyId": "faculty-dds",
-            "faculty": "dds",
-            "wikiPage": (program.get("metadata") or {}).get("wikiPage"),
-            "programKind": "bsc_track",
+            "facultyId": metadata.get("facultyId") or f"faculty-{slug}",
+            "faculty": slug,
+            "wikiPage": metadata.get("wikiPage"),
+            "programKind": metadata.get("programKind") or "bsc_track",
         },
         "sourceMetadata": {
             "curationReport": {
@@ -272,13 +305,15 @@ def build_program_document(program: dict) -> dict[str, Any]:
     }
 
 
-def build_requirement_document(program_code: str, group: dict) -> dict[str, Any]:
+def build_requirement_document(program: dict, group: dict) -> dict[str, Any]:
+    code = program["programCode"]
+    slug = faculty_slug(program)
     group_id = group["groupId"]
-    slug = group_id.split(":", 1)[1]
+    bucket = group_id.split(":", 1)[1]
     return {
-        "productionKey": f"{INSTITUTION}-dds:requirement:{group_id}:{CATALOG_VERSION}",
+        "productionKey": f"{INSTITUTION}-{slug}:requirement:{group_id}:{CATALOG_VERSION}",
         "institutionId": INSTITUTION,
-        "programCode": program_code,
+        "programCode": code,
         "requirementGroupId": group_id,
         "title": group.get("title"),
         "requirementType": group.get("requirementType") or "elective",
@@ -286,7 +321,7 @@ def build_requirement_document(program_code: str, group: dict) -> dict[str, Any]
         "courseReferences": group.get("courseReferences") or [],
         "ruleExpression": group.get("ruleExpression") or {},
         "ruleIsExecutable": True,
-        "isMandatory": slug == "core-mandatory",
+        "isMandatory": bucket == "core-mandatory",
         "advisoryOnly": False,
         "catalogYear": CATALOG_YEAR,
         "catalogVersion": CATALOG_VERSION,
@@ -294,14 +329,16 @@ def build_requirement_document(program_code: str, group: dict) -> dict[str, Any]
     }
 
 
-def build_rule_document(program_code: str, group: dict, buckets: set[str]) -> dict[str, Any]:
+def build_rule_document(program: dict, group: dict, buckets: set[str]) -> dict[str, Any]:
+    code = program["programCode"]
+    slug = faculty_slug(program)
     group_id = group["groupId"]
-    slug = group_id.split(":", 1)[1]
+    suffix = group_id.split(":", 1)[1]
 
     document: dict[str, Any] = {
-        "productionKey": f"{INSTITUTION}-dds:advisory:{group_id}:{CATALOG_VERSION}",
+        "productionKey": f"{INSTITUTION}-{slug}:advisory:{group_id}:{CATALOG_VERSION}",
         "institutionId": INSTITUTION,
-        "programCode": program_code,
+        "programCode": code,
         "requirementGroupId": group_id,
         "recordType": "advisory_requirement_group",
         "title": group.get("title"),
@@ -321,9 +358,9 @@ def build_rule_document(program_code: str, group: dict, buckets: set[str]) -> di
 
     # A pool named `<slug>-pool` fills the credit bucket named `<slug>`, when
     # the program actually has that bucket. Derived rather than hard-coded so a
-    # new pool in the export links itself without editing this script.
-    if slug.endswith("-pool") and slug[: -len("-pool")] in buckets:
-        document["linkedCreditBucketId"] = f"{program_code}:{slug[: -len('-pool')]}"
+    # new pool in an export links itself without editing this script.
+    if suffix.endswith("-pool") and suffix[: -len("-pool")] in buckets:
+        document["linkedCreditBucketId"] = f"{code}:{suffix[: -len('-pool')]}"
     return document
 
 
@@ -341,25 +378,15 @@ def stamp(document: dict, key_prefix: str, key_field: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    if not DDS_EXPORT.is_file():
-        raise SystemExit(f"missing DDS export: {DDS_EXPORT}")
-    export = json.loads(DDS_EXPORT.read_text(encoding="utf-8"))
-    programs = export["programs"]
-
+    programs, faculties, options = load_exports()
     raw_courses, offerings = load_raw_courses()
     fallback_records = load_fallback_records()
     references = collect_course_references(programs)
-
-    # DDS-relevant means: every course the three tracks reference, plus every
-    # course the DDS faculty itself offers this year, so the catalog page has a
-    # real faculty to browse rather than only the courses a rule happens to name.
-    dds_faculty_numbers = {
-        number
-        for number, general in raw_courses.items()
-        if DDS_FACULTY_MARKER in (general.get(F_FACULTY) or "")
-    }
     excluded = load_excluded_course_numbers()
-    wanted = sorted((set(references) | dds_faculty_numbers) - excluded)
+
+    # The full published catalog for the demo year, plus any course a track
+    # names that the year does not happen to offer.
+    wanted = sorted((set(raw_courses) | set(references)) - excluded)
 
     courses = [
         build_course_document(
@@ -369,42 +396,41 @@ def main() -> int:
         )
         for number in wanted
     ]
+    kept = set(wanted)
     kept_offerings = sorted(
-        (o for o in offerings if o["courseNumber"] in set(wanted)),
+        (o for o in offerings if o["courseNumber"] in kept),
         key=lambda o: (o["courseNumber"], o["academicYear"], o["semesterCode"]),
     )
 
     requirements: list[dict] = []
     rules: list[dict] = []
     for program in programs:
-        code = program["programCode"]
         buckets = credit_bucket_slugs(program)
         for group in program.get("requirementGroups") or []:
-            rule_type = (group.get("ruleExpression") or {}).get("type")
-            if rule_type == HARD_RULE_TYPE:
-                requirements.append(build_requirement_document(code, group))
+            if (group.get("ruleExpression") or {}).get("type") == HARD_RULE_TYPE:
+                requirements.append(build_requirement_document(program, group))
             else:
-                rules.append(build_rule_document(code, group, buckets))
+                rules.append(build_rule_document(program, group, buckets))
 
     fixture = OrderedDict(
         (
             (
                 "_meta",
                 {
-                    "description": "DDS demo catalog seeded into the live gallery demo",
+                    "description": "Technion catalog seeded into the live gallery demo",
                     "generatedBy": "scripts/build_demo_seed.py",
-                    "sources": [
-                        str(DDS_EXPORT.relative_to(REPO_ROOT)),
-                        *[f"services/data-engineering/data/raw/technion/{n}" for n in DEMO_SEMESTERS],
-                    ],
                     "catalogYear": CATALOG_YEAR,
                     "catalogVersion": CATALOG_VERSION,
+                    "semesters": list(DEMO_SEMESTERS),
                 },
             ),
-            ("catalog_faculties", [stamp(f, "faculty", "facultyId") for f in export["faculties"]]),
+            (
+                "catalog_faculties",
+                [stamp(faculties[k], "faculty", "facultyId") for k in sorted(faculties)],
+            ),
             (
                 "catalog_path_options",
-                [stamp(p, "path-option", "optionKey") for p in export["pathOptions"]],
+                [stamp(options[k], "path-option", "optionKey") for k in sorted(options)],
             ),
             ("degree_programs", [build_program_document(p) for p in programs]),
             ("degree_requirements", requirements),
@@ -415,21 +441,26 @@ def main() -> int:
     )
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(
-        json.dumps(fixture, ensure_ascii=False, indent=1, sort_keys=False) + "\n",
-        encoding="utf-8",
-    )
+    payload = json.dumps(fixture, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    # mtime=0 so regenerating unchanged input produces a byte-identical file
+    # rather than a spurious diff.
+    with gzip.GzipFile(OUTPUT, "wb", compresslevel=9, mtime=0) as handle:
+        handle.write(payload)
 
-    missing_credits = [c["courseNumber"] for c in courses if c["credits"] is None]
-    print(f"wrote {OUTPUT.relative_to(REPO_ROOT)} ({OUTPUT.stat().st_size / 1024:.0f} KB)")
+    missing = [c["courseNumber"] for c in courses if c["credits"] is None]
+    print(
+        f"wrote {OUTPUT.relative_to(REPO_ROOT)} "
+        f"({OUTPUT.stat().st_size / 1_048_576:.2f} MB gzipped, "
+        f"{len(payload) / 1_048_576:.1f} MB raw)"
+    )
     for name, rows in fixture.items():
         if name != "_meta":
             print(f"  {name:<22} {len(rows)}")
-    print(f"  courses referenced by tracks: {len(references)}")
-    print(f"  courses offered by DDS faculty: {len(dds_faculty_numbers)}")
-    print(f"  excluded from production (not seeded): {len((set(references) | dds_faculty_numbers) & excluded)}")
-    if missing_credits:
-        print(f"  WARNING: {len(missing_credits)} course(s) with no credits: {missing_credits[:10]}")
+    print(f"  faculties with an export: {len(sorted(GENERATED.glob('*/catalog_reviewed.json')))}")
+    print(f"  courses named by a track: {len(references)}")
+    print(f"  excluded from production: {len((set(raw_courses) | set(references)) & excluded)}")
+    if missing:
+        print(f"  WARNING: {len(missing)} course(s) with no credits: {missing[:8]}")
     return 0
 
 

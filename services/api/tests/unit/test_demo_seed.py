@@ -1,16 +1,21 @@
-"""The demo catalog a visitor to the live gallery demo actually sees."""
+"""The catalog a visitor to the live gallery demo actually sees."""
 
 from __future__ import annotations
 
 import pytest
 from mongomock_motor import AsyncMongoMockClient
 
+from app.catalog.excluded_courses import PRODUCTION_EXCLUDED_COURSE_NUMBERS
 from app.config import Settings
-from app.db.dds_demo_seed import (
+from app.db.demo_seed import (
     DEMO_SEED_COLLECTIONS,
     load_demo_catalog,
-    seed_dds_demo_catalog,
+    seed_demo_catalog,
 )
+
+# The three DDS tracks are the ones the E2E onboarding flow and the demo
+# recording both walk through, so they are worth naming explicitly.
+DDS_TRACKS = {"009216-1-000", "009009-1-000", "009118-1-000"}
 
 
 @pytest.fixture
@@ -20,7 +25,7 @@ def payload():
 
 @pytest.fixture
 def settings():
-    return Settings(environment="development", auto_seed_catalog=True)
+    return Settings(environment="development", auto_seed_catalog=True, seed_demo_catalog=True)
 
 
 @pytest.fixture
@@ -33,9 +38,26 @@ def test_every_seeded_collection_has_documents(payload):
     assert empty == []
 
 
-def test_the_three_dds_tracks_are_present(payload):
+def test_the_whole_catalog_is_seeded_not_one_faculty(payload):
+    """The poster advertises the real catalog; the demo has to be it."""
+    programs = payload["degree_programs"]
+    faculties = {p["metadata"]["facultyId"] for p in programs}
+
+    assert len(programs) >= 40
+    assert len(faculties) >= 8, f"only {len(faculties)} faculties own a program"
+    assert len(payload["courses"]) >= 2000
+    assert len(payload["catalog_faculties"]) == 17
+
+
+def test_the_dds_tracks_are_among_the_seeded_programs(payload):
     codes = {program["programCode"] for program in payload["degree_programs"]}
-    assert codes == {"009216-1-000", "009009-1-000", "009118-1-000"}
+    assert DDS_TRACKS <= codes
+
+
+def test_program_codes_are_unique(payload):
+    """A joint program is exported by both its faculties; production holds one."""
+    codes = [program["programCode"] for program in payload["degree_programs"]]
+    assert len(codes) == len(set(codes))
 
 
 def test_the_only_courses_a_rule_names_but_the_catalog_lacks_are_excluded_ones(payload):
@@ -43,10 +65,10 @@ def test_the_only_courses_a_rule_names_but_the_catalog_lacks_are_excluded_ones(p
 
     Production has exactly this shape: the promoter purges the vault-excluded
     course numbers but leaves the rules that reference them, so the demo matching
-    that is correct. Anything *else* dangling is a generator bug.
+    that is correct. Anything *else* dangling would be a generator bug -- except
+    that a track may legitimately name a course the demo year does not offer, so
+    those are carried into `courses` from an earlier semester instead.
     """
-    from app.catalog.excluded_courses import PRODUCTION_EXCLUDED_COURSE_NUMBERS
-
     known = {course["courseNumber"] for course in payload["courses"]}
     referenced = {
         reference["courseNumber"]
@@ -59,8 +81,6 @@ def test_the_only_courses_a_rule_names_but_the_catalog_lacks_are_excluded_ones(p
 
 def test_no_production_excluded_course_is_seeded(payload):
     """Seeding one would show the `ai` service a course no visitor can see."""
-    from app.catalog.excluded_courses import PRODUCTION_EXCLUDED_COURSE_NUMBERS
-
     seeded = {course["courseNumber"] for course in payload["courses"]}
     assert seeded & PRODUCTION_EXCLUDED_COURSE_NUMBERS == set()
 
@@ -91,14 +111,24 @@ def test_a_pool_that_claims_a_credit_bucket_points_at_a_real_one(payload):
     assert set(linked) - bucket_ids == set()
 
 
-def test_each_track_path_option_links_to_a_seeded_program(payload):
+def test_every_requirement_belongs_to_a_seeded_program(payload):
+    codes = {program["programCode"] for program in payload["degree_programs"]}
+    owners = {
+        group["programCode"]
+        for group in payload["degree_requirements"] + payload["catalog_rules"]
+    }
+    assert owners - codes == set()
+
+
+def test_a_linked_path_option_points_at_a_seeded_program(payload):
     codes = {program["programCode"] for program in payload["degree_programs"]}
     linked = {
         option["linkedProgramCode"]
         for option in payload["catalog_path_options"]
         if option.get("linkedProgramCode")
     }
-    assert linked == codes
+    assert linked, "expected some path options to link to a program"
+    assert linked - codes == set()
 
 
 def test_every_document_is_published_with_a_production_key(payload):
@@ -106,6 +136,13 @@ def test_every_document_is_published_with_a_production_key(payload):
         for document in payload[name]:
             assert document["status"] == "published", name
             assert document["productionKey"], name
+
+
+def test_production_keys_are_unique_within_each_collection(payload):
+    """Two documents sharing a key would collide on promotion and in the demo."""
+    for name in DEMO_SEED_COLLECTIONS:
+        keys = [document["productionKey"] for document in payload[name]]
+        assert len(keys) == len(set(keys)), name
 
 
 def test_every_offering_belongs_to_a_seeded_course(payload):
@@ -119,38 +156,37 @@ def test_every_offering_belongs_to_a_seeded_course(payload):
 
 
 async def test_seeding_writes_every_collection(database, settings):
-    counts = await seed_dds_demo_catalog(database, settings)
+    counts = await seed_demo_catalog(database, settings)
 
-    assert counts["degree_programs"] == 3
     for name, expected in counts.items():
         collection = getattr(settings, f"{name}_collection")
         assert await database[collection].count_documents({}) == expected
+    assert counts["degree_programs"] >= 40
+    assert counts["courses"] >= 2000
 
 
 async def test_seeding_is_not_repeated_into_a_populated_database(database, settings):
-    await seed_dds_demo_catalog(database, settings)
+    await seed_demo_catalog(database, settings)
     first = await database[settings.courses_collection].count_documents({})
 
-    await seed_dds_demo_catalog(database, settings)
+    await seed_demo_catalog(database, settings)
 
     assert await database[settings.courses_collection].count_documents({}) == first
 
 
-async def test_the_demo_flag_seeds_dds_instead_of_the_ci_fixture(database):
-    """CI and E2E assert against `catalog_bootstrap`'s fixture course numbers."""
-    from app.db.catalog_bootstrap import ensure_development_catalog
+async def test_the_demo_flag_seeds_the_real_catalog_not_the_ci_fixture(database, settings):
+    from app.db.catalog_bootstrap import SEEDED_COURSE_COUNT, ensure_development_catalog
 
-    demo = Settings(environment="development", auto_seed_catalog=True, seed_demo_catalog=True)
-    assert await ensure_development_catalog(database, demo) is True
+    assert await ensure_development_catalog(database, settings) is True
 
-    programs = await database[demo.degree_programs_collection].distinct("programCode")
-    assert set(programs) == {"009216-1-000", "009009-1-000", "009118-1-000"}
-    # The CI fixture seeds a CS program; the demo deliberately does not.
-    assert "023023-1-000" not in programs
-    assert await database[demo.courses_collection].count_documents({}) > 200
+    courses = await database[settings.courses_collection].count_documents({})
+    programs = await database[settings.degree_programs_collection].count_documents({})
+    assert courses > SEEDED_COURSE_COUNT * 100
+    assert programs >= 40
 
 
 async def test_without_the_flag_the_ci_fixture_is_still_what_is_seeded(database):
+    """The E2E suite asserts against the fixture's specific course numbers."""
     from app.db.catalog_bootstrap import CS_PROGRAM_CODE, ensure_development_catalog
 
     ci = Settings(environment="development", auto_seed_catalog=True)

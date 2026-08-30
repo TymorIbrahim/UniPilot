@@ -9,7 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import Settings, get_settings
 from app.catalog.excluded_courses import EXCLUDED_COURSE
-from app.db.dds_demo_seed import seed_dds_demo_catalog
+from app.db.demo_seed import seed_demo_catalog
 from app.db.e2e_civil_catalog_seed import seed_e2e_civil_catalog
 
 logger = logging.getLogger(__name__)
@@ -186,9 +186,9 @@ async def ensure_development_catalog(database: AsyncIOMotorDatabase, settings: S
 
     if programs_existing == 0:
         if resolved.seed_demo_catalog:
-            # The gallery demo shows real DDS tracks and courses instead of the
-            # CI fixture -- see app/db/dds_demo_seed.py.
-            await seed_dds_demo_catalog(database, resolved)
+            # The gallery demo shows the real Technion catalog instead of the
+            # CI fixture -- see app/db/demo_seed.py.
+            await seed_demo_catalog(database, resolved)
             return True
         await seed_minimal_catalog(database, resolved)
         logger.info(

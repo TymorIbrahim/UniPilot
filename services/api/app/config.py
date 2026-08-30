@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     service_name: str = "api"
     environment: str = "development"
     auto_seed_catalog: bool = False
-    # Seed the real DDS catalog instead of the small CI/E2E fixture. Only the
-    # gallery demo sets this: the E2E suite asserts against specific course
+    # Seed the real Technion catalog instead of the small CI/E2E fixture. Only
+    # the gallery demo sets this: the E2E suite asserts against specific course
     # numbers in `catalog_bootstrap`, so flipping it there would break them.
     seed_demo_catalog: bool = False
     api_port: int = 8000
@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     refresh_token_session_ttl_seconds: int = 24 * 60 * 60
     refresh_token_remember_ttl_seconds: int = 30 * 24 * 60 * 60
     technion_raw_dir: str | None = None
+    academic_default_semester_file: str = "courses_2025_201.json"
 
     model_config = SettingsConfigDict(
         env_file=_settings_env_files(),

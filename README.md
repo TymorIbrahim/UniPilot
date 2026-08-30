@@ -40,7 +40,7 @@ The web container proxies API calls to the internal `api` service, so the whole 
 
 | File | Purpose | Needs `.env`? | Data |
 | --- | --- | --- | --- |
-| `docker-compose.yml` | Self-contained demo. Kiosk mode: no volumes, seeds itself on startup, wiped on restart. This is what the course gallery builds and runs. | No | Seeded fixture catalog |
+| `docker-compose.yml` | Self-contained demo. Kiosk mode: no volumes, seeds itself on startup, wiped on restart. This is what the course gallery builds and runs. | No | Real Technion catalog, seeded from code (41 tracks, 17 faculties, ~2,350 courses) |
 | `docker-compose.dev.yml` | The stack the team develops against: real catalog data mounted from disk, the `data-engineering` CLI, Outlook MCP. | Yes | Promoted Technion catalog |
 
 The demo file needs nothing but a clone and Docker:
