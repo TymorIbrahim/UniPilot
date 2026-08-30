@@ -646,10 +646,18 @@ DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL = 12.0
 def technion_wide_elective_credit_split(
     technion_wide_total: float = DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL,
 ) -> tuple[float, float, float]:
-    """Split Technion-wide elective total into enrichment / free / physical-education buckets."""
-    enrichment = TECHNION_WIDE_ENRICHMENT_CREDITS
-    physical = TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS
-    free = max(0.0, round(float(technion_wide_total) - enrichment - physical, 2))
+    """Split a Technion-wide elective total into enrichment / free / physical-education.
+
+    The three parts must sum back to the total they came from. A track whose
+    table states a smaller block than the usual 12 -- `027197-1-000` states 6,
+    physical education included -- used to receive the full 6 enrichment AND 2
+    physical education regardless, so the split handed out credits the catalogue
+    never granted. Each part is now capped by what is left of the total.
+    """
+    total = max(0.0, float(technion_wide_total))
+    enrichment = min(TECHNION_WIDE_ENRICHMENT_CREDITS, total)
+    physical = min(TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS, total - enrichment)
+    free = round(total - enrichment - physical, 2)
     return enrichment, free, physical
 
 

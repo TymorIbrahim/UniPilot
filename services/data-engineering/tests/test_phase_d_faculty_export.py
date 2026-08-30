@@ -392,6 +392,87 @@ def test_build_generic_program_splits_technion_wide_electives_into_standard_buck
     assert technion_wide_elective_credit_split(10.0) == (6.0, 2.0, 2.0)
 
 
+@pytest.mark.parametrize("total", [12.0, 10.0, 8.0, 7.0, 6.0, 2.0, 0.0])
+def test_the_technion_wide_split_never_hands_out_more_than_it_was_given(total: float) -> None:
+    """`027197-1-000` states a 6-credit university-wide block, physical education
+    included. The old split gave it 6 enrichment AND 2 PE regardless, inventing
+    2 credits the catalogue never granted."""
+    from app.vault.export_dds_catalog import technion_wide_elective_credit_split
+
+    enrichment, free, physical = technion_wide_elective_credit_split(total)
+
+    assert round(enrichment + free + physical, 2) == total
+    assert min(enrichment, free, physical) >= 0.0
+
+
+def test_a_negative_technion_wide_total_splits_to_nothing() -> None:
+    from app.vault.export_dds_catalog import technion_wide_elective_credit_split
+
+    assert technion_wide_elective_credit_split(-5.0) == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "technion-wide-electives",
+        "general-technion-electives",
+        "technion-wide-electives-incl-2-pe",
+    ],
+)
+def test_every_wording_of_the_university_wide_block_is_recognised(slug: str) -> None:
+    """Each faculty names this block in its own words. Matching only the first
+    spelling left the others standing beside the buckets that replace them, and
+    counted the same credits twice."""
+    from app.vault.export_faculty_vault_catalog import _is_technion_wide_aggregate_slug
+
+    assert _is_technion_wide_aggregate_slug(slug)
+
+
+@pytest.mark.parametrize("slug", ["faculty-electives", "required-courses", "enrichment"])
+def test_ordinary_buckets_are_not_mistaken_for_the_university_wide_block(slug: str) -> None:
+    from app.vault.export_faculty_vault_catalog import _is_technion_wide_aggregate_slug
+
+    assert not _is_technion_wide_aggregate_slug(slug)
+
+
+def test_of_which_rows_are_a_breakdown_not_extra_requirements() -> None:
+    """`— of which: Enrichment | 6.0` itemises the row above it. Promoting those
+    rows gave 033033 and 033133 a second copy of the same 12 credits."""
+    from app.vault.export_faculty_vault_catalog import _is_bucket_breakdown_slug
+
+    assert _is_bucket_breakdown_slug("of-which-enrichment")
+    assert _is_bucket_breakdown_slug("of-which-physical-education")
+    assert not _is_bucket_breakdown_slug("enrichment")
+
+
+@pytest.mark.parametrize(
+    ("slug", "faculty_id"),
+    [
+        ("track-medicine-bsc", "medicine"),
+        ("track-biomedical-engineering", "biomedical-engineering"),
+        ("track-biomedical-engineering-physics", "biomedical-engineering"),
+    ],
+)
+def test_affected_tracks_credit_buckets_sum_to_their_stated_total(
+    slug: str, faculty_id: str
+) -> None:
+    """These three were each exactly 12.0 over their own stated total."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(pages[slug], faculty_id=faculty_id, pages=pages)
+    assert program is not None
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"]
+
+
 def _assert_no_duplicate_group_ids(program: dict) -> None:
     from collections import Counter
 

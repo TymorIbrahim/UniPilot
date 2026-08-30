@@ -146,6 +146,31 @@ _HEBREW_BUCKET_KEYWORDS: tuple[tuple[str, str], ...] = (
 
 _STANDARD_TECHNION_BUCKET_SLUGS = frozenset({"enrichment", "free-elective", "physical-education"})
 
+# Every track's credit table names the university-wide block in its own faculty's
+# words: "Technion-wide electives", "General Technion electives", "Technion-wide
+# electives (incl. 2 PE)". Whichever it uses, those are the SAME credits the
+# standard enrichment / free-elective / physical-education buckets describe, so
+# the aggregate row has to be recognised and replaced by them. Matching only the
+# one literal slug left the others standing beside the trio, which counted those
+# credits twice and put seven programs exactly 12.0 over their own stated total.
+_TECHNION_WIDE_AGGREGATE_PREFIXES = (
+    "technion-wide-electives",
+    "general-technion-electives",
+)
+
+# "— of which: Enrichment | 6.0" itemises the aggregate row above it. Those rows
+# are a breakdown, not three further requirements, and promoting them added a
+# second copy of the same 12 credits.
+_BUCKET_BREAKDOWN_PREFIX = "of-which"
+
+
+def _is_technion_wide_aggregate_slug(slug: str) -> bool:
+    return slug.startswith(_TECHNION_WIDE_AGGREGATE_PREFIXES)
+
+
+def _is_bucket_breakdown_slug(slug: str) -> bool:
+    return slug.startswith(_BUCKET_BREAKDOWN_PREFIX)
+
 
 def _canonical_bucket_slug(slug: str) -> str:
     return _BUCKET_SLUG_ALIASES.get(slug, slug)
@@ -466,9 +491,11 @@ def build_generic_program(
     for group in requirement_groups:
         group_id = str(group.get("groupId") or "")
         slug = group_id.split(":", 1)[-1] if ":" in group_id else group_id
-        if slug == "technion-wide-electives":
+        if _is_technion_wide_aggregate_slug(slug):
             if group.get("minCredits") is not None:
                 technion_wide_total = float(group["minCredits"])
+            continue
+        if _is_bucket_breakdown_slug(slug):
             continue
         filtered_groups.append(group)
         if group.get("ruleExpression", {}).get("type") == "credit_bucket":
