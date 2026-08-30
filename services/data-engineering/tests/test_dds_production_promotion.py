@@ -608,6 +608,86 @@ def test_repromotion_preserves_degree_program_id_across_key_format_change(
     assert docs[0]["_id"] == legacy_id
 
 
+def test_a_joint_programs_other_owner_does_not_have_its_id_taken(mongo_database) -> None:
+    """`023323-1-000` (CS + Mathematics) is exported by BOTH faculties, and
+    production holds it under whichever promoted first. Matching the identity
+    lookup on programCode alone made the second faculty adopt the first's `_id`
+    while writing under its own productionKey, so the upsert tried to insert a
+    document whose `_id` was already taken. That E11000 is what emptied all six
+    computer-science programs."""
+    _seed_signed_off_promotion_staging(mongo_database)
+    settings = get_settings()
+    from bson import ObjectId
+
+    other_owner_id = ObjectId()
+    mongo_database[settings.production_degree_programs_collection].insert_one(
+        {
+            "_id": other_owner_id,
+            "productionKey": "technion-mathematics:program:009216-1-000:2025-2026",
+            "institutionId": "technion",
+            "programCode": "009216-1-000",
+            "catalogVersion": "2025-2026",
+            "sourceName": "technion-mathematics-catalog",
+        }
+    )
+
+    result = run_dds_production_promotion(
+        mongo_database,
+        confirm_dangerous=True,
+        allow_warnings=True,
+    )
+
+    assert result.promotionRun.status == "completed"
+    docs = list(
+        mongo_database[settings.production_degree_programs_collection].find(
+            {"programCode": "009216-1-000"}
+        )
+    )
+    promoted = [d for d in docs if d.get("sourceName") == "technion-dds-catalog"]
+    assert len(promoted) == 1
+    assert promoted[0]["_id"] != other_owner_id
+    # The other faculty's document is not this promotion's to touch.
+    assert (
+        mongo_database[settings.production_degree_programs_collection].count_documents(
+            {"_id": other_owner_id}
+        )
+        == 1
+    )
+
+
+def test_a_faculty_may_own_its_own_catalog_rows(mongo_database) -> None:
+    """The expected sourceName for catalog collections is the promoting faculty's
+    own, not a hardcoded `technion-dds-catalog`. Every faculty writes its own, and
+    the DDS-shaped expectation only ever passed because this validation ran before
+    the write that contradicted it."""
+    from app.promotion.dds_production_promoter import (
+        PROMOTION_COLLECTION_SOURCE_NAMES,
+        validate_production_collections_for_promotion,
+    )
+
+    settings = get_settings()
+    assert "catalog_faculties" not in PROMOTION_COLLECTION_SOURCE_NAMES
+    assert "degree_programs" not in PROMOTION_COLLECTION_SOURCE_NAMES
+
+    key = "technion:faculty:faculty-computer-science:2025-2026"
+    mongo_database[settings.production_catalog_faculties_collection].insert_one(
+        {
+            "productionKey": key,
+            "catalogVersion": "2025-2026",
+            "sourceName": "technion-computer-science-catalog",
+        }
+    )
+
+    # Must not raise: the row belongs to the faculty doing the promoting.
+    validate_production_collections_for_promotion(
+        mongo_database,
+        settings=settings,
+        planned_keys_by_collection={settings.production_catalog_faculties_collection: {key}},
+        catalog_version="2025-2026",
+        source_name="technion-computer-science-catalog",
+    )
+
+
 def test_build_core_mandatory_pool_unions_semester_matrix_course_numbers() -> None:
     program_a_semester_1 = {
         "productionKey": "technion-dds:advisory-rule:req:009216-1-000:semester-1-matrix:2025-2026",

@@ -39,12 +39,14 @@ from app.promotion.dds_promotion_gate import (
 from app.paths import service_root
 from app.sources.technion_course_json import SOURCE_NAME as COURSE_JSON_SOURCE
 
+# Only the collections fed by the shared Technion semester JSON have a source
+# that is the same whoever promotes. The catalog collections are deliberately
+# absent so they fall back to the promoting faculty's own source name: every
+# faculty writes its own, and asserting `technion-dds-catalog` for all of them
+# was only ever satisfied because this check ran before the write that would
+# have contradicted it. Validating after the write made computer-science fail on
+# its own freshly written `catalog_faculties` row.
 PROMOTION_COLLECTION_SOURCE_NAMES: dict[str, str] = {
-    "degree_programs": DDS_CATALOG_SOURCE,
-    "degree_requirements": DDS_CATALOG_SOURCE,
-    "catalog_rules": DDS_CATALOG_SOURCE,
-    "catalog_path_options": DDS_CATALOG_SOURCE,
-    "catalog_faculties": DDS_CATALOG_SOURCE,
     "courses": COURSE_JSON_SOURCE,
     "course_offerings": COURSE_JSON_SOURCE,
 }
@@ -795,11 +797,21 @@ def build_production_documents(
         staging = programs_by_key.get(item.stagingKey)
         if not staging:
             raise ProductionPromotionError(f"Missing staging program for key {item.stagingKey}")
+        # Scoped to this faculty's own source. Identity is preserved so a
+        # productionKey format change does not dangle `student_profiles.degreeId`,
+        # and that concern is per-faculty: a joint program like `023323-1-000`
+        # (CS + Mathematics) is exported by BOTH owners, and production holds it
+        # under whichever promoted first. Matching on programCode alone made
+        # computer-science adopt the mathematics document's `_id` while writing
+        # under its own productionKey, so the upsert inserted a document whose
+        # `_id` was already taken -- E11000, and with the old ordering that
+        # emptied all six CS programs.
         existing_program = database[settings.production_degree_programs_collection].find_one(
             {
                 "institutionId": staging.get("institutionId", "technion"),
                 "programCode": staging.get("programCode", ""),
                 "catalogVersion": catalog_version,
+                "sourceName": _staging_catalog_context(staging).source_name,
             },
             {"_id": 1},
         )
