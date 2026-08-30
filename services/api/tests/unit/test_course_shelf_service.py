@@ -560,3 +560,76 @@ async def test_a_retake_clash_is_reported_not_filtered(stub) -> None:
     card = result["shelves"][0]["courses"][0]
     assert card["courseNumber"] == "00940111"
     assert card["retakeClashesWithDraft"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_row_keeps_its_not_offered_courses_as_a_trailing_group(stub) -> None:
+    """Over half of curated rows show two courses or fewer, almost entirely
+    because pool courses do not run every term. Dropping them destroys the
+    row's substance and the student's ability to plan a term ahead."""
+    stub["requirementProgress"] = [
+        _bucket("p:elective", "Chain", remaining=("00940111", "00940222", "00940333"))
+    ]
+    stub["courses"] = [
+        _course("00940111", offered=(200,)),
+        _course("00940222", offered=(201,)),
+        _course("00940333", offered=(201,)),
+    ]
+    stub["offered"] = {"00940111"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert [c["courseNumber"] for c in shelf["courses"]] == ["00940111"]
+    assert [c["courseNumber"] for c in shelf["laterCourses"]] == ["00940222", "00940333"]
+
+
+@pytest.mark.asyncio
+async def test_a_later_course_says_when_it_next_runs(stub) -> None:
+    """"Not this term" is far less useful than "next spring"."""
+    stub["requirementProgress"] = [_bucket("p:elective", "Chain", remaining=("00940222",))]
+    stub["courses"] = [_course("00940222", offered=(201,))]
+    stub["offered"] = set()
+
+    later = (await _build())["shelves"][0]["laterCourses"][0]
+
+    assert later["nextOffering"] == {"academicYear": 2025, "semesterCode": 201}
+
+
+@pytest.mark.asyncio
+async def test_courses_blocked_by_prerequisites_are_not_called_later(stub) -> None:
+    """They are offered; the student simply cannot take them. Listing them as
+    "coming later" would misdescribe why they are absent."""
+    stub["requirementProgress"] = [_bucket("p:elective", "Chain", remaining=("00940111",))]
+    stub["courses"] = [_course("00940111", prerequisites_text="00949999")]
+    stub["offered"] = {"00940111"}
+
+    shelf = (await _build())["shelves"][0]
+
+    assert shelf["courses"] == []
+    assert shelf["laterCourses"] == []
+
+
+@pytest.mark.asyncio
+async def test_an_open_row_has_no_trailing_group(stub) -> None:
+    """"Anything counts" already draws on the whole term, so everything not
+    offered is simply not a candidate."""
+    stub["requirementProgress"] = [_bucket("p:free", "Free electives", credits_remaining=2.0)]
+    stub["courses"] = [_course("00940111")]
+    stub["offered"] = {"00940111"}
+
+    assert (await _build())["shelves"][0]["laterCourses"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_course_needing_manual_registration_says_so(stub) -> None:
+    """The student cannot enrol through the normal system; planning it without
+    knowing is how a plan quietly fails to become a timetable."""
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940111",))]
+    course = _course("00940111")
+    course["notes"] = "הקורס הינו ברישום ידני באישור המרצה. יש לשלוח מייל"
+    stub["courses"] = [course]
+    stub["offered"] = {"00940111"}
+
+    card = (await _build())["shelves"][0]["courses"][0]
+
+    assert card["requiresManualRegistration"] is True

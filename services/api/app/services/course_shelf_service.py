@@ -29,12 +29,17 @@ from typing import Any, Iterable
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.planning.course_deferral import build_dependent_index, describe_deferral
+from app.planning.course_deferral import (
+    build_dependent_index,
+    describe_deferral,
+    next_offering,
+)
 from app.planning.course_ranking import (
     diversify_by_faculty,
     prior_mean_rating,
     rank_candidates,
 )
+from app.planning.course_notes import requires_manual_registration
 from app.planning.course_shelves import MANDATORY, OPEN, build_course_shelves
 from app.planning.course_unlocking import build_unlock_index
 from app.planning.draft_summary import build_draft_summary
@@ -67,6 +72,16 @@ from app.services.course_outcome_stats import CourseSignal, build_course_outcome
 from app.services.graduation_progress_service import get_graduation_progress_for_user
 from app.services.semester_plan_service import load_planning_context
 from app.services.semester_plan_suggestion_service import load_exact_term_offerings
+
+LATER_COURSES_LIMIT = 12
+"""Courses shown in a row's "not this term" group.
+
+Over half of curated rows surface two courses or fewer, almost entirely because
+pool courses do not run every term. Removing them outright leaves a row with
+nothing in it and takes away the one thing that would let a student plan a term
+ahead; keeping them, clearly separated and dated, gives the row its substance
+back without pretending they are actionable now.
+"""
 
 UNLOCK_PREVIEW_LIMIT = 6
 """Course numbers listed on a card alongside the unlock count.
@@ -177,6 +192,9 @@ def _card(
         # Its retake falls on a planned course's retake. Not a reason to hide
         # the course -- it only bites a student who fails both sittings.
         "retakeClashesWithDraft": retake_clash,
+        # Cannot be enrolled through the normal system: the student must email
+        # the lecturer with their transcript and be accepted.
+        "requiresManualRegistration": requires_manual_registration(course.get("notes")),
         "catalogKnown": True,
     }
 
@@ -379,6 +397,7 @@ async def build_course_shelves_for_user(
             dropped_no_credit = 0
             dropped_conflicting = 0
             dropped_wrong_level = 0
+            later_numbers = []
         else:
             pool = list(open_candidates) if shelf.kind == OPEN else list(shelf.course_numbers)
             candidate_count = len(pool)
@@ -410,6 +429,11 @@ async def build_course_shelves_for_user(
                 if number in offered_numbers and _wrong_degree_level(number)
             )
             dropped_conflicting = len(selectable_here) - len(actionable)
+            later_numbers = [
+                number
+                for number in pool
+                if number not in offered_numbers and number in courses_by_number
+            ]
             dropped_ineligible = (
                 len(pool)
                 - len(selectable_here)
@@ -468,6 +492,7 @@ async def build_course_shelves_for_user(
                         "readiness": None,
                         "unlocks": {"count": 0, "courseNumbers": []},
                         "retakeClashesWithDraft": False,
+                        "requiresManualRegistration": False,
                         "catalogKnown": False,
                         "reasons": [],
                     }
@@ -495,7 +520,29 @@ async def build_course_shelves_for_user(
                 )
             cards.append(card)
 
+        # Not actionable this term, but the row is about them too: a chain with
+        # three courses running and twelve waiting is a different thing from a
+        # chain with three courses in it.
         payload = shelf.as_public_dict()
+        payload["laterCourses"] = [
+            {
+                "courseNumber": number,
+                "title": courses_by_number[number].get("title"),
+                "credits": courses_by_number[number].get("credits"),
+                "nextOffering": (
+                    {"academicYear": upcoming[0], "semesterCode": upcoming[1]}
+                    if (
+                        upcoming := next_offering(
+                            courses_by_number[number].get("semestersOffered"),
+                            after=(academic_year, term_semester_code),
+                        )
+                    )
+                    is not None
+                    else None
+                ),
+            }
+            for number in later_numbers[:LATER_COURSES_LIMIT]
+        ]
         payload["courses"] = cards
         payload["candidateCount"] = candidate_count
         payload["notOfferedCount"] = dropped_not_offered
