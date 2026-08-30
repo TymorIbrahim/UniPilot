@@ -134,6 +134,37 @@ def discover_semester_catalogs(raw_dir: Path) -> list[SemesterCatalogInfo]:
     return sorted(catalogs, key=lambda c: (c.file_academic_year, c.offering_code))
 
 
+def identity_semester_catalogs(
+    catalogs: list[SemesterCatalogInfo],
+) -> list[SemesterCatalogInfo]:
+    """Winter + spring files the graph should treat as course identity.
+
+    Summer stays out -- it is a tiny overlay, not a second catalog. Older
+    years stay out too. If next year winter is already published, this
+    year winter is kept so winter-only courses are not dropped.
+    """
+    winters = [c for c in catalogs if c.offering_code == 200]
+    springs = [c for c in catalogs if c.offering_code == 201]
+    chosen: list[SemesterCatalogInfo] = []
+    latest_spring = springs[-1] if springs else None
+    latest_winter = winters[-1] if winters else None
+    if latest_spring is not None:
+        chosen.append(latest_spring)
+        same_year_winter = next(
+            (
+                winter
+                for winter in reversed(winters)
+                if winter.file_academic_year == latest_spring.file_academic_year
+            ),
+            None,
+        )
+        if same_year_winter is not None:
+            chosen.append(same_year_winter)
+    if latest_winter is not None and latest_winter not in chosen:
+        chosen.append(latest_winter)
+    return sorted(chosen, key=lambda c: (c.file_academic_year, c.offering_code))
+
+
 def infer_current_semester(
     catalogs: list[SemesterCatalogInfo],
     today: date | None = None,

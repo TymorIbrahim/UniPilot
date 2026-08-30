@@ -13,6 +13,7 @@ from app.retrieval.graph_engine.semester_catalog import (
     SemesterCatalogInfo,
     discover_semester_catalogs,
     format_semester_catalog_summary,
+    identity_semester_catalogs,
     semester_info_from_path,
 )
 
@@ -166,6 +167,10 @@ class AcademicGraphEngine:
         self.wiki_pages: dict[str, dict[str, Any]] = {}
         self.slug_to_course_code: dict[str, str] = {}
         self.course_catalog: dict[str, dict[str, Any]] = {}
+        self.identity_catalog: dict[str, dict[str, Any]] = {}
+        self.identity_semesters: list[str] = []
+        self.syllabus_chunks: tuple[Any, ...] = ()
+        self.syllabus_by_code: dict[str, Any] = {}
         self.wiki_catalog: list[dict[str, Any]] = []
         self.available_semesters: list[SemesterCatalogInfo] = []
         self.active_semester: SemesterCatalogInfo | None = None
@@ -229,23 +234,64 @@ class AcademicGraphEngine:
         self.available_semesters = discover_semester_catalogs(Path(technion_raw_dir))
         return self.available_semesters
 
+    def _catalog_entries(self, info: SemesterCatalogInfo) -> dict[str, dict[str, Any]]:
+        if info.filename not in self._semester_catalog_cache:
+            raw = json.loads(Path(info.path).read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                raise TypeError(f"Semester catalog {info.filename} is not a JSON array")
+            catalog: dict[str, dict[str, Any]] = {}
+            for entry in raw:
+                if not isinstance(entry, dict):
+                    continue
+                general = entry.get("general", {})
+                if not isinstance(general, dict):
+                    continue
+                code = str(general.get("מספר מקצוע", "") or "").strip()
+                if code:
+                    catalog[code] = entry
+            self._semester_catalog_cache[info.filename] = catalog
+        return self._semester_catalog_cache[info.filename]
+
+    def _rebuild_identity_catalog(self) -> None:
+        catalogs = identity_semester_catalogs(self.available_semesters)
+        if not catalogs and self.active_semester is not None:
+            catalogs = [self.active_semester]
+        identity: dict[str, dict[str, Any]] = {}
+        loaded: list[str] = []
+        for info in catalogs:
+            try:
+                identity.update(self._catalog_entries(info))
+            except (OSError, json.JSONDecodeError, TypeError):
+                continue
+            loaded.append(info.filename)
+        self.identity_catalog = identity
+        self.identity_semesters = loaded
+        self._rebuild_syllabus_chunks()
+
+    def _rebuild_syllabus_chunks(self) -> None:
+        from app.retrieval.graph_engine.syllabus_chunks import syllabus_chunks_for_identity
+
+        wiki_codes = {code for code in self.slug_to_course_code.values() if code}
+        for page in self.wiki_pages.values():
+            code = page.get("course_code")
+            if code:
+                wiki_codes.add(str(code))
+        self.syllabus_chunks = syllabus_chunks_for_identity(
+            self.identity_catalog, wiki_codes
+        )
+        self.syllabus_by_code = {
+            chunk.primary_course_number: chunk
+            for chunk in self.syllabus_chunks
+            if chunk.primary_course_number
+        }
+
     def load_semester_catalog(self, json_file_path: str) -> SemesterCatalogInfo:
         json_path = Path(json_file_path)
         info = semester_info_from_path(json_path)
         if info is None:
             raise ValueError(f"Unsupported semester catalog filename: {json_path.name}")
 
-        if info.filename not in self._semester_catalog_cache:
-            raw = json.loads(json_path.read_text(encoding="utf-8"))
-            catalog: dict[str, dict[str, Any]] = {}
-            for entry in raw:
-                general = entry.get("general", {})
-                code = str(general.get("מספר מקצוע", "")).strip()
-                if code:
-                    catalog[code] = entry
-            self._semester_catalog_cache[info.filename] = catalog
-
-        self.course_catalog = self._semester_catalog_cache[info.filename]
+        self.course_catalog = self._catalog_entries(info)
         self.active_semester = info
         self._loaded = True
         self._built = False
@@ -271,19 +317,26 @@ class AcademicGraphEngine:
         elif self.available_semesters:
             default = self.available_semesters[-1]
             self.load_semester_catalog(default.path)
+        self._rebuild_identity_catalog()
 
     def load_data(self, md_dir_path: str, json_file_path: str) -> None:
         self.load_wiki(md_dir_path)
         info = self.load_semester_catalog(json_file_path)
         self.available_semesters = [info]
+        self._rebuild_identity_catalog()
 
     def build_graph(self) -> nx.DiGraph:
         if not self._loaded:
             raise RuntimeError("Call load_data() before build_graph()")
 
         self.graph = nx.DiGraph()
+        identity = dict(self.identity_catalog or self.course_catalog)
+        for code, offering in self.course_catalog.items():
+            identity.setdefault(code, offering)
 
-        for code, entry in self.course_catalog.items():
+        for code, identity_entry in identity.items():
+            offering = self.course_catalog.get(code)
+            entry = offering if offering is not None else identity_entry
             general = entry.get("general", {})
             prereq_raw = str(general.get("מקצועות קדם", "") or "").strip()
             prereq_ast: dict[str, Any] = {"type": "AND", "operands": []}
@@ -297,7 +350,7 @@ class AcademicGraphEngine:
                 node_type="course",
                 name=general.get("שם מקצוע", ""),
                 syllabus=general.get("סילבוס", ""),
-                schedule=entry.get("schedule", []),
+                schedule=(offering.get("schedule", []) if offering is not None else []),
                 faculty=general.get("פקולטה", ""),
                 credits=general.get("נקודות", ""),
                 prerequisites_raw=prereq_raw,
@@ -330,7 +383,9 @@ class AcademicGraphEngine:
                     src = source_course or slug
                     self.graph.add_edge(src, target_slug, relation="belongs_to")
 
-        for code, entry in self.course_catalog.items():
+        for code, identity_entry in identity.items():
+            offering = self.course_catalog.get(code)
+            entry = offering if offering is not None else identity_entry
             prereq_raw = str(entry.get("general", {}).get("מקצועות קדם", "") or "").strip()
             if not prereq_raw:
                 continue
@@ -528,7 +583,7 @@ class AcademicGraphEngine:
         """
         if not self._loaded:
             raise RuntimeError("Call load_data() before search_wiki()")
-        if not self._wiki_root:
+        if not self._wiki_root and not self.syllabus_chunks:
             return []
 
         tokens = _tokenize_search(query)
@@ -541,7 +596,8 @@ class AcademicGraphEngine:
         from app.retrieval.reranker import rerank_chunks
         from app.retrieval.wiki_vector_index import chunk_vector_id, query_semantic_candidates
 
-        chunks = load_wiki_chunks(self._wiki_root)
+        wiki_chunks = load_wiki_chunks(self._wiki_root) if self._wiki_root else ()
+        chunks = (*wiki_chunks, *self.syllabus_chunks)
         if not chunks:
             return []
 
@@ -564,7 +620,7 @@ class AcademicGraphEngine:
         #    exactly this kind of query. Returns [] (never raises) when
         #    embeddings or Pinecone are unconfigured, leaving filter 1 to
         #    carry the pool on its own.
-        corpus = get_corpus_index(self._wiki_root)
+        corpus = get_corpus_index(self._wiki_root or "")
         candidate_by_key: dict[str, Any] = {}
         match_counts = [
             (chunk, _chunk_match_score(corpus.stats_for(chunk_vector_id(chunk), chunk), tokens))
@@ -611,12 +667,17 @@ class AcademicGraphEngine:
         hits: list[dict[str, Any]] = []
         for chunk, score in ranked:
             slug = Path(chunk.source_file).stem
+            is_syllabus = str(chunk.source_file).startswith("syllabus/")
             hits.append(
                 {
                     "slug": slug,
                     "title": chunk.page_title,
                     "title_he": chunk.page_title,
-                    "kind": self.wiki_pages.get(slug, {}).get("kind", "wiki"),
+                    "kind": (
+                        "syllabus"
+                        if is_syllabus
+                        else self.wiki_pages.get(slug, {}).get("kind", "wiki")
+                    ),
                     "sectionTitle": chunk.section_title,
                     "content": chunk.content,
                     "score": score,
@@ -732,6 +793,9 @@ class AcademicGraphEngine:
             "nodes": self.graph.number_of_nodes(),
             "edges": self.graph.number_of_edges(),
             "courses_in_catalog": len(self.course_catalog),
+            "identity_courses": len(self.identity_catalog),
+            "identity_semesters": list(self.identity_semesters),
+            "syllabus_chunks": len(self.syllabus_chunks),
             "wiki_pages": len(self.wiki_pages),
             "edge_relations": relations,
             "active_semester": self.active_semester.filename if self.active_semester else None,
@@ -752,6 +816,11 @@ class AcademicGraphEngine:
     def _context_schedule(self, course_id: str) -> str:
         node = self.graph.nodes.get(course_id, {})
         name = node.get("name", course_id)
+        if course_id in self.identity_catalog and course_id not in self.course_catalog:
+            return (
+                f"{self._semester_header()}\n"
+                f"{course_id} {name}: not offered this term."
+            )
         schedule = node.get("schedule") or []
         if not schedule:
             return f"{self._semester_header()}\n{course_id} {name}: no schedule data."
@@ -835,10 +904,12 @@ class AcademicGraphEngine:
         node = self.graph.nodes.get(course_id, {})
         if not node:
             return f"{course_id}: not found in catalog."
+        offered = "yes" if course_id in self.course_catalog else "no"
         return (
             f"{course_id} {node.get('name', '')} | "
             f"credits: {node.get('credits', '')} | "
             f"faculty: {node.get('faculty', '')} | "
+            f"offered_this_term: {offered} | "
             f"prereqs: {node.get('prerequisites_raw', 'none')}"
         )
 

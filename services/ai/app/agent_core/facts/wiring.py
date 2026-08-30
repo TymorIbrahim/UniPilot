@@ -98,11 +98,18 @@ class WikiRetriever:
         full by slug, so hand that over and let the extractor read the complete
         section."""
         pages = getattr(self._engine, "wiki_pages", None)
-        if not isinstance(pages, dict):
-            return None
-        page = pages.get(slug)
-        content = page.get("content") if isinstance(page, dict) else None
-        return content if isinstance(content, str) and content else None
+        if isinstance(pages, dict):
+            page = pages.get(slug)
+            content = page.get("content") if isinstance(page, dict) else None
+            if isinstance(content, str) and content:
+                return content
+        index = getattr(self._engine, "syllabus_by_code", None)
+        if isinstance(index, dict):
+            chunk = index.get(slug)
+            text = getattr(chunk, "content", None) if chunk is not None else None
+            if isinstance(text, str) and text:
+                return text
+        return None
 
 
 _EXTRACT_PROMPT = """Read the passage and answer the question with ONE value.

@@ -12,6 +12,7 @@ from datetime import date
 from pathlib import Path
 
 from app.retrieval.graph_engine.semester_catalog import (
+    identity_semester_catalogs,
     infer_current_semester,
     offering_keys_to_plan_semester_code,
     plan_semester_code_from_filename,
@@ -116,3 +117,42 @@ def test_infer_current_semester_summer(tmp_path: Path):
     current = infer_current_semester(catalogs, today=date(2026, 8, 1))
     assert current is not None
     assert current.offering_code == 202
+
+
+def test_identity_catalogs_are_latest_winter_and_spring(tmp_path: Path):
+    """Summer and older years stay out: identity is the live winter+spring pair."""
+    for name in (
+        "courses_2024_200.json",
+        "courses_2024_201.json",
+        "courses_2025_200.json",
+        "courses_2025_201.json",
+        "courses_2025_202.json",
+    ):
+        (tmp_path / name).write_text("[]", encoding="utf-8")
+    from app.retrieval.graph_engine.semester_catalog import discover_semester_catalogs
+
+    catalogs = discover_semester_catalogs(tmp_path)
+    identity = identity_semester_catalogs(catalogs)
+    assert [c.filename for c in identity] == [
+        "courses_2025_200.json",
+        "courses_2025_201.json",
+    ]
+
+
+def test_identity_catalogs_keep_same_year_winter_when_next_winter_arrives(tmp_path: Path):
+    """A published next-year winter must not drop this year's winter-only courses."""
+    for name in (
+        "courses_2025_200.json",
+        "courses_2025_201.json",
+        "courses_2026_200.json",
+    ):
+        (tmp_path / name).write_text("[]", encoding="utf-8")
+    from app.retrieval.graph_engine.semester_catalog import discover_semester_catalogs
+
+    catalogs = discover_semester_catalogs(tmp_path)
+    identity = identity_semester_catalogs(catalogs)
+    assert [c.filename for c in identity] == [
+        "courses_2025_200.json",
+        "courses_2025_201.json",
+        "courses_2026_200.json",
+    ]
