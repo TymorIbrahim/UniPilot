@@ -4,7 +4,7 @@ import type { CourseShelf, ShelfCourse } from '../../types/api'
 import type { Locale } from '../../i18n/types'
 import { useTranslation } from '../../i18n'
 import { cn, formatCredits } from '../../lib/utils'
-import { filteredCount, semesterLabel, shelfKindLabel } from '../../lib/shelves'
+import { filteredCount, semesterLabel, shelfKindLabel, shelfTitle } from '../../lib/shelves'
 import { ShelfCourseCard } from './ShelfCourseCard'
 
 type CourseShelfRowProps = {
@@ -40,7 +40,7 @@ export function CourseShelfRow({
   return (
     <section className="space-y-2" data-testid={`shelf-${shelf.shelfId}`}>
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-semibold text-[var(--color-text)]">{shelf.title}</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">{shelfTitle(shelf, t)}</h3>
         <span
           className={cn(
             'rounded-full px-2 py-0.5 text-[10px] font-medium',

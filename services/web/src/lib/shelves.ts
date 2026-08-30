@@ -36,6 +36,28 @@ export function filteredCount(shelf: CourseShelf): number {
   )
 }
 
+/**
+ * The requirement's own name, translated where the catalog offers no Hebrew.
+ *
+ * Requirement titles exist in English only — there is no Hebrew field anywhere
+ * in `degree_requirements` — which leaves English headings in an otherwise
+ * Hebrew page. The bucket SUFFIXES are standardised across programs, though
+ * (`physical-education` and `enrichment` appear in 61 of them), so the common
+ * ones translate cleanly.
+ *
+ * Anything else keeps the catalog's own wording: a program-specific pool like
+ * "IS focus chain (Chain B)" is a name, and guessing at a translation for it
+ * would be worse than leaving it as the faculty wrote it.
+ */
+export function shelfTitle(shelf: CourseShelf, t: Translate): string {
+  const suffix = shelf.shelfId.includes(':') ? shelf.shelfId.split(':').slice(1).join(':') : ''
+  const translated = suffix ? t(`planner.shelves.requirement.${suffix}`) : ''
+  // `t` echoes the key back when there is no entry for it.
+  return translated && !translated.startsWith('planner.shelves.requirement.')
+    ? translated
+    : shelf.title
+}
+
 /** The header line for a row, which differs by what the row is asking. */
 export function shelfKindLabel(kind: CourseShelf['kind'], t: Translate): string {
   if (kind === 'mandatory') return t('planner.shelves.mustTake')

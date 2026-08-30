@@ -94,7 +94,11 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 lg:ps-[18rem] pt-4 lg:pt-0">
+      {/* `min-w-0` is load-bearing: as a flex item this defaults to
+          `min-width: auto`, so it cannot shrink below its content and any wide
+          child — a course row, a table — widens it instead of scrolling
+          inside itself, which scrolls the whole page sideways. */}
+      <main className="min-w-0 flex-1 lg:ps-[18rem] pt-4 lg:pt-0">
         <div className="agent-glass m-4 rounded-[var(--radius-xl)] px-4 py-3 lg:hidden">
           <LanguageSwitcher />
         </div>
