@@ -1,15 +1,15 @@
 {
   "status": "fail",
-  "generatedAt": "2026-08-30T13:58:02.503892+00:00",
+  "generatedAt": "2026-08-30T17:14:43.988341+00:00",
   "counts": {
-    "structural": 14,
-    "under": 7,
+    "structural": 12,
+    "under": 3,
     "over": 15,
-    "covered": 21,
+    "covered": 27,
     "unknown": 0
   },
   "ruleTypes": {
-    "course_pool": 619,
+    "course_pool": 626,
     "semester_matrix": 374,
     "track_requirement": 2
   },
@@ -27,16 +27,6 @@
       ]
     },
     {
-      "gapCredits": 143.0,
-      "programCodes": [
-        "011155-1-000",
-        "021025-1-000",
-        "021026-1-000",
-        "027280-1-000",
-        "034034-2-000"
-      ]
-    },
-    {
       "gapCredits": -2.0,
       "programCodes": [
         "013043-1-000",
@@ -46,12 +36,11 @@
       ]
     },
     {
-      "gapCredits": 4.0,
+      "gapCredits": 143.0,
       "programCodes": [
-        "021095-1-000",
-        "021111-1-000",
-        "021143-1-000",
-        "021239-1-000"
+        "011155-1-000",
+        "027280-1-000",
+        "034034-2-000"
       ]
     },
     {
@@ -552,65 +541,69 @@
       "programCode": "021025-1-000",
       "name": "הוראת אלקטרוניקה-חשמל",
       "totalCredits": 155.0,
-      "promotedGroupCount": 3,
-      "promotedCredits": 12.0,
-      "gapCredits": 143.0,
-      "coverageRatio": 0.0774,
-      "status": "structural",
-      "quarantinedPoolCount": 18,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 19,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 15,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 15
+      "quarantinedWithCourseRefs": 16
     },
     {
       "programCode": "021026-1-000",
       "name": "הוראת טכנולוגיה-מכונות",
       "totalCredits": 155.0,
-      "promotedGroupCount": 3,
-      "promotedCredits": 12.0,
-      "gapCredits": 143.0,
-      "coverageRatio": 0.0774,
-      "status": "structural",
-      "quarantinedPoolCount": 14,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 15,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 11,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 11
+      "quarantinedWithCourseRefs": 12
     },
     {
       "programCode": "021095-1-000",
       "name": "מסלול הוראת כימיה",
       "totalCredits": 155.0,
       "promotedGroupCount": 5,
-      "promotedCredits": 151.0,
-      "gapCredits": 4.0,
-      "coverageRatio": 0.9742,
-      "status": "under",
-      "quarantinedPoolCount": 6,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 7,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 3,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 3
+      "quarantinedWithCourseRefs": 4
     },
     {
       "programCode": "021111-1-000",
       "name": "מסלול הוראת פיזיקה",
       "totalCredits": 155.0,
       "promotedGroupCount": 5,
-      "promotedCredits": 151.0,
-      "gapCredits": 4.0,
-      "coverageRatio": 0.9742,
-      "status": "under",
-      "quarantinedPoolCount": 7,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 8,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 4,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 4
+      "quarantinedWithCourseRefs": 5
     },
     {
       "programCode": "021121-1-000",
@@ -621,44 +614,47 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 6,
+      "quarantinedPoolCount": 7,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 3,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 3
+      "quarantinedWithCourseRefs": 4
     },
     {
       "programCode": "021143-1-000",
       "name": "מסלול הוראת מדעי המחשב",
       "totalCredits": 155.0,
       "promotedGroupCount": 6,
-      "promotedCredits": 151.0,
-      "gapCredits": 4.0,
-      "coverageRatio": 0.9742,
-      "status": "under",
-      "quarantinedPoolCount": 10,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 11,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 7,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 7
+      "quarantinedWithCourseRefs": 8
     },
     {
       "programCode": "021239-1-000",
       "name": "מסלול הוראת ביולוגיה-מדעי הסביבה",
       "totalCredits": 155.0,
       "promotedGroupCount": 5,
-      "promotedCredits": 151.0,
-      "gapCredits": 4.0,
-      "coverageRatio": 0.9742,
-      "status": "under",
-      "quarantinedPoolCount": 7,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 8,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 4,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 4
+      "quarantinedWithCourseRefs": 5
     },
     {
       "programCode": "023015-1-000",
