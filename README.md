@@ -28,7 +28,7 @@ Simulation and real (non-deterministic, model-backed) AI recommendation features
 
 The `ai` service has its own direct read-only MongoDB access for catalog/student data and reaches back into `api` for computation that stays there (`/internal/*`). It never performs the actual write for a proposed action (save a plan, commit a transcript import) — those stay in `api`'s existing confirm/reject flow. See [`docs/agent/AGENT_ARCHITECTURE_V2.md`](docs/agent/AGENT_ARCHITECTURE_V2.md) for the agent loop's design.
 
-Open the app at [http://localhost:3000](http://localhost:3000) after `docker compose up --build`. The web container proxies API calls to the internal `api` service.
+The web container proxies API calls to the internal `api` service, so the whole app is reachable through one port.
 
 ## Prerequisites
 
@@ -36,11 +36,26 @@ Open the app at [http://localhost:3000](http://localhost:3000) after `docker com
 - Python 3.12+ (optional — for local pytest without rebuilding images)
 - Node.js 22+ (optional — for local frontend dev)
 
-## Setup & run
+## Two compose files
+
+| File | Purpose | Needs `.env`? | Data |
+| --- | --- | --- | --- |
+| `docker-compose.yml` | Self-contained demo. Kiosk mode: no volumes, seeds itself on startup, wiped on restart. This is what the course gallery builds and runs. | No | Seeded fixture catalog |
+| `docker-compose.dev.yml` | The stack the team develops against: real catalog data mounted from disk, the `data-engineering` CLI, Outlook MCP. | Yes | Promoted Technion catalog |
+
+The demo file needs nothing but a clone and Docker:
+
+```bash
+docker compose up --build       # http://localhost:8080
+```
+
+It is deliberately constrained — no volumes, no `env_file`, one published port, and an explicit `mem_limit`/`cpus` per service — so it can run untrusted on a shared host. Everything below this line describes the **development** stack.
+
+## Setup & run (development)
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
 Set `MONGO_DB=unipilot_python` in `.env` (matches `.env.example`) so the API reads the promoted Technion catalog (DDS + 16 additional faculties when fully promoted).
@@ -53,8 +68,8 @@ Set `MONGO_DB=unipilot_python` in `.env` (matches `.env.example`) so the API rea
 Keep `AUTO_SEED_CATALOG=false` (default in `.env.example`) so the API does **not** insert dev fixture catalog before promotion. After a volume wipe, run the vault → staging → production pipeline once (see Data engineering README).
 
 ```bash
-docker compose down -v   # clean reset (destroys Mongo volume)
-docker compose up --build -d
+docker compose -f docker-compose.dev.yml down -v   # clean reset (destroys Mongo volume)
+docker compose -f docker-compose.dev.yml up --build -d
 # then promote catalog (export → import staging → import courses → promote)
 ```
 
@@ -193,7 +208,7 @@ npm run test:e2e -- --project=accessibility
 
 CI runs the full Playwright suite against a Docker stack with `AUTO_SEED_CATALOG=true` (see `.github/workflows/ci.yml`).
 
-The web UI defaults to **Hebrew** (RTL) with an in-app language switcher (Hebrew / English). Open [http://localhost:3000](http://localhost:3000) after `docker compose up --build`.
+The web UI defaults to **Hebrew** (RTL) with an in-app language switcher (Hebrew / English). Open [http://localhost:3000](http://localhost:3000) after `docker compose -f docker-compose.dev.yml up --build`.
 
 ## API overview (all JWT-protected except `/health`)
 
@@ -256,8 +271,8 @@ See `docs/API_SPEC.md` for `selectedLessonEvents`, `PATCH .../lesson-selection`,
 Internal Python CLI for Technion wiki catalog export, semester JSON import, staging validation, and guarded production promotion. Shares MongoDB (`MONGO_DB`, default `unipilot_python`).
 
 ```bash
-docker compose run --rm data-engineering python -m app.main health
-docker compose run --rm data-engineering python -m app.main promote-dds-to-production --dry-run
+docker compose -f docker-compose.dev.yml run --rm data-engineering python -m app.main health
+docker compose -f docker-compose.dev.yml run --rm data-engineering python -m app.main promote-dds-to-production --dry-run
 ```
 
 **Promote one faculty** (export → staging → quality → production → API smoke):
@@ -270,7 +285,7 @@ bash scripts/promote_and_verify_faculty.sh <faculty-id>
 Before the first faculty promotion on a clean Mongo volume, import all Technion semester courses once:
 
 ```bash
-docker compose run --rm data-engineering python -m app.main import-technion-courses-staging
+docker compose -f docker-compose.dev.yml run --rm data-engineering python -m app.main import-technion-courses-staging
 ```
 
 **Verify curriculum E2E** for all promoted faculties (requires API + promoted Mongo; `AUTO_SEED_CATALOG=false`):
