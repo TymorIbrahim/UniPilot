@@ -39,6 +39,7 @@ async def ask_advisor_route(
         database,
         auth.user_id,
         payload.question.strip(),
+        conversation_id=payload.conversationId,
     )
 
     status = result.get("status")
@@ -60,6 +61,10 @@ async def stream_advisor_route(
     await enforce_ai_rate_limit(request, auth.user_id)
     # We pass the generator to StreamingResponse
     return StreamingResponse(
-        stream_advisor_for_user(auth.user_id, payload.question.strip()),
+        stream_advisor_for_user(
+            auth.user_id,
+            payload.question.strip(),
+            conversation_id=payload.conversationId,
+        ),
         media_type="text/event-stream"
     )

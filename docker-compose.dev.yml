@@ -43,6 +43,7 @@ services:
       MICROSOFT_TOKEN_ENCRYPTION_KEY: ${MICROSOFT_TOKEN_ENCRYPTION_KEY:-}
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       TECHNION_RAW_DIR: ${TECHNION_RAW_DIR:-/app/data/raw/technion}
+      ACADEMIC_DEFAULT_SEMESTER_FILE: ${ACADEMIC_DEFAULT_SEMESTER_FILE:-courses_2025_201.json}
       CATALOG_VAULT_WIKI_PATH: ${CATALOG_VAULT_WIKI_PATH:-/app/data/academic/wiki}
     volumes:
       - ./services/data-engineering/data/raw/technion:/app/data/raw/technion:ro

@@ -133,12 +133,11 @@ export function SemesterPlanner({ planId }: SemesterPlannerProps) {
 
   const plannerSemestersQuery = useQuery({
     queryKey: ['catalog', 'planner-semesters'],
-    queryFn: async () => {
-      const response = await catalogApi.plannerSemesters()
-      return response.planSemesterCodes
-    },
+    queryFn: () => catalogApi.plannerSemesters(),
   })
-  const plannerSemesterOptions = plannerSemestersQuery.data ?? []
+  const plannerSemesterOptions = plannerSemestersQuery.data?.planSemesterCodes ?? []
+  const activePlanSemesterCode = plannerSemestersQuery.data?.activePlanSemesterCode
+  const appliedCatalogDefault = useRef(false)
 
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
@@ -247,11 +246,17 @@ export function SemesterPlanner({ planId }: SemesterPlannerProps) {
 
   useEffect(() => {
     if (isEdit || plannerSemestersQuery.isLoading) return
-    if (!plannerSemesterOptions.length) return
-    if (!plannerSemesterOptions.includes(semesterCode)) {
-      setSemesterCode(pickDefaultPlannerSemester(plannerSemesterOptions))
-    }
-  }, [isEdit, plannerSemestersQuery.isLoading, plannerSemesterOptions, semesterCode])
+    if (!plannerSemesterOptions.length || appliedCatalogDefault.current) return
+    appliedCatalogDefault.current = true
+    setSemesterCode(
+      pickDefaultPlannerSemester(plannerSemesterOptions, activePlanSemesterCode),
+    )
+  }, [
+    isEdit,
+    plannerSemestersQuery.isLoading,
+    plannerSemesterOptions,
+    activePlanSemesterCode,
+  ])
 
   const activeCourses = useMemo(
     () => courses.filter((course) => course.isActive !== false),

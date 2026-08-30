@@ -52,6 +52,7 @@ from app.planning.prerequisite_expression import (
     parse_prerequisite_expression,
 )
 from app.planning.prerequisite_resolver import canonical_course_number
+from app.curriculum.cross_track_equivalence import equivalent_course_numbers
 from app.planning.schedule_fit import (
     build_occupied_schedule,
     can_schedule_alongside,
@@ -164,6 +165,17 @@ def _unlocks_within(
     return unlocks
 
 
+def _is_offered_this_term(number: str, offered_numbers: set[str]) -> bool:
+    return bool(equivalent_course_numbers(number) & offered_numbers)
+
+
+def _expand_numbers(numbers: Iterable[str]) -> set[str]:
+    expanded: set[str] = set()
+    for number in numbers:
+        expanded |= equivalent_course_numbers(number)
+    return expanded
+
+
 CONFLICT_CHECK_HEAD = OPEN_SHELF_LIMIT * 3
 """How far down an open row's ranking a timetable is fetched.
 
@@ -191,7 +203,7 @@ def _card(
         "titleHebrew": course.get("titleHebrew"),
         "credits": course.get("credits"),
         "faculty": course.get("faculty"),
-        "offeredThisTerm": number in offered_numbers,
+        "offeredThisTerm": _is_offered_this_term(number, offered_numbers),
         "eligibility": _eligibility(course.get("prerequisitesText"), completed_numbers),
         "signal": signals.get(number),
         # How the student did in this course's OWN prerequisites -- reported,
@@ -305,10 +317,14 @@ async def build_course_shelves_for_user(
     # specific row already claims -- a course shown twice invites planning it twice.
     claimed = {number for shelf in shelves for number in shelf.course_numbers}
     open_candidates = sorted(
-        offered_numbers - claimed - completed_numbers - planned_numbers
+        offered_numbers
+        - _expand_numbers(claimed)
+        - _expand_numbers(completed_numbers)
+        - _expand_numbers(planned_numbers)
     )
 
     needed_numbers = sorted(claimed | set(open_candidates))
+    lookup_numbers = sorted(_expand_numbers(needed_numbers))
     (
         course_documents,
         ratings,
@@ -318,9 +334,9 @@ async def build_course_shelves_for_user(
         planned_documents,
         planned_ratings,
     ) = await asyncio.gather(
-        catalog_repository.find_planning_courses_by_numbers(database, needed_numbers),
-        catalog_repository.find_course_ratings(database, needed_numbers),
-        catalog_repository.find_course_grade_stats(database, needed_numbers),
+        catalog_repository.find_planning_courses_by_numbers(database, lookup_numbers),
+        catalog_repository.find_course_ratings(database, lookup_numbers),
+        catalog_repository.find_course_grade_stats(database, lookup_numbers),
         # Their own past choices and their draft are both outside the candidate
         # set, so each needs its own lookup -- see the notes at the use sites.
         catalog_repository.find_planning_courses_by_numbers(
@@ -332,20 +348,24 @@ async def build_course_shelves_for_user(
         ),
         catalog_repository.find_course_ratings(database, sorted(planned_numbers)),
     )
-    courses_by_number = {
-        str(document.get("courseNumber")): document for document in course_documents
-    }
+    courses_by_number: dict[str, dict[str, Any]] = {}
+    for document in course_documents:
+        catalog_number = str(document.get("courseNumber") or "")
+        for alias in equivalent_course_numbers(catalog_number) or {catalog_number}:
+            courses_by_number.setdefault(alias, document)
     outcomes = build_course_outcomes(statistics_records)
-    signals = {
-        number: CourseSignal(
+    signals: dict[str, dict[str, Any]] = {}
+    for number in lookup_numbers:
+        if number not in outcomes and number not in ratings and number not in published:
+            continue
+        payload = CourseSignal(
             course_number=number,
             outcome=outcomes.get(number),
             rating=ratings.get(number),
             published=published.get(number),
         ).as_public_dict()
-        for number in needed_numbers
-        if number in outcomes or number in ratings or number in published
-    }
+        for alias in equivalent_course_numbers(number) or {number}:
+            signals.setdefault(alias, payload)
 
     dependent_index = build_dependent_index(prerequisite_texts)
 
@@ -378,7 +398,7 @@ async def build_course_shelves_for_user(
     selectable = {
         number
         for number in needed_numbers
-        if number in offered_numbers
+        if _is_offered_this_term(number, offered_numbers)
         and not _wrong_degree_level(number)
         and not _gives_no_additional_credit(number)
         and _eligibility(
@@ -429,7 +449,7 @@ async def build_course_shelves_for_user(
             ordered_numbers = sorted(
                 shelf.course_numbers,
                 key=lambda number: (
-                    number not in offered_numbers,
+                    not _is_offered_this_term(number, offered_numbers),
                     -len(dependent_index.get(number, frozenset())),
                     number,
                 ),
@@ -445,24 +465,24 @@ async def build_course_shelves_for_user(
             candidate_count = len(pool)
             selectable_here = [number for number in pool if number in selectable]
             dropped_not_offered = sum(
-                1 for number in pool if number not in offered_numbers
+                1 for number in pool if not _is_offered_this_term(number, offered_numbers)
             )
             dropped_no_credit = sum(
                 1
                 for number in pool
-                if number in offered_numbers
+                if _is_offered_this_term(number, offered_numbers)
                 and not _wrong_degree_level(number)
                 and _gives_no_additional_credit(number)
             )
             dropped_wrong_level = sum(
                 1
                 for number in pool
-                if number in offered_numbers and _wrong_degree_level(number)
+                if _is_offered_this_term(number, offered_numbers) and _wrong_degree_level(number)
             )
             later_numbers = [
                 number
                 for number in pool
-                if number not in offered_numbers and number in courses_by_number
+                if not _is_offered_this_term(number, offered_numbers) and number in courses_by_number
             ]
             dropped_ineligible = (
                 len(pool)
@@ -613,7 +633,7 @@ async def build_course_shelves_for_user(
                         "courseNumber": number,
                         "title": None,
                         "credits": None,
-                        "offeredThisTerm": number in offered_numbers,
+                        "offeredThisTerm": _is_offered_this_term(number, offered_numbers),
                         "eligibility": {"status": "unknown", "missingOptions": []},
                         "signal": signals.get(number),
                         "readiness": None,
@@ -625,8 +645,10 @@ async def build_course_shelves_for_user(
                     }
                 )
                 continue
+            display = dict(course)
+            display["courseNumber"] = number
             card = _card(
-                course,
+                display,
                 offered_numbers=offered_numbers,
                 completed_numbers=completed_numbers,
                 signals=signals,

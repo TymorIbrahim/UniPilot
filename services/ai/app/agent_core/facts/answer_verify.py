@@ -58,6 +58,7 @@ from app.agent_core.facts.postconditions import (
     check_plan_within_requirement,
     check_term_load,
     check_term_within_cap,
+    check_this_term_offering_claim,
 )
 from app.agent_core.facts.types import Basis, Collection, Scalar
 
@@ -143,6 +144,9 @@ def verify_answer(
     # stopped at a course they were eligible for that day.
     violations += check_prereq_verdict_matches_the_edges(
         answer.text, _satisfied_courses(facts)
+    )
+    violations += check_this_term_offering_claim(
+        answer.text, question, _not_offered_this_term(facts)
     )
 
     # Also on every answer, not only plan-shaped ones: "it will take you 2
@@ -509,6 +513,24 @@ def _satisfied_courses(facts: Mapping[str, HeldFact]) -> dict[str, str]:
         if witnesses:
             satisfied[course] = ", ".join(witnesses)
     return satisfied
+
+
+
+def _not_offered_this_term(facts: Mapping[str, HeldFact]) -> tuple[str, ...]:
+    """Course codes whose held rows say they do not run in the active term."""
+    codes: list[str] = []
+    for held in facts.values():
+        records = getattr(getattr(held, "value", None), "records", None) or ()
+        for record in records:
+            flag = record.fields.get("offeredThisTerm")
+            if flag is None or flag.value is not False:
+                continue
+            for field in _CODE_FIELDS:
+                scalar = record.fields.get(field)
+                if scalar is not None and scalar.value:
+                    codes.append(str(scalar.value))
+                    break
+    return tuple(dict.fromkeys(codes))
 
 
 def _passed_codes(facts: Mapping[str, HeldFact]) -> list[str]:

@@ -530,3 +530,162 @@ def test_cross_track_pairs_match_the_api_registry():
     # what makes the omission visible instead of silent.
     api_registry = ((("00960211", "00960221"),))
     assert pairs == {frozenset(group) for group in api_registry}
+
+
+def test_overlap_text_canonicalizes_six_digit_technion_codes() -> None:
+    """Catalog `noAdditionalCreditText` stores the pre-2000s 6-digit form.
+
+    Live: 00940412's overlap field is `094411 094417 ...`, not `00940411`.
+    Matching only 8-digit `0xxxxxxx` found nothing, so a student who passed
+    Probability (00940411) was still told to take 00940412 -- two extra
+    "remaining mandatory" courses on a real ISE transcript (5 instead of 3).
+    The 6-digit conversion inserts a zero after the faculty: 094411 -> 00940411.
+    """
+    from app.agent_core.facts.views import partners_in_overlap_text
+
+    assert "00940411" in partners_in_overlap_text("094411 094417 094491")
+    assert "01040016" in partners_in_overlap_text("104016 104064")
+    assert "00940412" in partners_in_overlap_text("00940412")
+
+
+class TestAPassedAlternativeDischargesTheSlot:
+    """Measured on a real ISE transcript: remaining mandatory was 3
+    according to graduation-progress, and 5 according to `remaining_courses`,
+    because 00940411/00940412 and 01040016/01040065 are documented alternatives
+    whose overlap text uses 6-digit codes."""
+
+    async def test_six_digit_overlap_text_links_the_pair(self, database) -> None:
+        from app.agent_core.facts.views import _equivalent_codes
+
+        await database["courses"].delete_many({})
+        await database["courses"].insert_one(
+            {
+                "courseNumber": "00940412",
+                "noAdditionalCreditText": "094411 094417 094491 094492 104034 104222",
+            }
+        )
+        pairs = await _equivalent_codes(database)
+        assert "00940411" in pairs.get("00940412", set())
+
+    async def test_the_outstanding_list_drops_slots_already_filled(
+        self, database
+    ) -> None:
+        from app.agent_core.facts.views import _remaining_documents
+
+        class _Engine:
+            graph = _graph_with_contains(
+                {
+                    "track-information-systems-engineering": [
+                        "00940412",
+                        "00940704",
+                        "01040065",
+                    ]
+                }
+            )
+
+        await database["student_profiles"].delete_many({})
+        await database["completed_courses"].delete_many({})
+        await database["courses"].delete_many({})
+        await database["student_profiles"].insert_one(
+            {"userId": "raya-1", "programSlug": "track-information-systems-engineering"}
+        )
+        await database["courses"].insert_many(
+            [
+                {
+                    "courseNumber": "00940411",
+                    "title": "Probability",
+                    "credits": 4.0,
+                    "noAdditionalCreditText": "094412 094417",
+                },
+                {
+                    "courseNumber": "00940412",
+                    "title": "Probability M",
+                    "credits": 4.0,
+                    "noAdditionalCreditText": "094411 094417",
+                },
+                {"courseNumber": "00940704", "title": "C workshop", "credits": 1.5},
+                {
+                    "courseNumber": "01040016",
+                    "title": "Algebra 1M",
+                    "credits": 5.0,
+                    "noAdditionalCreditText": "104167",
+                },
+                {
+                    "courseNumber": "01040065",
+                    "title": "Algebra 1M2",
+                    "credits": 5.0,
+                    "noAdditionalCreditText": "104016 104064",
+                },
+            ]
+        )
+        await database["completed_courses"].insert_many(
+            [
+                {
+                    "userId": "raya-1",
+                    "courseNumber": "00940411",
+                    "grade": 80.0,
+                    "creditsEarned": 4.0,
+                    "attempt": 1,
+                },
+                {
+                    "userId": "raya-1",
+                    "courseNumber": "01040016",
+                    "grade": 69.0,
+                    "creditsEarned": 5.0,
+                    "attempt": 1,
+                },
+            ]
+        )
+
+        documents = await _remaining_documents(database, _Engine(), {})
+        remaining = {
+            row["courseNumber"]
+            for row in documents
+            if row["userId"] == "raya-1" and row.get("curriculumAvailable") is not False
+        }
+        assert remaining == {"00940704"}
+
+
+class TestOfferedThisTermIsTheActiveSemester:
+    """Identity catalog keeps winter-only courses as NODES so they still have a
+    name. Live, "which of those is offered this spring?" then listed 00940704
+    (winter only) alongside the two that actually run in Spring 2026, because
+    remaining_courses had no way to say "exists" vs "runs this term"."""
+
+    async def test_winter_only_remaining_is_flagged_not_offered(
+        self, database
+    ) -> None:
+        from app.agent_core.facts.views import _remaining_documents
+
+        class _Engine:
+            graph = _graph_with_contains(
+                {
+                    "track-ise": ["00940704", "00960211", "00970800"],
+                }
+            )
+            course_catalog = {"00960211": {}, "00970800": {}}
+
+        await database["student_profiles"].delete_many({})
+        await database["completed_courses"].delete_many({})
+        await database["courses"].delete_many({})
+        await database["student_profiles"].insert_one(
+            {"userId": "raya-2", "programSlug": "track-ise"}
+        )
+        await database["courses"].insert_many(
+            [
+                {"courseNumber": "00940704", "title": "C workshop", "credits": 1.5},
+                {"courseNumber": "00960211", "title": "E-commerce", "credits": 3.5},
+                {"courseNumber": "00970800", "title": "Marketing", "credits": 3.5},
+            ]
+        )
+        documents = await _remaining_documents(database, _Engine(), {})
+        by_code = {
+            row["courseNumber"]: row.get("offeredThisTerm")
+            for row in documents
+            if row["userId"] == "raya-2"
+        }
+        assert by_code == {
+            "00940704": False,
+            "00960211": True,
+            "00970800": True,
+        }

@@ -381,6 +381,17 @@ async def get_course_by_number(
         {**PUBLISHED_FILTER, "courseNumber": normalized}
     )
     if not document:
+        from app.curriculum.cross_track_equivalence import equivalent_course_numbers
+
+        for alias in sorted(equivalent_course_numbers(normalized) - {normalized}):
+            if is_production_excluded_course_number(alias):
+                continue
+            document = await database[settings.courses_collection].find_one(
+                {**PUBLISHED_FILTER, "courseNumber": alias}
+            )
+            if document:
+                break
+    if not document:
         return None
     return to_public_course(document)
 
@@ -426,14 +437,31 @@ async def list_offerings_for_course(
     semester_code: int | None = None,
     settings: Settings | None = None,
 ) -> list[dict[str, Any]]:
+    from app.curriculum.cross_track_equivalence import equivalent_course_numbers
+
+    lookup = sorted(equivalent_course_numbers(course_number) or {course_number})
     grouped = await list_offerings_grouped_for_courses(
         database,
-        [course_number],
+        lookup,
         academic_year=academic_year,
         semester_code=semester_code,
         settings=settings,
     )
-    return grouped.get(course_number, [])
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for key in lookup:
+        for item in grouped.get(key, []):
+            identity = (
+                item.get("courseNumber"),
+                item.get("academicYear"),
+                item.get("semesterCode"),
+                item.get("sourceFile"),
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(item)
+    return merged
 
 
 async def list_offerings_grouped_for_courses(

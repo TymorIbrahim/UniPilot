@@ -104,3 +104,36 @@ class TestTheStreamFailingPartWay:
             ]
 
         assert any('"type": "progress"' in chunk for chunk in chunks)
+
+
+@pytest.mark.asyncio
+async def test_ask_advisor_for_user_forwards_conversation_id() -> None:
+    database = AsyncMock()
+    user_id = str(ObjectId())
+    with patch(
+        "app.services.advisor_service.ask_advisor",
+        new=AsyncMock(return_value={"question": "q", "response": {"answer": "a"}}),
+    ) as ask_mock:
+        await ask_advisor_for_user(
+            database, user_id, "yes, continue", conversation_id="thread-7"
+        )
+    assert ask_mock.await_args.kwargs["conversation_id"] == "thread-7"
+
+
+@pytest.mark.asyncio
+async def test_stream_advisor_for_user_forwards_conversation_id() -> None:
+    seen: dict[str, Any] = {}
+
+    async def _stream(**kwargs: Any) -> AsyncGenerator[str, None]:
+        seen.update(kwargs)
+        yield 'data: {"type": "error", "error": "stop"}\n\n'
+
+    with patch("app.services.advisor_service.stream_advisor", new=_stream):
+        chunks = [
+            chunk
+            async for chunk in stream_advisor_for_user(
+                str(ObjectId()), "yes, continue", conversation_id="thread-7"
+            )
+        ]
+    assert seen["conversation_id"] == "thread-7"
+    assert chunks

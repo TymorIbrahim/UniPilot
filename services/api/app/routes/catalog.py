@@ -11,7 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.config import get_settings
 from app.db.mongo import get_database
 from app.dependencies.auth import AuthContext, require_auth
-from app.planning.technion_planner_semesters import resolve_planner_semester_codes
+from app.planning.technion_planner_semesters import (
+    plan_semester_code_from_course_json_filename,
+    resolve_planner_semester_codes,
+)
 from app.repositories import catalog_repository
 from app.services.catalog_cache import (
     course_cache_key,
@@ -204,7 +207,7 @@ async def get_catalog_course(
 ) -> dict[str, Any]:
     validate_course_number_param(course_number)
     database = await get_database()
-    cache_key = course_cache_key(course_number)
+    cache_key = course_cache_key(course_number, include_offerings=includeOfferings)
     cached = await get_cached_json(cache_key)
     if cached is not None:
         return success_response({"course": cached})
@@ -466,9 +469,13 @@ async def list_planner_semesters(
         raw_dir=raw_dir,
         mongo_codes=mongo_codes,
     )
+    active = plan_semester_code_from_course_json_filename(
+        settings.academic_default_semester_file
+    )
     return success_response(
         {
             "planSemesterCodes": plan_semester_codes,
             "total": len(plan_semester_codes),
+            "activePlanSemesterCode": active,
         }
     )

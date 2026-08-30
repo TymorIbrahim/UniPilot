@@ -37,6 +37,7 @@ async def ask_advisor_for_user(
     question: str,
     *,
     settings: Settings | None = None,
+    conversation_id: str | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     try:
@@ -44,6 +45,7 @@ async def ask_advisor_for_user(
             question=question,
             user_id=user_id,
             settings=settings,
+            conversation_id=conversation_id,
         )
     except AiAdvisorClientError as exc:
         if exc.status_code == 503:
@@ -75,6 +77,7 @@ async def stream_advisor_for_user(
     question: str,
     *,
     settings: Settings | None = None,
+    conversation_id: str | None = None,
 ) -> Any:
     settings = settings or get_settings()
     try:
@@ -82,6 +85,7 @@ async def stream_advisor_for_user(
             question=question,
             user_id=user_id,
             settings=settings,
+            conversation_id=conversation_id,
         ):
             yield chunk
     except (httpx.HTTPError, AiAdvisorClientError) as exc:

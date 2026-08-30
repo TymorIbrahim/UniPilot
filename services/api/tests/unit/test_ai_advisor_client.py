@@ -142,3 +142,28 @@ class TestTheAgentBeingUnreachable:
                 await ask_advisor(question="q", user_id="u", settings=settings)
 
         assert caught.value.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_ask_advisor_forwards_conversation_id() -> None:
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.content = b'{"success": true, "data": {"response": {"answer": "ok"}}, "error": null}'
+    mock_response.json.return_value = {
+        "success": True,
+        "data": {"response": {"answer": "ok"}},
+        "error": None,
+    }
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    settings = Settings(ai_service_url="http://ai:3001", internal_service_token="test-token")
+    with patch("app.clients.ai_advisor_client.httpx.AsyncClient", return_value=mock_client):
+        await ask_advisor(
+            question="yes, continue",
+            user_id="user-1",
+            conversation_id="thread-7",
+            settings=settings,
+        )
+    assert mock_client.post.await_args.kwargs["json"]["conversation_id"] == "thread-7"

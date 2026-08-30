@@ -207,6 +207,18 @@ def test_offerings_batch_cache_key_none_values() -> None:
 
 def test_course_cache_key_format() -> None:
     assert course_cache_key("236781") == "course:236781"
+    assert course_cache_key("236781", include_offerings=True) == "course:236781:offerings"
+
+
+def test_course_cache_key_does_not_reuse_the_no_offerings_entry() -> None:
+    """A catalog prefetch without offerings must not satisfy includeOfferings=true.
+
+    Live, GET /catalog/courses/00940704 cached offerings=[] and the detail
+    panel then showed no published offerings while /offerings listed six winters.
+    """
+    assert course_cache_key("00940704") != course_cache_key(
+        "00940704", include_offerings=True
+    )
 
 
 def test_degree_programs_cache_key_format() -> None:

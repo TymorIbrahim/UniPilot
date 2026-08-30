@@ -34,9 +34,7 @@ export function CourseDetailModal({
         })
         return {
           ...detail.course,
-          offerings: offerings.offerings.length
-            ? offerings.offerings
-            : detail.course.offerings ?? [],
+          offerings: offerings.offerings,
         }
       }
       return detail.course

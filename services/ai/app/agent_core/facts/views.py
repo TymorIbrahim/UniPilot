@@ -254,6 +254,7 @@ def remaining_courses_source(engine: Any) -> ViewSchema:
             "category": _I,
             "track": _I,
             "curriculumAvailable": ScalarKind.BOOL,
+            "offeredThisTerm": ScalarKind.BOOL,
         },
         field_notes={
             "curriculumAvailable": (
@@ -310,6 +311,15 @@ def remaining_courses_source(engine: Any) -> ViewSchema:
                 "can differ in form from the profile's `programSlug`, which is why filtering "
                 "`track_courses` by a raw `programSlug` can come back empty where this does not."
             ),
+            "offeredThisTerm": (
+                "whether this remaining course RUNS IN THE ACTIVE SEMESTER -- the current "
+                "offerings catalog, not the identity graph and not historical "
+                "`course_offerings`. A course the student still owes can be off this term's "
+                "list; the row stays (they still owe it) with offeredThisTerm false.\n"
+                "     ASKED WHICH REMAINING COURSES ARE OFFERED THIS TERM, filter this field "
+                "to true. Existence on remaining_courses is the curriculum gap, not an "
+                "offering. Omitted when the engine has no active-semester catalog."
+            ),
         },
         basis=Basis.OFFICIAL_RECORD,
         joins=(("courseNumber", "courses.courseNumber"),),
@@ -361,7 +371,40 @@ def _resolve_track(program_slug: str, contains: Mapping[str, Any]) -> str | None
     return prefixed if prefixed in contains else None
 
 
-_COURSE_CODE = re.compile(r"\b0\d{7}\b")
+_OVERLAP_TOKEN = re.compile(r"(?<!\d)(\d{6,8})(?!\d)")
+
+
+def _canonical_technion_number(raw: str) -> str | None:
+    """8-digit catalog code from a token in `noAdditionalCreditText`.
+
+    The field stores the legacy 6-digit form (`094411`), the 7-digit form
+    with the leading zero dropped, or a full 8-digit code. Six digits are
+    faculty+course with a zero inserted after the faculty -- `094411` is
+    `00940411`, not `00094411`. Matching only `0xxxxxxx` found nothing, and
+    a passed alternative was reported as still outstanding.
+    """
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 8:
+        return digits if re.fullmatch(r"0\d{7}", digits) else None
+    if len(digits) == 7:
+        padded = f"0{digits}"
+        return padded if re.fullmatch(r"0\d{7}", padded) else None
+    if len(digits) == 6:
+        padded = f"0{digits[:3]}0{digits[3:]}"
+        return padded if re.fullmatch(r"0\d{7}", padded) else None
+    return None
+
+
+def partners_in_overlap_text(text: str | None) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for match in _OVERLAP_TOKEN.finditer(text or ""):
+        code = _canonical_technion_number(match.group(1))
+        if code and code not in seen:
+            seen.add(code)
+            found.append(code)
+    return found
+
 
 # Same course, different code per track. Curated rather than derived: across
 # 8,884 catalog references exactly ONE note matches the "code X (ISE) vs code Y
@@ -406,7 +449,7 @@ async def _equivalent_codes(database: Any) -> dict[str, set[str]]:
         code = str(document.get("courseNumber") or "")
         if not code:
             continue
-        for partner in _COURSE_CODE.findall(str(document.get("noAdditionalCreditText") or "")):
+        for partner in partners_in_overlap_text(str(document.get("noAdditionalCreditText") or "")):
             if partner == code:
                 continue
             pairs.setdefault(code, set()).add(partner)
@@ -441,6 +484,7 @@ async def _remaining_documents(
             {"courseNumber": {"$exists": True}}, {"courseNumber": 1, "title": 1, "credits": 1}
         )
     }
+    this_term = getattr(engine, "course_catalog", None)
 
     equivalents = await _equivalent_codes(database)
 
@@ -530,6 +574,11 @@ async def _remaining_documents(
                 "title": course.get("title"),
                 "credits": course.get("credits"),
             }
+            # Active-semester catalog, when the engine has one. Stubs used in
+            # tests that only care about course numbers omit the attribute, and
+            # an omitted field is unverifiable -- not a claim that nothing runs.
+            if this_term is not None:
+                row["offeredThisTerm"] = code in this_term
             category = categories.get((track, code))
             # OMITTED rather than set to a placeholder when the headings do not
             # say. An undeclared field is simply absent, and a filter on it fails

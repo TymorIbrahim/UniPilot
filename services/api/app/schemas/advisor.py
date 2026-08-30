@@ -7,6 +7,7 @@ class AskAdvisorRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: str = Field(min_length=1, max_length=4000)
+    conversationId: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class AdvisorAnswerPayload(BaseModel):

@@ -17,6 +17,7 @@ from app.planning.semester_planner import (
     normalize_course_id,
 )
 from app.planning.prerequisite_resolver import build_courses_by_number, canonical_course_number
+from app.curriculum.cross_track_equivalence import equivalent_course_numbers
 from app.repositories import catalog_repository
 from app.repositories.completed_course_repository import (
     find_completed_courses_for_statistics,
@@ -27,16 +28,13 @@ from app.services.semester_plan_service import load_planning_context
 
 
 def _expand_course_numbers_for_lookup(course_numbers: list[str]) -> list[str]:
-    """Include canonical aliases so Mongo lookups match catalog courseNumber keys."""
+    """Include canonical and cross-track aliases so Mongo lookups match catalog keys."""
     expanded: set[str] = set()
     for number in course_numbers:
         raw = str(number or "").strip()
         if not raw:
             continue
-        expanded.add(raw)
-        canonical = canonical_course_number(raw)
-        if canonical:
-            expanded.add(canonical)
+        expanded |= equivalent_course_numbers(raw) or {raw}
     return sorted(expanded)
 
 
@@ -48,10 +46,7 @@ def _index_offering_aliases(
     keys: set[str] = {str(alias).strip() for alias in aliases if str(alias).strip()}
     offering_number = str(offering.get("courseNumber") or "").strip()
     if offering_number:
-        keys.add(offering_number)
-    canonical = canonical_course_number(offering_number)
-    if canonical:
-        keys.add(canonical)
+        keys |= equivalent_course_numbers(offering_number) or {offering_number}
     for key in keys:
         offerings_by_number[key] = offering
 

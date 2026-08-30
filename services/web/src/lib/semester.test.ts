@@ -49,6 +49,12 @@ describe('semester helpers', () => {
     expect(pickDefaultPlannerSemester([])).toBe(defaultSemesterCode())
   })
 
+  it('prefers the catalog active term over the wall-clock month', () => {
+    expect(pickDefaultPlannerSemester(['2025-1', '2025-2', '2025-3'], '2025-2')).toBe(
+      '2025-2',
+    )
+  })
+
   it('suggests a localized plan name from semester code', () => {
     expect(suggestedPlanName('2025-2', 'en')).toContain('2025')
     expect(suggestedPlanName('2025-2', 'he')).toContain('תוכנית')

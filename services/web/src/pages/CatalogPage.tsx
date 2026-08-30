@@ -55,7 +55,7 @@ export function CatalogPage() {
   const courseFromUrl = searchParams.get('course')?.trim() ?? ''
   const deepLinkQuery = useQuery({
     queryKey: ['catalog-course-prefetch', courseFromUrl],
-    queryFn: () => catalogApi.course(courseFromUrl, false),
+    queryFn: () => catalogApi.course(courseFromUrl, true),
     enabled: Boolean(courseFromUrl) && !selected,
   })
 

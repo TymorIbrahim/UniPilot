@@ -741,3 +741,4 @@ async def test_list_planner_semesters_returns_catalog_backed_codes(auth_client, 
     assert "2025-2" in codes
     assert all(isinstance(code, str) and code.count("-") == 1 for code in codes)
     assert body["data"]["total"] == len(codes)
+    assert body["data"]["activePlanSemesterCode"] == "2025-2"

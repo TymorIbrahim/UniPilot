@@ -249,3 +249,40 @@ class TestAListingIsNotATerm:
             _answer("planned"), _facts(planned=planned), "Which courses do I still need to take?"
         )
         assert "term_load" in {v.kind for v in violations}
+
+
+B = ScalarKind.BOOL
+
+
+def test_verify_rejects_this_spring_claim_for_a_winter_only_remaining_course() -> None:
+    remaining = Collection(
+        records=(
+            Record(
+                fields={
+                    "courseNumber": Scalar(I, "00940704"),
+                    "offeredThisTerm": Scalar(B, False),
+                },
+                basis=Basis.OFFICIAL_RECORD,
+            ),
+            Record(
+                fields={
+                    "courseNumber": Scalar(I, "00970800"),
+                    "offeredThisTerm": Scalar(B, True),
+                },
+                basis=Basis.OFFICIAL_RECORD,
+            ),
+        ),
+        completeness=Completeness(complete=True, total=2),
+    )
+    answer = Answer(
+        text="All three are offered this spring: 00940704, 00970800.",
+        basis=Basis.OFFICIAL_RECORD,
+        used=("remaining",),
+        citations=(),
+    )
+    problems = verify_answer(
+        answer,
+        _facts(remaining=remaining),
+        "Which of those is offered this spring?",
+    )
+    assert "offered_this_term" in {v.kind for v in problems}

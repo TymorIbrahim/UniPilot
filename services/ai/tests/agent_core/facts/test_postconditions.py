@@ -23,6 +23,7 @@ from app.agent_core.facts.postconditions import (
     check_joint_floor,
     check_plan,
     check_term_load,
+    check_this_term_offering_claim,
 )
 
 
@@ -119,3 +120,64 @@ def test_a_plan_with_no_completed_credits_is_unverifiable_not_a_violation():
     empty = Standing(total_points=0.0, total_credits=0.0)
 
     assert check_joint_floor(empty, [], _WINTER_FLOOR) == []
+
+
+_SPRING_Q = "Which of those is offered this spring?"
+_NOT_THIS_TERM = ("00940704",)
+
+
+def test_claiming_a_winter_only_course_is_offered_this_spring_is_refused() -> None:
+    """Live: remaining mandatory was 00940704 (winter), 00960211 and 00970800
+    (spring). The answer said all three run this spring."""
+    violations = check_this_term_offering_claim(
+        "All three are offered this spring: 00940704, 00960211, 00970800.",
+        _SPRING_Q,
+        _NOT_THIS_TERM,
+    )
+    assert violations
+    assert violations[0].kind == "offered_this_term"
+    assert "00940704" in violations[0].message
+
+
+def test_naming_the_winter_only_course_as_not_offered_is_fine() -> None:
+    violations = check_this_term_offering_claim(
+        "00960211 and 00970800 are offered this spring. 00940704 is winter-only, not offered this term.",
+        _SPRING_Q,
+        _NOT_THIS_TERM,
+    )
+    assert violations == []
+
+
+def test_this_term_check_is_silent_when_the_question_is_not_about_this_term() -> None:
+    violations = check_this_term_offering_claim(
+        "You still need 00940704, 00960211, and 00970800.",
+        "What remaining mandatory courses do I still need?",
+        _NOT_THIS_TERM,
+    )
+    assert violations == []
+
+def test_an_offering_claim_is_wrong_even_when_the_question_does_not_mention_term() -> None:
+    """The student does not have to say 'this spring' for an offering claim to
+    be checkable. '10000001 is offered' against offeredThisTerm false is false
+    under any question."""
+    violations = check_this_term_offering_claim(
+        "10000001 is offered this term.",
+        "Can I take 10000001?",
+        ("10000001",),
+    )
+    assert violations
+    assert violations[0].kind == "offered_this_term"
+    assert "10000001" in violations[0].message
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "10000001 is not offered this term.",
+        "10000001 is no longer offered this term.",
+        "10000001 won't be offered this term.",
+        "10000001 has not been offered this semester.",
+    ],
+)
+def test_denying_an_offering_is_not_an_offering_claim(text: str) -> None:
+    assert check_this_term_offering_claim(text, "Can I take 10000001?", ("10000001",)) == []
+

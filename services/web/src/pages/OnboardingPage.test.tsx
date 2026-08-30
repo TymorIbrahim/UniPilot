@@ -16,6 +16,7 @@ vi.mock('../api/endpoints', () => ({
   catalogApi: {
     academicFaculties: vi.fn(),
     pathOptions: vi.fn(),
+    plannerSemesters: vi.fn(),
   },
 }))
 
@@ -73,6 +74,11 @@ describe('OnboardingPage', () => {
     vi.mocked(endpoints.catalogApi.pathOptions).mockResolvedValue({
       items: [primaryOption],
       total: 1,
+    })
+    vi.mocked(endpoints.catalogApi.plannerSemesters).mockResolvedValue({
+      planSemesterCodes: ['2025-1', '2025-2', '2025-3'],
+      total: 3,
+      activePlanSemesterCode: '2025-2',
     })
   })
 

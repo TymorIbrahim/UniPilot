@@ -216,6 +216,11 @@ export function AdvisorPage() {
   const [progress, setProgress] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const structuredStepsRef = useRef(false)
+  const conversationIdRef = useRef(
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `advisor-${Date.now()}`,
+  )
 
   const suggestedPrompts = useMemo(
     () => [
@@ -227,7 +232,7 @@ export function AdvisorPage() {
   )
 
   const askMutation = useMutation({
-    mutationFn: (question: string) => advisorApi.ask(question),
+    mutationFn: (question: string) => advisorApi.ask(question, conversationIdRef.current),
     onSuccess: (data, question) => {
       setMessages((current) => [
         ...current,
@@ -264,7 +269,7 @@ export function AdvisorPage() {
     structuredStepsRef.current = false
 
     try {
-      const response = await advisorApi.askStream(trimmed)
+      const response = await advisorApi.askStream(trimmed, conversationIdRef.current)
       if (!response.ok) {
         throw new Error(`Request failed: ${response.status}`)
       }

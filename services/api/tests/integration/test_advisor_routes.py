@@ -125,3 +125,23 @@ async def test_advisor_stream_ends_with_an_error_event_when_the_agent_is_down(
 
     assert response.status_code == 200
     assert '"type": "error"' in response.text
+
+
+
+@pytest.mark.asyncio
+async def test_advisor_stream_accepts_and_forwards_conversation_id(auth_client, mongo_database):
+    token = await register_access_token(auth_client, "advisor-thread@example.com")
+    seen: dict = {}
+
+    async def _stream(**kwargs):
+        seen.update(kwargs)
+        yield 'data: {"type": "error", "error": "stop"}\n\n'
+
+    with patch("app.services.advisor_service.stream_advisor", new=_stream):
+        response = await auth_client.post(
+            "/advisor/ask/stream",
+            json={"question": "yes, continue", "conversationId": "thread-7"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+    assert seen.get("conversation_id") == "thread-7"

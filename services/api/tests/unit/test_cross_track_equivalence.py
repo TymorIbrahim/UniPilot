@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.curriculum.cross_track_equivalence import (
     KNOWN_CROSS_TRACK_EQUIVALENCE_GROUPS,
     cross_track_equivalence_sets,
+    equivalent_course_numbers,
 )
 from app.services.course_reference_keys import (
     build_mandatory_equivalence_groups,
@@ -52,3 +53,12 @@ def test_empty_matrix_yields_cross_track_only_without_matrix_rows():
     cross_track_only = build_mandatory_equivalence_groups(None)
     assert len(cross_track_only) == 1
     assert "00960211" in cross_track_only[0]
+
+
+def test_equivalent_course_numbers_include_the_other_track_code():
+    keys = equivalent_course_numbers("00960221")
+    assert "00960211" in keys
+    assert "00960221" in keys
+    assert equivalent_course_numbers("00940704") == {"00940704"}
+    assert equivalent_course_numbers(None) == set()
+    assert equivalent_course_numbers("  ") == set()

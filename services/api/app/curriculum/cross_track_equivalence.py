@@ -27,3 +27,21 @@ def cross_track_equivalence_sets() -> list[set[str]]:
         if keys:
             groups.append(keys)
     return groups
+
+
+def equivalent_course_numbers(raw: str | None) -> set[str]:
+    """Canonical keys for a course number plus documented cross-track aliases.
+
+    Offerings and catalog rows are stored under one track's code. Remaining
+    curriculum lists the other. Without this expansion those lookups miss.
+    """
+    if raw is None:
+        return set()
+    value = str(raw).strip()
+    if not value:
+        return set()
+    keys = _course_number_keys(value)
+    for group in cross_track_equivalence_sets():
+        if keys & group:
+            return keys | group
+    return keys

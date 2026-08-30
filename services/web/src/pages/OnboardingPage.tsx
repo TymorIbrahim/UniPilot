@@ -60,6 +60,11 @@ export function OnboardingPage() {
 
   const profileQuery = useStudentProfileQuery()
 
+  const plannerSemestersQuery = useQuery({
+    queryKey: ['catalog', 'planner-semesters'],
+    queryFn: () => catalogApi.plannerSemesters(),
+  })
+
   const facultiesQuery = useQuery({
     queryKey: ['academic-faculties', programType],
     queryFn: () => catalogApi.academicFaculties('technion', programType),
@@ -74,6 +79,16 @@ export function OnboardingPage() {
       }),
     enabled: Boolean(facultyId),
   })
+
+  useEffect(() => {
+    const active = plannerSemestersQuery.data?.activePlanSemesterCode
+    const codes = plannerSemestersQuery.data?.planSemesterCodes ?? []
+    if (active && codes.includes(active)) {
+      setSemesterCode(active)
+      const year = parseSemesterCode(active)?.academicYear
+      if (year) setCatalogYear(String(year))
+    }
+  }, [plannerSemestersQuery.data])
 
   useEffect(() => {
     if (profileQuery.isSuccess && hasStudentProfile(profileQuery.data)) {

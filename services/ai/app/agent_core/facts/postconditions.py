@@ -1091,6 +1091,57 @@ def check_plan(
     ]
 
 
+
+_OFFERING_CLAIM = re.compile(r"\boffered\b|מוצע", re.IGNORECASE)
+# Negation of the offering verb, not a list of live phrasings: "not offered",
+# "isn't offered", "won't be offered", "no longer offered", "has not been offered".
+_OFFERING_DENIAL = re.compile(
+    r"(?:not|n['’]t|no longer|never)\s+(?:been\s+|be\s+)?offered|לא\s+מוצע",
+    re.IGNORECASE,
+)
+
+
+def check_this_term_offering_claim(
+    text: str, question: str, not_offered: Sequence[str]
+) -> list[Violation]:
+    """Refuse saying a course runs this term when remaining_courses says it does not.
+
+    Remaining is the curriculum gap. Whether a remaining course RUNS NOW is
+    `offeredThisTerm` on that row, from the active-semester catalog. Treating
+    presence on the remaining list as an offering lists courses that do not run
+    this term as if they did.
+
+    `question` is kept so the call matches the other prose checks; the claim
+    is judged from the answer, not from how the student phrased the ask.
+    """
+    _ = question
+    if not not_offered:
+        return []
+    body = text or ""
+    claimed = []
+    for code in not_offered:
+        idx = body.find(str(code))
+        if idx < 0:
+            continue
+        window = body[max(0, idx - 80) : idx + len(str(code)) + 80]
+        if _OFFERING_DENIAL.search(window):
+            continue
+        if _OFFERING_CLAIM.search(window):
+            claimed.append(str(code))
+    if not claimed:
+        return []
+    listed = ", ".join(claimed)
+    return [
+        Violation(
+            "offered_this_term",
+            f"{listed} is not offered this term. Filter remaining_courses where "
+            "offeredThisTerm is true. A remaining course can still be off the "
+            "active-semester catalog. Name the ones that run now; say the others "
+            "are not offered this term.",
+        )
+    ]
+
+
 __all__ = [
     "MAX_GRADE",
     "MAX_TERM_CREDITS",
@@ -1103,4 +1154,5 @@ __all__ = [
     "check_joint_floor",
     "check_plan",
     "check_term_load",
+    "check_this_term_offering_claim",
 ]

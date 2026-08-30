@@ -309,4 +309,26 @@ describe('AdvisorPage', () => {
     expect(await screen.findByText(ADVISOR_REPLY.answer)).toBeInTheDocument()
     expect(await screen.findByText('Statistical Inference')).toBeInTheDocument()
   })
+
+  it('threads one conversation id across follow-up questions', async () => {
+    vi.mocked(advisorApi.askStream).mockResolvedValue(
+      streamingResponse(CHUNK_EVENT, FINAL_EVENT),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.type(screen.getByTestId('advisor-input'), 'How many credits have I completed?')
+    await user.click(screen.getByTestId('advisor-submit'))
+    expect(await screen.findByText(ADVISOR_REPLY.answer)).toBeInTheDocument()
+
+    await user.type(screen.getByTestId('advisor-input'), 'And how many do I still need?')
+    await user.click(screen.getByTestId('advisor-submit'))
+    await screen.findAllByText(ADVISOR_REPLY.answer)
+
+    expect(advisorApi.askStream).toHaveBeenCalledTimes(2)
+    const firstId = vi.mocked(advisorApi.askStream).mock.calls[0][1]
+    const secondId = vi.mocked(advisorApi.askStream).mock.calls[1][1]
+    expect(typeof firstId).toBe('string')
+    expect(firstId).not.toEqual('')
+    expect(secondId).toEqual(firstId)
+  })
 })

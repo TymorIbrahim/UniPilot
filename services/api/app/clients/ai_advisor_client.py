@@ -27,11 +27,21 @@ class AiAdvisorClientError(Exception):
         self.detail = detail
 
 
+def _advise_payload(
+    question: str, user_id: str, conversation_id: str | None
+) -> dict[str, str]:
+    payload: dict[str, str] = {"question": question, "user_id": user_id}
+    if conversation_id:
+        payload["conversation_id"] = conversation_id
+    return payload
+
+
 async def ask_advisor(
     *,
     question: str,
     user_id: str,
     settings: Settings | None = None,
+    conversation_id: str | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     url = f"{settings.resolved_ai_service_url()}/advise"
@@ -46,7 +56,7 @@ async def ask_advisor(
             response = await client.post(
                 url,
                 headers=headers,
-                json={"question": question, "user_id": user_id},
+                json=_advise_payload(question, user_id, conversation_id),
             )
     except httpx.HTTPError as exc:
         # The agent being down or slower than `ai_advisor_timeout_seconds` is an
@@ -92,6 +102,7 @@ async def stream_advisor(
     question: str,
     user_id: str,
     settings: Settings | None = None,
+    conversation_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     settings = settings or get_settings()
     url = f"{settings.resolved_ai_service_url()}/advise/stream"
@@ -106,7 +117,7 @@ async def stream_advisor(
             "POST",
             url,
             headers=headers,
-            json={"question": question, "user_id": user_id},
+            json=_advise_payload(question, user_id, conversation_id),
         ) as response:
             if response.status_code >= 400:
                 raise AiAdvisorClientError(status_code=response.status_code, detail="Streaming request failed")

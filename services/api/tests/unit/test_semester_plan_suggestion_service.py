@@ -269,6 +269,14 @@ def test_expand_course_numbers_for_lookup_skips_empty_values():
     assert _expand_course_numbers_for_lookup(["", "  ", "0940345"]) == ["00940345", "0940345"]
 
 
+def test_expand_course_numbers_for_lookup_includes_cross_track_aliases():
+    from app.services.semester_plan_suggestion_service import _expand_course_numbers_for_lookup
+
+    expanded = _expand_course_numbers_for_lookup(["00960221"])
+    assert "00960221" in expanded
+    assert "00960211" in expanded
+
+
 def test_draft_course_ids_ignores_inactive_planned_courses() -> None:
     draft_ids = _draft_course_ids(
         [

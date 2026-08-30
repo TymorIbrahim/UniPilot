@@ -70,7 +70,9 @@ def offerings_batch_cache_key(
     return f"offerings:{numbers}:y{academic_year}:s{semester_code}"
 
 
-def course_cache_key(course_number: str) -> str:
+def course_cache_key(course_number: str, *, include_offerings: bool = False) -> str:
+    if include_offerings:
+        return f"course:{course_number}:offerings"
     return f"course:{course_number}"
 
 

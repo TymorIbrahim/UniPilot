@@ -718,3 +718,21 @@ async def test_two_anything_counts_rows_do_not_offer_the_same_course(stub) -> No
     second = {c["courseNumber"] for c in shelves[1]["courses"]}
     assert first and second
     assert first & second == set()
+
+
+
+@pytest.mark.asyncio
+async def test_a_required_course_offered_under_a_cross_track_code_is_offered(stub) -> None:
+    """ISE remaining list uses 00960221; catalog/offerings store 00960211."""
+    stub["requirementProgress"] = [
+        _bucket("p:core", "Required", remaining=("00960221",), requirement_type="core")
+    ]
+    stub["courses"] = [_course("00960211")]
+    stub["offered"] = {"00960211"}
+
+    card = (await _build())["shelves"][0]["courses"][0]
+
+    assert card["courseNumber"] == "00960221"
+    assert card["catalogKnown"] is True
+    assert card["offeredThisTerm"] is True
+    assert card["title"] == "Course 00960211"

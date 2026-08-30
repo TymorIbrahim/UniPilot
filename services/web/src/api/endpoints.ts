@@ -128,7 +128,11 @@ export const catalogApi = {
   },
   faculties: () => apiRequest<{ items: string[]; total: number }>('/catalog/faculties'),
   plannerSemesters: () =>
-    apiRequest<{ planSemesterCodes: string[]; total: number }>('/catalog/planner-semesters'),
+    apiRequest<{
+      planSemesterCodes: string[]
+      total: number
+      activePlanSemesterCode: string | null
+    }>('/catalog/planner-semesters'),
 }
 
 export const transcriptApi = {
@@ -295,18 +299,20 @@ export const plansApi = {
 }
 
 export const advisorApi = {
-  ask: (question: string) =>
+  ask: (question: string, conversationId?: string) =>
     apiRequest<{ advisor: AdvisorReply }>('/advisor/ask', {
       method: 'POST',
-      body: { question },
+      body: conversationId ? { question, conversationId } : { question },
     }),
-  askStream: (question: string) => {
+  askStream: (question: string, conversationId?: string) => {
+    const body: Record<string, string> = { question }
+    if (conversationId) body.conversationId = conversationId
     return fetch(`${getApiBaseUrl()}/advisor/ask/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(body),
       credentials: 'include',
     })
   },

@@ -681,3 +681,37 @@ async def test_list_path_options_skips_missing_linked_program_code(mongo_databas
         settings=settings,
     )
     assert options[0].get("linkedDegreeProgramId") is None
+
+
+
+@pytest.mark.asyncio
+async def test_get_course_by_number_follows_cross_track_alias(mongo_database):
+    settings = get_settings()
+    await mongo_database[settings.courses_collection].insert_one(
+        {
+            "courseNumber": "00960211",
+            "title": "Models for Electronic Commerce",
+            "status": "published",
+        }
+    )
+    course = await catalog_repository.get_course_by_number(mongo_database, "00960221")
+    assert course is not None
+    assert course["courseNumber"] == "00960211"
+
+
+@pytest.mark.asyncio
+async def test_list_offerings_for_course_follows_cross_track_alias(mongo_database):
+    settings = get_settings()
+    await mongo_database[settings.course_offerings_collection].insert_one(
+        {
+            "courseNumber": "00960211",
+            "status": "published",
+            "academicYear": 2025,
+            "semesterCode": 201,
+        }
+    )
+    offerings = await catalog_repository.list_offerings_for_course(
+        mongo_database, "00960221", settings=settings
+    )
+    assert len(offerings) == 1
+    assert offerings[0]["courseNumber"] == "00960211"
