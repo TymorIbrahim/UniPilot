@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 from typing import Any, Literal
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -11,6 +14,11 @@ from app.curriculum.track_registry import (
     resolve_track_slug_from_program,
 )
 from app.repositories import catalog_repository
+from app.services.catalog_cache import (
+    get_cached_json,
+    program_catalog_cache_key,
+    set_cached_json,
+)
 from app.repositories.completed_course_repository import find_all_completed_courses_by_user_id
 from app.repositories.student_profile_repository import find_student_profile_by_user_id
 from app.services.course_reference_keys import course_number_keys
@@ -210,6 +218,67 @@ async def _synthetic_completed_records_for_numbers(
     return records
 
 
+def _as_cacheable(context: dict[str, Any]) -> dict[str, Any]:
+    """The shape a cached read returns, produced on every path."""
+    return json.loads(json.dumps(context, default=str))
+
+
+PROGRAM_CATALOG_CACHE_VERSION = 1
+"""Bump when the shape below changes, so old entries are ignored rather than read."""
+
+
+async def _load_program_catalog_context(
+    database: AsyncIOMotorDatabase,
+    program_code: str,
+) -> dict[str, Any]:
+    """Requirements, pools and matrix rules for a program, cached.
+
+    Four of the queries behind a progress computation are program-scoped: they
+    return the same documents for every student in the program and change only
+    when the catalog is promoted. Against this deployment each carries about
+    83ms of network -- the database is remote, so round-trip COUNT sets the
+    latency, not the work in any one query -- and together with the pool
+    enrichment they were roughly 870ms of every progress request, paid again by
+    the Progress page, the planner and the risk view.
+
+    Nothing student-specific is stored here, so no transcript change can make an
+    entry wrong; the only staleness is catalog promotion, bounded by the same
+    TTL the catalog endpoints already accept.
+    """
+    cache_key = f"{program_catalog_cache_key(program_code)}:v{PROGRAM_CATALOG_CACHE_VERSION}"
+    cached = await get_cached_json(cache_key)
+    if cached is not None:
+        return cached
+
+    hard_requirements, pool_documents, semester_matrix_documents = await asyncio.gather(
+        catalog_repository.list_hard_requirements_for_program(
+            database, program_code, include_internal=True
+        ),
+        catalog_repository.list_course_pools_for_program(database, program_code),
+        catalog_repository.list_semester_matrix_rules_for_program(database, program_code),
+    )
+    pool_documents = await enrich_pool_documents_for_program(
+        database,
+        program_code=program_code,
+        pool_documents=ensure_cs_faculty_support_pools(program_code, pool_documents),
+    )
+
+    # Normalised through JSON whether or not the cache is on. Serialising
+    # stringifies ObjectIds, so returning raw documents on a miss and decoded
+    # ones on a hit would make behaviour depend on cache state -- and the tests,
+    # which run with the cache disabled, would exercise the shape production
+    # never sees. One shape, always.
+    context = _as_cacheable(
+        {
+            "hardRequirements": hard_requirements,
+            "poolDocuments": pool_documents,
+            "semesterMatrixDocuments": semester_matrix_documents,
+        }
+    )
+    await set_cached_json(cache_key, context)
+    return context
+
+
 async def get_graduation_progress_for_user(
     database: AsyncIOMotorDatabase,
     user_id: str,
@@ -234,32 +303,13 @@ async def get_graduation_progress_for_user(
     if not program_code:
         return {"status": "degree_not_found"}
 
-    import asyncio
-
-    hard_requirements_task = catalog_repository.list_hard_requirements_for_program(
-        database,
-        program_code,
-        include_internal=True,
+    program_context, completed_records = await asyncio.gather(
+        _load_program_catalog_context(database, program_code),
+        find_all_completed_courses_by_user_id(database, user_id),
     )
-    pools_task = catalog_repository.list_course_pools_for_program(database, program_code)
-    matrix_task = catalog_repository.list_semester_matrix_rules_for_program(
-        database,
-        program_code,
-    )
-    completed_task = find_all_completed_courses_by_user_id(database, user_id)
-
-    hard_requirements, pool_documents, semester_matrix_documents, completed_records = await asyncio.gather(
-        hard_requirements_task,
-        pools_task,
-        matrix_task,
-        completed_task,
-    )
-
-    pool_documents = await enrich_pool_documents_for_program(
-        database,
-        program_code=program_code,
-        pool_documents=ensure_cs_faculty_support_pools(program_code, pool_documents),
-    )
+    hard_requirements = program_context["hardRequirements"]
+    pool_documents = program_context["poolDocuments"]
+    semester_matrix_documents = program_context["semesterMatrixDocuments"]
 
     completed_records, catalog_courses_by_id = await _catalog_courses_for_completed_records(
         database,

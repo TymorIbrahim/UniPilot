@@ -76,3 +76,14 @@ def course_cache_key(course_number: str) -> str:
 
 def degree_programs_cache_key() -> str:
     return "degree-programs:all"
+
+
+def program_catalog_cache_key(program_code: str) -> str:
+    """Requirements, pools and matrix rules for one program.
+
+    Program-scoped rather than student-scoped, which is what makes it safe to
+    cache: these documents are identical for every student in the program and
+    change only when the catalog is promoted. Nothing about one student's
+    transcript can go stale in here.
+    """
+    return f"program-context:{program_code}"
