@@ -983,3 +983,52 @@ async def list_course_prerequisite_texts(
         PUBLISHED_FILTER, {"courseNumber": 1, "prerequisitesText": 1, "_id": 0}
     )
     return [doc async for doc in cursor]
+
+
+PLANNING_COURSE_FIELDS = {
+    "courseNumber": 1,
+    "number": 1,
+    "title": 1,
+    "titleHebrew": 1,
+    "credits": 1,
+    "faculty": 1,
+    "semestersOffered": 1,
+    "prerequisitesText": 1,
+    "noAdditionalCreditText": 1,
+    "studyFramework": 1,
+    "notes": 1,
+}
+"""Every course field the planner rows read, and nothing else.
+
+A course document carries its syllabus, schedule summary, exam table and source
+provenance. Fetching the term's 1,256 courses in full moves 3.92MB where the
+rows need 1.12MB, and against a remote database that is 534ms against 232ms.
+
+Adding a field to a card means adding it here first: anything absent reads back
+as None rather than failing, so the omission would surface as a card that
+quietly lost a line.
+
+`_id` is deliberately absent -- Mongo returns it unless excluded, and the
+planner adds courses by it.
+"""
+
+
+async def find_planning_courses_by_numbers(
+    database: AsyncIOMotorDatabase,
+    course_numbers: list[str],
+    *,
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    """Courses by number, projected to what the planner rows use."""
+    unique_numbers = sorted({str(number) for number in course_numbers if number})
+    if not unique_numbers:
+        return []
+
+    settings = settings or get_settings()
+    cursor = database[settings.courses_collection].find(
+        {**PUBLISHED_FILTER, "courseNumber": {"$in": unique_numbers}},
+        # A copy: something in the driver stack adds `_id` to the projection it
+        # is handed, and this constant is shared by every call.
+        dict(PLANNING_COURSE_FIELDS),
+    )
+    return [doc async for doc in cursor]

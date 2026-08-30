@@ -78,6 +78,9 @@ def stub(monkeypatch):
         _offered,
     )
     monkeypatch.setattr(course_shelf_service.catalog_repository, "find_courses_by_numbers", _courses)
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository, "find_planning_courses_by_numbers", _courses
+    )
     monkeypatch.setattr(course_shelf_service.catalog_repository, "find_course_ratings", _ratings)
     monkeypatch.setattr(
         course_shelf_service.catalog_repository, "find_course_grade_stats", _published
@@ -645,3 +648,30 @@ async def test_a_card_carries_the_catalog_id_the_planner_adds_by(stub) -> None:
     stub["offered"] = {"00940111"}
 
     assert (await _build())["shelves"][0]["courses"][0]["id"] == "cid-1"
+
+
+def test_the_planning_projection_covers_every_field_a_card_reads() -> None:
+    """A course document also carries its syllabus, schedule and provenance,
+    which the rows never read and which tripled the payload. Anything left out
+    of the projection reads back as None rather than failing, so a missing
+    field would surface as a card that quietly lost a line.
+    """
+    from app.repositories.catalog_repository import PLANNING_COURSE_FIELDS
+
+    required = {
+        "courseNumber",
+        "title",
+        "titleHebrew",
+        "credits",
+        "faculty",
+        "semestersOffered",  # scarcity, next offering
+        "prerequisitesText",  # eligibility, readiness, unlocks
+        "noAdditionalCreditText",  # overlap exclusion
+        "studyFramework",  # degree level
+        "notes",  # manual registration
+    }
+
+    assert required <= set(PLANNING_COURSE_FIELDS)
+    # `_id` is what the planner adds a course by, and Mongo includes it unless
+    # it is explicitly excluded.
+    assert "_id" not in PLANNING_COURSE_FIELDS

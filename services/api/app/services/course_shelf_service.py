@@ -316,16 +316,27 @@ async def build_course_shelves_for_user(
         planned_ratings,
         candidate_offerings,
     ) = await asyncio.gather(
-        catalog_repository.find_courses_by_numbers(database, needed_numbers),
+        catalog_repository.find_planning_courses_by_numbers(database, needed_numbers),
         catalog_repository.find_course_ratings(database, needed_numbers),
         catalog_repository.find_course_grade_stats(database, needed_numbers),
         # Their own past choices and their draft are both outside the candidate
         # set, so each needs its own lookup -- see the notes at the use sites.
-        catalog_repository.find_courses_by_numbers(database, sorted(completed_numbers)),
+        catalog_repository.find_planning_courses_by_numbers(
+            database, sorted(completed_numbers)
+        ),
         catalog_repository.find_course_ratings(database, sorted(completed_numbers)),
-        catalog_repository.find_courses_by_numbers(database, sorted(planned_numbers)),
+        catalog_repository.find_planning_courses_by_numbers(
+            database, sorted(planned_numbers)
+        ),
         catalog_repository.find_course_ratings(database, sorted(planned_numbers)),
         (
+            # Every candidate, not a bounded head of them. This is the slowest
+            # query in the batch (~750ms for a term's 1,256 courses) and an open
+            # row only renders 24 of them, so it is tempting to fetch fewer --
+            # but the ranking that decides WHICH 24 runs after this, and a
+            # course fetched without a timetable is treated as not clashing.
+            # Trimming here would quietly let clashing courses back onto the
+            # rows. Narrowing it needs the ranking moved ahead of the fetch.
             load_exact_term_offerings(
                 database,
                 sorted(planned_numbers | set(needed_numbers)),
