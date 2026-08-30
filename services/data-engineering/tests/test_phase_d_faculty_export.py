@@ -567,6 +567,94 @@ def test_a_credit_table_still_wins_over_the_distribution_line() -> None:
     assert [credits for *_, credits in parse_credit_buckets_from_page(page)] == [120.0]
 
 
+def _collapse_program(wiki_page: str, kind: str, groups: list[dict]) -> dict:
+    return {
+        "programCode": "023044-1-000",
+        "metadata": {"wikiPage": wiki_page, "programKind": kind},
+        "requirementGroups": groups,
+    }
+
+
+def _rule(group_id: str, rule_type: str, credits: float | None = None) -> dict:
+    return {
+        "groupId": f"023044-1-000:{group_id}",
+        "minCredits": credits,
+        "ruleExpression": {"type": rule_type},
+    }
+
+
+def test_a_specialization_does_not_add_credit_buckets_to_the_track_it_shares_a_code_with() -> None:
+    """Cyber, data-ml and bioinformatics have no program code of their own, so each
+    borrows a parent track's. Merging data-ml's 12.0 "מקצועות ליבה" into the 3-year
+    general track pushed a program that reconciles at 118.5 twelve credits over."""
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    canonical = _collapse_program(
+        "track-computer-science-general-3year", "bsc", [_rule("required", "credit_bucket", 84.0)]
+    )
+    specialization = _collapse_program(
+        "track-computer-science-data-ml", "bsc_specialization", [_rule("core", "credit_bucket", 12.0)]
+    )
+
+    collapsed = _collapse_programs_by_code([canonical, specialization])
+
+    assert len(collapsed) == 1
+    slugs = {g["groupId"].split(":", 1)[-1] for g in collapsed[0]["requirementGroups"]}
+    assert slugs == {"required"}
+
+
+def test_a_specialization_still_contributes_its_course_pools() -> None:
+    """Its course lists are real options for the parent degree; only the credit
+    arithmetic is the canonical page's to state."""
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    collapsed = _collapse_programs_by_code(
+        [
+            _collapse_program(
+                "track-computer-science-general-3year", "bsc", [_rule("required", "credit_bucket", 84.0)]
+            ),
+            _collapse_program(
+                "track-computer-science-data-ml",
+                "bsc_specialization",
+                [_rule("ml-pool", "course_pool"), _rule("core", "credit_bucket", 12.0)],
+            ),
+        ]
+    )
+
+    slugs = {g["groupId"].split(":", 1)[-1] for g in collapsed[0]["requirementGroups"]}
+    assert slugs == {"required", "ml-pool"}
+
+
+def test_a_program_that_shares_its_code_with_nobody_keeps_everything() -> None:
+    from app.vault.export_faculty_vault_catalog import _collapse_programs_by_code
+
+    only = _collapse_program(
+        "track-computer-science-general-3year",
+        "bsc",
+        [_rule("required", "credit_bucket", 84.0), _rule("matrix", "semester_matrix")],
+    )
+
+    collapsed = _collapse_programs_by_code([only])
+
+    assert len(collapsed[0]["requirementGroups"]) == 2
+
+
+def test_cs_three_year_reconciles_with_its_own_stated_total() -> None:
+    """023044-1-000 states 84.0 + 24.5 + 10.0 = 118.5 and was exporting 130.5."""
+    from app.vault.vault_export_registry import export_vault_catalog
+
+    document, _ = export_vault_catalog(faculty="computer-science")
+    program = next(p for p in document["programs"] if p["programCode"] == "023044-1-000")
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"] == 118.5
+
+
 def _hebrew_table_page(rows: str, code: str = "021095-1-000") -> WikiPage:
     return WikiPage(
         slug="track-test",

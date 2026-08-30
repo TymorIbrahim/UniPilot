@@ -234,8 +234,21 @@ def _program_canonical_sort_key(program: dict[str, Any]) -> tuple[int, int, str]
     return (is_specialization, slug_priority, wiki_slug)
 
 
+# Several CS concentration pages have no program code of their own -- the faculty's
+# own table lists codes for six programs, not for cyber, data-ml or bioinformatics --
+# so each borrows a parent track's code and collapses into it. A concentration's
+# credit table describes how that concentration divides the degree, not a further
+# requirement on top of it: merging them added data-ml's 12.0 "מקצועות ליבה" to the
+# 3-year general track, whose own table already reconciles at 118.5, and pushed it
+# 12.0 over its stated total. Semester matrices are excluded from alternates for
+# exactly this reason, and credit buckets belong on the same list. Pools still merge:
+# a concentration's course lists are real options for the parent degree.
+_ALTERNATE_EXCLUDED_RULE_TYPES = frozenset({"semester_matrix", "credit_bucket"})
+
+
 def _collapse_programs_by_code(programs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Keep one degree program per programCode; specializations must not pollute matrix rules."""
+    """Keep one degree program per programCode; specializations must not pollute
+    matrix rules or the canonical program's credit arithmetic."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for program in programs:
         code = str(program.get("programCode") or "")
@@ -262,7 +275,7 @@ def _collapse_programs_by_code(programs: list[dict[str, Any]]) -> list[dict[str,
             for group in alternate.get("requirementGroups") or []:
                 rule_type = (group.get("ruleExpression") or {}).get("type")
                 group_id = str(group.get("groupId") or "")
-                if rule_type == "semester_matrix" or group_id in matrix_group_ids:
+                if rule_type in _ALTERNATE_EXCLUDED_RULE_TYPES or group_id in matrix_group_ids:
                     continue
                 merged_groups.append(group)
 
