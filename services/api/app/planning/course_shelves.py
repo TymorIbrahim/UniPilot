@@ -121,6 +121,104 @@ def _normalized_numbers(
     return tuple(numbers)
 
 
+ELECTIVE_POOL_MARKERS = (
+    "spec-group",
+    "focus-chain",
+    "chain",
+    "faculty-elective",
+    "elective-list",
+    "elective-subsection",
+    "list-a",
+    "list-b",
+    "additional-faculty",
+    "recommended-elective",
+)
+"""Vocabulary the catalogue uses for pools that spend elective credits."""
+
+REQUIRED_POOL_MARKERS = ("science-chain", "lab-courses", "science-elective")
+"""Pools that belong to the required component rather than to the electives.
+
+The scientific-course requirement is part of Computer Science's 87 required
+credits, not of its 56 elective ones.
+"""
+
+NAMED_POOL_BUCKETS = {
+    "enrichment-pool": "enrichment",
+    "free-elective-pool": "free-elective",
+    "physical-education-pool": "physical-education",
+}
+
+_ELECTIVE_BUCKET_HINTS = ("faculty-elective", "elective-faculty", "elective-ds")
+_ELECTIVE_BUCKET_FALLBACK = "elective"
+_NOT_FACULTY_ELECTIVE = ("free-elective", "enrichment", "technion-elective")
+"""Buckets that contain "elective" but are not the faculty one.
+
+Free electives and Technion-wide electives accept anything; a specialisation
+group spends the FACULTY allowance, and putting it under the wrong one would
+tell a student their focus-chain course fills a requirement it does not.
+"""
+_REQUIRED_BUCKET_SUFFIXES = (
+    "required-courses",
+    "mandatory-courses",
+    "core-mandatory",
+    "required",
+    "core",
+)
+
+
+def _bucket_with_suffix(buckets: Iterable[str], program: str, suffix: str) -> str | None:
+    target = f"{program}:{suffix}"
+    return target if target in set(buckets) else None
+
+
+def infer_bucket_for_pool(pool_group_id: str, bucket_ids: Iterable[str]) -> str | None:
+    """The bucket a pool spends, when the promoter recorded no link.
+
+    393 of 619 pools carry no `linkedCreditBucketId`: the promoter resolves it
+    from a hand-maintained table of pool suffixes and only the DDS entries were
+    ever written. Rows are grouped by that link, so 6,549 course references --
+    every Computer Science specialisation group among them -- were reachable
+    from no screen.
+
+    Used for DISPLAY only. A stored link also decides whether a bucket enforces
+    strict-pool eligibility, and inferring that for 57 programs would silently
+    change which completed courses count toward a degree. Placing a row is
+    advisory; counting credits is not.
+
+    Returns None whenever the suffix is not recognised. A pool put under the
+    wrong requirement is worse than one left where it already was.
+    """
+    if ":" not in str(pool_group_id or ""):
+        return None
+    program, suffix = str(pool_group_id).split(":", 1)
+    buckets = list(bucket_ids)
+
+    named = NAMED_POOL_BUCKETS.get(suffix)
+    if named:
+        return _bucket_with_suffix(buckets, program, named)
+
+    # Required markers are checked first: "science-chain" also contains "chain".
+    if any(marker in suffix for marker in REQUIRED_POOL_MARKERS):
+        for candidate in _REQUIRED_BUCKET_SUFFIXES:
+            found = _bucket_with_suffix(buckets, program, candidate)
+            if found:
+                return found
+        return None
+
+    if any(marker in suffix for marker in ELECTIVE_POOL_MARKERS):
+        own = [b for b in buckets if b.startswith(f"{program}:")]
+        for hints in (_ELECTIVE_BUCKET_HINTS, (_ELECTIVE_BUCKET_FALLBACK,)):
+            for bucket in own:
+                bucket_suffix = bucket.split(":", 1)[1]
+                if any(word in bucket_suffix for word in _NOT_FACULTY_ELECTIVE):
+                    continue
+                if any(hint in bucket_suffix for hint in hints):
+                    return bucket
+        return None
+
+    return None
+
+
 def _pool_state(entry: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Each linked pool's OWN requirement, keyed by its group id.
 
@@ -219,9 +317,14 @@ def build_course_shelves(
         for number in _normalized_numbers(entry.get("remainingCourses") or [], exclude=hidden)
     )
 
+    # A pool the promoter left unlinked is placed by its suffix instead, so its
+    # courses are reachable. Display only -- see `infer_bucket_for_pool`.
+    bucket_ids = [str(entry["requirementGroupId"]) for entry in unsatisfied]
     pools_by_bucket: dict[str, list[dict[str, Any]]] = {}
     for document in pool_documents or []:
-        bucket_id = document.get("linkedCreditBucketId")
+        bucket_id = document.get("linkedCreditBucketId") or infer_bucket_for_pool(
+            str(document.get("requirementGroupId") or ""), bucket_ids
+        )
         if bucket_id:
             pools_by_bucket.setdefault(str(bucket_id), []).append(document)
 
