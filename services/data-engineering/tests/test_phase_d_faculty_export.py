@@ -445,6 +445,152 @@ def test_of_which_rows_are_a_breakdown_not_extra_requirements() -> None:
     assert not _is_bucket_breakdown_slug("enrichment")
 
 
+def _distribution_page(distribution: str, *, english_body: str | None = None) -> WikiPage:
+    return WikiPage(
+        slug="track-test",
+        path=Path("/tmp/track-test.md"),
+        frontmatter={},
+        body="",
+        english_body=english_body
+        if english_body is not None
+        else f"**Distribution:** {distribution}\n",
+    )
+
+
+def test_a_distribution_line_becomes_credit_buckets_when_there_is_no_table() -> None:
+    """`021025-1-000` has a course list and no credit table, so the export gave it
+    12 credits of a 155-credit degree. Its distribution line states the same
+    breakdown a table would."""
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("124.5 required | 18.5 track electives | 6 enrichment | 2 PE | 4 general electives")
+    )
+
+    assert {slug: credits for _, slug, _, credits in buckets} == {
+        "required-courses": 124.5,
+        "track-electives": 18.5,
+        "enrichment": 6.0,
+        "physical-education": 2.0,
+        "free-elective": 4.0,
+    }
+    assert sum(credits for *_, credits in buckets) == 155.0
+
+
+def test_the_standard_slugs_are_reused_so_the_trio_is_not_added_twice() -> None:
+    """If the line's enrichment/PE/general rows landed on their own slugs, the
+    standard buckets would be added on top and the degree would overshoot by 12."""
+    from app.vault.export_faculty_vault_catalog import (
+        _STANDARD_TECHNION_BUCKET_SLUGS,
+        parse_credit_buckets_from_distribution,
+    )
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("120 required | 23 track electives | 6 enrichment | 2 PE | 4 general electives")
+    )
+
+    assert _STANDARD_TECHNION_BUCKET_SLUGS <= {slug for _, slug, _, _ in buckets}
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("track electives", "track-electives"),
+        ("general electives", "free-elective"),
+        ("free electives", "free-elective"),
+        ("PE", "physical-education"),
+        ("physical education", "physical-education"),
+        ("enrichment", "enrichment"),
+        ("required", "required-courses"),
+        ("electives", "faculty-electives"),
+    ],
+)
+def test_distribution_labels_resolve_to_the_right_bucket(label: str, expected: str) -> None:
+    """"track electives" and "general electives" both contain "electives", so
+    order of matching decides whether they land on the right bucket."""
+    from app.vault.export_faculty_vault_catalog import _distribution_bucket_slug
+
+    assert _distribution_bucket_slug(label) == expected
+
+
+def test_an_unrecognised_distribution_label_is_skipped_not_guessed() -> None:
+    from app.vault.export_faculty_vault_catalog import (
+        _distribution_bucket_slug,
+        parse_credit_buckets_from_distribution,
+    )
+
+    assert _distribution_bucket_slug("quantum widgets") is None
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("12 quantum widgets | 6 enrichment")
+    )
+    assert [slug for _, slug, _, _ in buckets] == ["enrichment"]
+
+
+def test_a_segment_without_a_number_is_skipped() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("see the catalog | 6 enrichment")
+    )
+
+    assert [slug for _, slug, _, _ in buckets] == ["enrichment"]
+
+
+def test_a_repeated_bucket_is_taken_once() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    buckets = parse_credit_buckets_from_distribution(
+        _distribution_page("6 enrichment | 4 enrichment")
+    )
+
+    assert [credits for *_, credits in buckets] == [6.0]
+
+
+def test_a_page_with_no_distribution_line_yields_nothing() -> None:
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_distribution
+
+    assert parse_credit_buckets_from_distribution(_distribution_page("", english_body="")) == []
+
+
+def test_a_credit_table_still_wins_over_the_distribution_line() -> None:
+    """The fallback must not override a page that states its buckets properly."""
+    from app.vault.export_faculty_vault_catalog import parse_credit_buckets_from_page
+
+    page = _distribution_page(
+        "",
+        english_body=(
+            "**Distribution:** 99 required\n\n"
+            "| Category | Credits |\n|---|---|\n| Required courses | 120 |\n"
+        ),
+    )
+
+    assert [credits for *_, credits in parse_credit_buckets_from_page(page)] == [120.0]
+
+
+@pytest.mark.parametrize(
+    "slug",
+    ["track-education-electronics-electricity", "track-education-technology-machines"],
+)
+def test_education_tracks_now_describe_their_whole_degree(slug: str) -> None:
+    """Both were reporting 12.0 credits of a 155.0-credit degree."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(
+        pages[slug], faculty_id="education-science-technology", pages=pages
+    )
+    assert program is not None
+
+    bucket_total = sum(
+        float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    )
+
+    assert round(bucket_total, 2) == program["totalCredits"] == 155.0
+
+
 @pytest.mark.parametrize(
     ("slug", "faculty_id"),
     [

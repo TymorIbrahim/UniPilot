@@ -278,6 +278,70 @@ def _bucket_requirement_type(label: str) -> str:
     return "core"
 
 
+# Some track pages carry no credit table at all -- only a course list and a
+# one-line distribution: "124.5 required | 18.5 track electives | 6 enrichment |
+# 2 PE | 4 general electives". Without a table the export produced no faculty
+# buckets whatever, so `021025-1-000` described 12 credits of a 155-credit degree
+# and a student's whole core had no requirement to count toward. The line states
+# the same breakdown a table would, and sums to the stated total on both pages
+# that use it.
+_DISTRIBUTION_SEGMENT_PATTERN = re.compile(r"^([\d.]+)\s+(.+)$")
+
+# Ordered: the first keyword found wins, so "track elective" and "general
+# elective" must be tested before the bare "elective" they both contain.
+_DISTRIBUTION_LABEL_SLUGS: tuple[tuple[str, str], ...] = (
+    ("track elective", "track-electives"),
+    ("general elective", "free-elective"),
+    ("free elective", "free-elective"),
+    ("physical education", "physical-education"),
+    ("enrichment", "enrichment"),
+    ("required", "required-courses"),
+    ("elective", "faculty-electives"),
+)
+
+# Taken from the resolved slug rather than the label: `_bucket_requirement_type`
+# reads the abbreviation "PE" as core, and these have to agree with the standard
+# buckets they stand in for or the trio gets added on top of them.
+_SLUG_REQUIREMENT_TYPES: dict[str, str] = {
+    "enrichment": "enrichment",
+    "physical-education": "enrichment",
+    "free-elective": "elective",
+    "track-electives": "elective",
+    "faculty-electives": "elective",
+    "required-courses": "core",
+}
+
+
+def _distribution_bucket_slug(label: str) -> str | None:
+    normalized = label.strip().lower()
+    if normalized in {"pe", "p.e."}:
+        return "physical-education"
+    for keyword, slug in _DISTRIBUTION_LABEL_SLUGS:
+        if keyword in normalized:
+            return slug
+    return None
+
+
+def parse_credit_buckets_from_distribution(page: WikiPage) -> list[tuple[str, str, str, float]]:
+    raw = extract_field(page.english_body, "Distribution") or extract_field(page.body, "Distribution")
+    if not raw:
+        return []
+    buckets: list[tuple[str, str, str, float]] = []
+    seen: set[str] = set()
+    for segment in raw.split("|"):
+        match = _DISTRIBUTION_SEGMENT_PATTERN.match(segment.strip())
+        if not match:
+            continue
+        credits = parse_credits_value(match.group(1))
+        label = match.group(2).strip()
+        slug = _distribution_bucket_slug(label)
+        if credits is None or slug is None or slug in seen:
+            continue
+        seen.add(slug)
+        buckets.append((label, slug, _SLUG_REQUIREMENT_TYPES[slug], credits))
+    return buckets
+
+
 def parse_credit_buckets_from_page(page: WikiPage) -> list[tuple[str, str, str, float]]:
     buckets: list[tuple[str, str, str, float]] = []
     for table in parse_markdown_tables(page.english_body):
@@ -313,7 +377,7 @@ def parse_credit_buckets_from_page(page: WikiPage) -> list[tuple[str, str, str, 
             buckets.append((label, slug, _bucket_requirement_type(label), credits))
         if buckets:
             break
-    return buckets
+    return buckets or parse_credit_buckets_from_distribution(page)
 
 
 def _credit_bucket_groups(program_code: str, buckets: list[tuple[str, str, str, float]]) -> list[dict[str, Any]]:
