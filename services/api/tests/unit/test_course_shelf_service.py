@@ -633,3 +633,14 @@ async def test_a_course_needing_manual_registration_says_so(stub) -> None:
     card = (await _build())["shelves"][0]["courses"][0]
 
     assert card["requiresManualRegistration"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_card_carries_the_catalog_id_the_planner_adds_by(stub) -> None:
+    stub["requirementProgress"] = [_bucket("p:elective", "Electives", remaining=("00940111",))]
+    course = _course("00940111")
+    course["_id"] = "cid-1"
+    stub["courses"] = [course]
+    stub["offered"] = {"00940111"}
+
+    assert (await _build())["shelves"][0]["courses"][0]["id"] == "cid-1"

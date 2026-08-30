@@ -604,3 +604,150 @@ export type AdvisorReply = {
   retrievalStatus?: string | null
 
 }
+
+
+// ---------------------------------------------------------------------------
+// Browsable planner rows
+// ---------------------------------------------------------------------------
+
+/** Three separate sources, kept apart because they answer different questions:
+ *  what students SCORED at scale, what they THOUGHT, and what our own
+ *  transcripts hold. Coverage differs sharply between them. */
+export type CourseSignal = {
+  courseNumber: string
+  /** From transcripts we hold. */
+  cohort?: {
+    sampleSize: number
+    meanGrade: number
+    passRate: number
+  } | null
+  /** CheeseFork reviews. `meanDifficultyRank` is higher = HARDER. */
+  reviews?: {
+    responseCount: number
+    meanGeneralRank: number
+    meanDifficultyRank: number
+    scaleMax: number
+    source?: string
+  } | null
+  /** Published Technion grade distributions. */
+  published?: {
+    termCount: number
+    students: number
+    passRate: number
+    minGrade: number
+    maxGrade: number
+    averageGrade: number
+    /** The mean of each term's median: a true pooled median is not published. */
+    medianOfTermMedians: number
+    source?: string
+  } | null
+}
+
+/** Why a course was placed where it was, as a stable key the UI translates. */
+export type ShelfReason =
+  | 'closes_requirement'
+  | 'offered_once_a_year'
+  | 'unlocks_later_courses'
+  | 'well_reviewed'
+  | 'matches_your_electives'
+
+export type ShelfEligibility = {
+  status: 'eligible' | 'missing_prerequisites' | 'unknown'
+  /** Each entry is one set of courses that would satisfy the requirement. */
+  missingOptions: string[][]
+}
+
+/** What postponing a required course costs. Present on mandatory rows only. */
+export type ShelfDeferral = {
+  offeredOncePerYear: boolean
+  nextOffering: { academicYear: number; semesterCode: number } | null
+  termsUntilNextOffering: number | null
+  dependentCount: number
+  dependentCourseNumbers: string[]
+  /** 37% of the catalog states no prerequisites, so zero means "none recorded". */
+  dependentCountIsLowerBound: boolean
+}
+
+/** The student's weakest grade among prerequisites they actually took. */
+export type ShelfReadiness = {
+  weakestPrerequisiteCourse: string
+  weakestPrerequisiteGrade: number
+}
+
+export type ShelfCourse = {
+  /** Catalog id. Null for a required course the catalog does not carry. */
+  id: string | null
+  courseNumber: string
+  title?: string | null
+  titleHebrew?: string | null
+  credits?: number | null
+  faculty?: string | null
+  offeredThisTerm: boolean
+  eligibility: ShelfEligibility
+  signal?: CourseSignal | null
+  readiness?: ShelfReadiness | null
+  unlocks: { count: number; courseNumbers: string[] }
+  retakeClashesWithDraft: boolean
+  requiresManualRegistration: boolean
+  catalogKnown: boolean
+  reasons: ShelfReason[]
+  deferral?: ShelfDeferral
+}
+
+/** A course this row covers that simply does not run this term. */
+export type ShelfLaterCourse = {
+  courseNumber: string
+  title?: string | null
+  credits?: number | null
+  nextOffering: { academicYear: number; semesterCode: number } | null
+}
+
+export type CourseShelf = {
+  shelfId: string
+  title: string
+  /** `mandatory` is a checklist of timing; the others are menus. */
+  kind: 'mandatory' | 'pool' | 'open'
+  requirementGroupId: string
+  requirementTitle: string
+  creditsRemaining: number
+  isChoice: boolean
+  startedCount: number
+  poolSize: number
+  courses: ShelfCourse[]
+  laterCourses: ShelfLaterCourse[]
+  candidateCount: number
+  notOfferedCount: number
+  ineligibleCount: number
+  noAdditionalCreditCount: number
+  conflictsWithDraftCount: number
+  wrongDegreeLevelCount: number
+  emptyReason: 'pool_exhausted' | 'none_offered_this_term' | 'none_available_to_you' | null
+}
+
+export type DraftSummary = {
+  plannedCourseCount: number
+  plannedCredits: number
+  difficulty: {
+    plannedMean: number
+    yourCompletedMean: number | null
+    heavierThanUsual: boolean | null
+    ratedCourses: number
+    plannedCourses: number
+    scaleMin: number
+    scaleMax: number
+  } | null
+  exams: {
+    examCount: number
+    withoutPublishedExam: number
+    tightestGapDays: number | null
+    tightestPair: string[] | null
+    firstExam: string | null
+    lastExam: string | null
+  } | null
+}
+
+export type CourseShelvesResponse = {
+  semesterCode: string
+  shelves: CourseShelf[]
+  draftSummary: DraftSummary
+}

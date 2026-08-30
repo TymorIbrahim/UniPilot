@@ -36,6 +36,7 @@ import type {
   PlannerInsights,
   SelectedLessonEvent,
   SemesterPlan,
+  ShelfCourse,
   WeeklySchedule,
 } from '../../types/api'
 import { Card, Spinner } from '../ui/Card'
@@ -67,6 +68,7 @@ import {
   type PlannerSnapshot,
 } from '../../types/planner'
 import { ChangesDialog } from './ChangesDialog'
+import { CourseShelvesPanel } from './CourseShelvesPanel'
 import { PlannerAutoAssistPanel } from './PlannerAutoAssistPanel'
 import { PlannerCourseSearch } from './PlannerCourseSearch'
 import { PlannerTopBar } from './PlannerTopBar'
@@ -418,6 +420,25 @@ export function SemesterPlanner({ planId }: SemesterPlannerProps) {
     clearAutoAssistFeedback()
     setCourses((prev) => [...prev, draftFromCourseSummary(course, locale)])
     setFocusedCourseNumber(course.courseNumber)
+  }
+
+  /** A shelf card carries only what a card needs, so it is mapped to the shape
+   *  the planner stores. A required course absent from the catalog has no id
+   *  and cannot be added — it is shown so the obligation is visible, not so it
+   *  can be planned. */
+  const addShelfCourse = (course: ShelfCourse) => {
+    if (!course.id) {
+      setErrors([t('planner.shelves.notInCatalog')])
+      return
+    }
+    addCourse({
+      id: course.id,
+      courseNumber: course.courseNumber,
+      title: course.title ?? undefined,
+      titleHebrew: course.titleHebrew ?? undefined,
+      credits: course.credits ?? undefined,
+      faculty: course.faculty ?? undefined,
+    } as CourseSummary)
   }
 
   const addMaybeCourse = (course: CourseSummary) => {
@@ -1043,6 +1064,14 @@ export function SemesterPlanner({ planId }: SemesterPlannerProps) {
         statusTone={autoAssistStatusTone}
         errorMessage={autoAssistError}
         onAutoPickCourses={(maxCreditsValue) => autoPickCoursesMutation.mutate(maxCreditsValue)}
+      />
+
+      <CourseShelvesPanel
+        semesterCode={semesterSelected ? semesterCode : ''}
+        locale={locale}
+        plannedCourses={courses}
+        onAdd={addShelfCourse}
+        onInfo={setDetailCourseNumber}
       />
 
       {errors.length ? (

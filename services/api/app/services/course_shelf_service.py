@@ -172,6 +172,8 @@ def _card(
 ) -> dict[str, Any]:
     number = str(course.get("courseNumber") or "")
     return {
+        # The planner adds courses by catalog id, not by number.
+        "id": str(course["_id"]) if course.get("_id") is not None else None,
         "courseNumber": number,
         "title": course.get("title"),
         "titleHebrew": course.get("titleHebrew"),
@@ -483,6 +485,7 @@ async def build_course_shelves_for_user(
                     continue
                 cards.append(
                     {
+                        "id": None,
                         "courseNumber": number,
                         "title": None,
                         "credits": None,

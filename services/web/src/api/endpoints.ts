@@ -1,5 +1,6 @@
 import { apiRequest, apiUpload, getApiBaseUrl } from '../lib/api'
 import type {
+  CourseShelvesResponse,
   AcademicRiskAnalysis,
   AdvisorReply,
   AuthPayload,
@@ -227,6 +228,11 @@ export const plansApi = {
     }),
   generate: (body: Record<string, unknown>) =>
     apiRequest<{ semesterPlan: SemesterPlan }>('/semester-plans/generate', {
+      method: 'POST',
+      body,
+    }),
+  courseShelves: (body: Record<string, unknown>) =>
+    apiRequest<CourseShelvesResponse>('/semester-plans/course-shelves', {
       method: 'POST',
       body,
     }),
