@@ -280,6 +280,8 @@ export const he = {
         'core-mandatory': 'קורסי חובה',
         'general-technion-electives': 'בחירה כללית בטכניון',
       },
+      scrollBack: 'גלילה אחורה',
+      scrollForward: 'גלילה קדימה',
       nextRuns: 'ייפתח ב{term}',
       nextUnknown: 'לא מופיע סמסטר עתידי',
       empty: {

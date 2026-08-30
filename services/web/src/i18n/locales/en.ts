@@ -280,6 +280,8 @@ export const en: TranslationTree = {
         'core-mandatory': 'Required courses',
         'general-technion-electives': 'General Technion electives',
       },
+      scrollBack: 'Scroll back',
+      scrollForward: 'Scroll forward',
       nextRuns: 'Next runs {term}',
       nextUnknown: 'No upcoming term listed',
       empty: {

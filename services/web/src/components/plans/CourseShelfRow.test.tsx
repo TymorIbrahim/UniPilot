@@ -136,3 +136,26 @@ describe('CourseShelfRow', () => {
     expect(screen.getByRole('button', { name: /^add$/i })).toBeDisabled()
   })
 })
+
+describe('CourseShelfRow empty state', () => {
+  beforeEach(() => {
+    localStorage.setItem('unipilot_locale', 'en')
+  })
+
+  it('collapses an empty row onto its header line', () => {
+    // Four of ten rows come back empty for a typical student; a dashed box each
+    // spent 428px of the panel saying nothing.
+    renderRow(shelf({ courses: [], candidateCount: 3, emptyReason: 'none_offered_this_term' }))
+
+    const heading = screen.getByRole('heading', { name: 'ML chain' })
+    const header = heading.closest('header') as HTMLElement
+    expect(header).toHaveTextContent(/none of these run this semester/i)
+  })
+
+  it('still names the requirement and its credits when empty', () => {
+    renderRow(shelf({ courses: [], emptyReason: 'none_available_to_you' }))
+
+    expect(screen.getByText('ML chain')).toBeInTheDocument()
+    expect(screen.getByText(/3\.5 credits left/i)).toBeInTheDocument()
+  })
+})

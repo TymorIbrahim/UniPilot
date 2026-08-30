@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n'
 import { cn, formatCredits } from '../../lib/utils'
 import { filteredCount, semesterLabel, shelfKindLabel, shelfTitle } from '../../lib/shelves'
 import { ShelfCourseCard } from './ShelfCourseCard'
+import { ShelfScroller } from './ShelfScroller'
 
 type CourseShelfRowProps = {
   shelf: CourseShelf
@@ -37,10 +38,31 @@ export function CourseShelfRow({
   const [laterOpen, setLaterOpen] = useState(false)
   const filtered = filteredCount(shelf)
 
+  const isEmpty = shelf.courses.length === 0
+
+  // Four of ten rows come back empty for a typical student, and a full header
+  // plus a dashed box each spent 428px of the panel saying "nothing here". An
+  // empty row still has to appear -- the requirement is real and unmet -- but
+  // it earns one line, not a section.
   return (
-    <section className="space-y-2" data-testid={`shelf-${shelf.shelfId}`}>
-      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-semibold text-[var(--color-text)]">{shelfTitle(shelf, t)}</h3>
+    <section
+      className={cn('space-y-2', isEmpty && 'space-y-0')}
+      data-testid={`shelf-${shelf.shelfId}`}
+    >
+      <header
+        className={cn(
+          'flex flex-wrap items-baseline gap-x-3 gap-y-1',
+          isEmpty && 'text-[var(--color-text-muted)]',
+        )}
+      >
+        <h3
+          className={cn(
+            'text-sm font-semibold',
+            isEmpty ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text)]',
+          )}
+        >
+          {shelfTitle(shelf, t)}
+        </h3>
         <span
           className={cn(
             'rounded-full px-2 py-0.5 text-[10px] font-medium',
@@ -66,6 +88,13 @@ export function CourseShelfRow({
             })}
           </span>
         ) : null}
+        {isEmpty && shelf.emptyReason ? (
+          <span className="text-xs">
+            {t(
+              `planner.shelves.empty.${shelf.emptyReason}` as 'planner.shelves.empty.pool_exhausted',
+            )}
+          </span>
+        ) : null}
         {shelf.courses.length > 0 && filtered > 0 ? (
           <span
             className="text-xs text-[var(--color-text-muted)]"
@@ -85,7 +114,7 @@ export function CourseShelfRow({
       </header>
 
       {shelf.courses.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <ShelfScroller label={shelfTitle(shelf, t)}>
           {shelf.courses.map((course) => (
             <ShelfCourseCard
               key={course.courseNumber}
@@ -97,13 +126,7 @@ export function CourseShelfRow({
               onInfo={onInfo}
             />
           ))}
-        </div>
-      ) : shelf.emptyReason ? (
-        <p className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-sm text-[var(--color-text-muted)]">
-          {t(
-            `planner.shelves.empty.${shelf.emptyReason}` as 'planner.shelves.empty.pool_exhausted',
-          )}
-        </p>
+        </ShelfScroller>
       ) : null}
 
       {shelf.laterCourses.length > 0 ? (
