@@ -1,0 +1,822 @@
+{
+ "removedAt": "2026-08-30T12:14:01.877009",
+ "reason": "duplicate cross-faculty promotions + core bucket the wiki disproves",
+ "documents": [
+  {
+   "_id": {
+    "$oid": "6a3fc26bd3e414b0b8faf4e1"
+   },
+   "productionKey": "technion-biology:requirement:012124-1-000:enrichment:2025-2026",
+   "institutionId": "technion",
+   "programCode": "012124-1-000",
+   "requirementGroupId": "012124-1-000:enrichment",
+   "title": "University enrichment",
+   "requirementType": "enrichment",
+   "minCredits": 6.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-biology-catalog",
+   "sourceType": "biology_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-biology:catalog:2025-2026:requirement:012124-1-000:enrichment",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/biology/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:30:35+00:00",
+   "promotionRunId": "dds-promotion-e6f902c66bd7",
+   "updatedAt": "2026-06-27T12:30:35+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc26bd3e414b0b8faf4e2"
+   },
+   "productionKey": "technion-biology:requirement:012124-1-000:free-elective:2025-2026",
+   "institutionId": "technion",
+   "programCode": "012124-1-000",
+   "requirementGroupId": "012124-1-000:free-elective",
+   "title": "Free electives",
+   "requirementType": "elective",
+   "minCredits": 4.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-biology-catalog",
+   "sourceType": "biology_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-biology:catalog:2025-2026:requirement:012124-1-000:free-elective",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/biology/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:30:35+00:00",
+   "promotionRunId": "dds-promotion-e6f902c66bd7",
+   "updatedAt": "2026-06-27T12:30:35+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fea76d3e414b0b8fb93a9"
+   },
+   "productionKey": "technion-mathematics:requirement:023323-1-000:required:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023323-1-000",
+   "requirementGroupId": "023323-1-000:required",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d7\u05d5\u05d1\u05d4 (Required)",
+   "requirementType": "core",
+   "minCredits": 108.5,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-mathematics-catalog",
+   "sourceType": "mathematics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-mathematics:catalog:2025-2026:requirement:023323-1-000:required",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/mathematics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:21:26+00:00",
+   "promotionRunId": "dds-promotion-fbf861a8c09a",
+   "updatedAt": "2026-06-27T15:21:26+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3feac1d3e414b0b8fb990a"
+   },
+   "productionKey": "technion-physics:requirement:023325-1-000:faculty-electives-both-faculties:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023325-1-000",
+   "requirementGroupId": "023325-1-000:faculty-electives-both-faculties",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05e4\u05e7\u05d5\u05dc\u05d8\u05d9\u05ea (Faculty Electives \u2014 both faculties)",
+   "requirementType": "elective",
+   "minCredits": 26.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-physics-catalog",
+   "sourceType": "physics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-physics:catalog:2025-2026:requirement:023325-1-000:faculty-electives-both-faculties",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/physics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:22:41+00:00",
+   "promotionRunId": "dds-promotion-b6755f73d472",
+   "updatedAt": "2026-06-27T15:22:41+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3feac1d3e414b0b8fb990d"
+   },
+   "productionKey": "technion-physics:requirement:023325-1-000:physical-education:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023325-1-000",
+   "requirementGroupId": "023325-1-000:physical-education",
+   "title": "Physical education",
+   "requirementType": "enrichment",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-physics-catalog",
+   "sourceType": "physics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-physics:catalog:2025-2026:requirement:023325-1-000:physical-education",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/physics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:22:41+00:00",
+   "promotionRunId": "dds-promotion-b6755f73d472",
+   "updatedAt": "2026-06-27T15:22:41+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fea76d3e414b0b8fb93aa"
+   },
+   "productionKey": "technion-mathematics:requirement:023323-1-000:electives-both-faculties:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023323-1-000",
+   "requirementGroupId": "023323-1-000:electives-both-faculties",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 (Electives \u2014 both faculties)",
+   "requirementType": "elective",
+   "minCredits": 33.5,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-mathematics-catalog",
+   "sourceType": "mathematics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-mathematics:catalog:2025-2026:requirement:023323-1-000:electives-both-faculties",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/mathematics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:21:26+00:00",
+   "promotionRunId": "dds-promotion-fbf861a8c09a",
+   "updatedAt": "2026-06-27T15:21:26+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fea76d3e414b0b8fb93ac"
+   },
+   "productionKey": "technion-mathematics:requirement:023323-1-000:free-elective:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023323-1-000",
+   "requirementGroupId": "023323-1-000:free-elective",
+   "title": "Free electives",
+   "requirementType": "elective",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-mathematics-catalog",
+   "sourceType": "mathematics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-mathematics:catalog:2025-2026:requirement:023323-1-000:free-elective",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/mathematics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:21:26+00:00",
+   "promotionRunId": "dds-promotion-fbf861a8c09a",
+   "updatedAt": "2026-06-27T15:21:26+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3feac1d3e414b0b8fb9909"
+   },
+   "productionKey": "technion-physics:requirement:023325-1-000:required:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023325-1-000",
+   "requirementGroupId": "023325-1-000:required",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d7\u05d5\u05d1\u05d4 (Required)",
+   "requirementType": "core",
+   "minCredits": 127.5,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-physics-catalog",
+   "sourceType": "physics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-physics:catalog:2025-2026:requirement:023325-1-000:required",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/physics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:22:41+00:00",
+   "promotionRunId": "dds-promotion-b6755f73d472",
+   "updatedAt": "2026-06-27T15:22:41+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc26bd3e414b0b8faf4e3"
+   },
+   "productionKey": "technion-biology:requirement:012124-1-000:physical-education:2025-2026",
+   "institutionId": "technion",
+   "programCode": "012124-1-000",
+   "requirementGroupId": "012124-1-000:physical-education",
+   "title": "Physical education",
+   "requirementType": "enrichment",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-biology-catalog",
+   "sourceType": "biology_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-biology:catalog:2025-2026:requirement:012124-1-000:physical-education",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/biology/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:30:35+00:00",
+   "promotionRunId": "dds-promotion-e6f902c66bd7",
+   "updatedAt": "2026-06-27T12:30:35+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fea76d3e414b0b8fb93ab"
+   },
+   "productionKey": "technion-mathematics:requirement:023323-1-000:enrichment:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023323-1-000",
+   "requirementGroupId": "023323-1-000:enrichment",
+   "title": "University enrichment",
+   "requirementType": "enrichment",
+   "minCredits": 6.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-mathematics-catalog",
+   "sourceType": "mathematics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-mathematics:catalog:2025-2026:requirement:023323-1-000:enrichment",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/mathematics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:21:26+00:00",
+   "promotionRunId": "dds-promotion-fbf861a8c09a",
+   "updatedAt": "2026-06-27T15:21:26+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fea76d3e414b0b8fb93ad"
+   },
+   "productionKey": "technion-mathematics:requirement:023323-1-000:physical-education:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023323-1-000",
+   "requirementGroupId": "023323-1-000:physical-education",
+   "title": "Physical education",
+   "requirementType": "enrichment",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-mathematics-catalog",
+   "sourceType": "mathematics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-mathematics:catalog:2025-2026:requirement:023323-1-000:physical-education",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/mathematics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:21:26+00:00",
+   "promotionRunId": "dds-promotion-fbf861a8c09a",
+   "updatedAt": "2026-06-27T15:21:26+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3feac1d3e414b0b8fb990c"
+   },
+   "productionKey": "technion-physics:requirement:023325-1-000:free-elective:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023325-1-000",
+   "requirementGroupId": "023325-1-000:free-elective",
+   "title": "Free electives",
+   "requirementType": "elective",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-physics-catalog",
+   "sourceType": "physics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-physics:catalog:2025-2026:requirement:023325-1-000:free-elective",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/physics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:22:41+00:00",
+   "promotionRunId": "dds-promotion-b6755f73d472",
+   "updatedAt": "2026-06-27T15:22:41+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3feac1d3e414b0b8fb990b"
+   },
+   "productionKey": "technion-physics:requirement:023325-1-000:enrichment:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023325-1-000",
+   "requirementGroupId": "023325-1-000:enrichment",
+   "title": "University enrichment",
+   "requirementType": "enrichment",
+   "minCredits": 6.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-physics-catalog",
+   "sourceType": "physics_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-physics:catalog:2025-2026:requirement:023325-1-000:enrichment",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/physics/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T15:22:41+00:00",
+   "promotionRunId": "dds-promotion-b6755f73d472",
+   "updatedAt": "2026-06-27T15:22:41+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a466a691f64e5fd2012948f"
+   },
+   "productionKey": "technion-computer-science:requirement:027394-1-000:physical-education:2025-2026",
+   "institutionId": "technion",
+   "programCode": "027394-1-000",
+   "requirementGroupId": "027394-1-000:physical-education",
+   "title": "Physical education",
+   "requirementType": "enrichment",
+   "minCredits": 2.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-computer-science-catalog",
+   "sourceType": "computer-science_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-computer-science:catalog:2025-2026:requirement:027394-1-000:physical-education",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_reviewed.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-07-02T13:40:49+00:00",
+   "promotionRunId": "dds-promotion-d88ebb930cac",
+   "updatedAt": "2026-07-02T13:40:49+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a466a691f64e5fd20129499"
+   },
+   "productionKey": "technion-computer-science:requirement:027394-1-000:enrichment:2025-2026",
+   "institutionId": "technion",
+   "programCode": "027394-1-000",
+   "requirementGroupId": "027394-1-000:enrichment",
+   "title": "University enrichment",
+   "requirementType": "enrichment",
+   "minCredits": 6.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-computer-science-catalog",
+   "sourceType": "computer-science_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-computer-science:catalog:2025-2026:requirement:027394-1-000:enrichment",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_reviewed.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-07-02T13:40:49+00:00",
+   "promotionRunId": "dds-promotion-d88ebb930cac",
+   "updatedAt": "2026-07-02T13:40:49+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a466a691f64e5fd2012949a"
+   },
+   "productionKey": "technion-computer-science:requirement:027394-1-000:free-elective:2025-2026",
+   "institutionId": "technion",
+   "programCode": "027394-1-000",
+   "requirementGroupId": "027394-1-000:free-elective",
+   "title": "Free electives",
+   "requirementType": "elective",
+   "minCredits": 4.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": false,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-computer-science-catalog",
+   "sourceType": "computer-science_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-computer-science:catalog:2025-2026:requirement:027394-1-000:free-elective",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_reviewed.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-07-02T13:40:49+00:00",
+   "promotionRunId": "dds-promotion-d88ebb930cac",
+   "updatedAt": "2026-07-02T13:40:49+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a466a691f64e5fd2012949c"
+   },
+   "productionKey": "technion-computer-science:requirement:023044-1-000:core:2025-2026",
+   "institutionId": "technion",
+   "programCode": "023044-1-000",
+   "requirementGroupId": "023044-1-000:core",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05dc\u05d9\u05d1\u05d4 (Core)",
+   "requirementType": "core",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-computer-science-catalog",
+   "sourceType": "computer-science_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-computer-science:catalog:2025-2026:requirement:023044-1-000:core",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/computer-science/catalog_reviewed.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-07-02T13:40:49+00:00",
+   "promotionRunId": "dds-promotion-d88ebb930cac",
+   "updatedAt": "2026-07-02T13:40:49+00:00"
+  }
+ ]
+}

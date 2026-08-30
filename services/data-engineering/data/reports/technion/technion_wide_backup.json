@@ -1,0 +1,342 @@
+{
+ "removedAt": "2026-08-30T12:24:25.282347+00:00",
+ "reason": "aggregate Technion-wide bucket duplicated by its own decomposition",
+ "documents": [
+  {
+   "_id": {
+    "$oid": "6a3fc2aad3e414b0b8fafd2d"
+   },
+   "productionKey": "technion-chemical-engineering:requirement:005005-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "005005-1-000",
+   "requirementGroupId": "005005-1-000:general-technion-electives",
+   "title": "General Technion electives (\u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc \u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-chemical-engineering-catalog",
+   "sourceType": "chemical-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-chemical-engineering:catalog:2025-2026:requirement:005005-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/chemical-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:31:38+00:00",
+   "promotionRunId": "dds-promotion-35dc3fb1c167",
+   "updatedAt": "2026-06-27T12:31:38+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc50dd3e414b0b8fb1483"
+   },
+   "productionKey": "technion-electrical-computer-engineering:requirement:004114-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "004114-1-000",
+   "requirementGroupId": "004114-1-000:general-technion-electives",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc-\u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea (General Technion electives)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-electrical-computer-engineering-catalog",
+   "sourceType": "electrical-computer-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-electrical-computer-engineering:catalog:2025-2026:requirement:004114-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/electrical-computer-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:41:48+00:00",
+   "promotionRunId": "dds-promotion-fd671c01b680",
+   "updatedAt": "2026-06-27T12:41:48+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc50dd3e414b0b8fb1496"
+   },
+   "productionKey": "technion-electrical-computer-engineering:requirement:004141-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "004141-1-000",
+   "requirementGroupId": "004141-1-000:general-technion-electives",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc-\u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea (General Technion electives)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-electrical-computer-engineering-catalog",
+   "sourceType": "electrical-computer-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-electrical-computer-engineering:catalog:2025-2026:requirement:004141-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/electrical-computer-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:41:48+00:00",
+   "promotionRunId": "dds-promotion-fd671c01b680",
+   "updatedAt": "2026-06-27T12:41:48+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc50dd3e414b0b8fb1490"
+   },
+   "productionKey": "technion-electrical-computer-engineering:requirement:004414-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "004414-1-000",
+   "requirementGroupId": "004414-1-000:general-technion-electives",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc-\u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea (General Technion electives)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-electrical-computer-engineering-catalog",
+   "sourceType": "electrical-computer-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-electrical-computer-engineering:catalog:2025-2026:requirement:004414-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/electrical-computer-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:41:48+00:00",
+   "promotionRunId": "dds-promotion-fd671c01b680",
+   "updatedAt": "2026-06-27T12:41:48+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc2d4d3e414b0b8fb0316"
+   },
+   "productionKey": "technion-civil-environmental-engineering:requirement:001201-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "001201-1-000",
+   "requirementGroupId": "001201-1-000:general-technion-electives",
+   "title": "General Technion electives (\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc-\u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05d9\u05dd)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-civil-environmental-engineering-catalog",
+   "sourceType": "civil-environmental-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-civil-environmental-engineering:catalog:2025-2026:requirement:001201-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/civil-environmental-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:32:19+00:00",
+   "promotionRunId": "dds-promotion-cce520bd611e",
+   "updatedAt": "2026-06-27T12:32:19+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc0edd3e414b0b8faee23"
+   },
+   "productionKey": "technion-aerospace-engineering:requirement:008008-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "008008-1-000",
+   "requirementGroupId": "008008-1-000:general-technion-electives",
+   "title": "General Technion electives (\u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc \u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-aerospace-engineering-catalog",
+   "sourceType": "aerospace-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-aerospace-engineering:catalog:2025-2026:requirement:008008-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/aerospace-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:24:13+00:00",
+   "promotionRunId": "dds-promotion-83dd9d86e54f",
+   "updatedAt": "2026-06-27T12:24:13+00:00"
+  },
+  {
+   "_id": {
+    "$oid": "6a3fc50dd3e414b0b8fb1489"
+   },
+   "productionKey": "technion-electrical-computer-engineering:requirement:004004-1-000:general-technion-electives:2025-2026",
+   "institutionId": "technion",
+   "programCode": "004004-1-000",
+   "requirementGroupId": "004004-1-000:general-technion-electives",
+   "title": "\u05de\u05e7\u05e6\u05d5\u05e2\u05d5\u05ea \u05d1\u05d7\u05d9\u05e8\u05d4 \u05db\u05dc\u05dc-\u05d8\u05db\u05e0\u05d9\u05d5\u05e0\u05d9\u05ea (General Technion electives)",
+   "requirementType": "elective",
+   "minCredits": 12.0,
+   "courseReferences": [],
+   "ruleExpression": {
+    "type": "credit_bucket",
+    "operator": "min_credits"
+   },
+   "ruleIsExecutable": true,
+   "isMandatory": true,
+   "enforceInGraduationProgress": true,
+   "advisoryOnly": false,
+   "catalogYear": 2025,
+   "catalogVersion": "2025-2026",
+   "sourceName": "technion-electrical-computer-engineering-catalog",
+   "sourceType": "electrical-computer-engineering_catalog_curated_reviewed",
+   "sourceMetadata": {
+    "stagingKey": "technion-electrical-computer-engineering:catalog:2025-2026:requirement:004004-1-000:general-technion-electives",
+    "manualReviewRequired": false,
+    "confidence": "high"
+   },
+   "sourceRefs": [
+    {
+     "type": "file",
+     "path": "/app/data/generated/technion/catalog/catalog_phase8_readiness_check.json"
+    },
+    {
+     "type": "file",
+     "path": "data/catalog_valut/catalog_valut/wiki"
+    },
+    {
+     "type": "file",
+     "path": "data/generated/technion/electrical-computer-engineering/catalog_reviewed.json"
+    }
+   ],
+   "status": "published",
+   "promotedAt": "2026-06-27T12:41:48+00:00",
+   "promotionRunId": "dds-promotion-fd671c01b680",
+   "updatedAt": "2026-06-27T12:41:48+00:00"
+  }
+ ]
+}
