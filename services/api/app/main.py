@@ -13,6 +13,7 @@ from app.db.catalog_bootstrap import ensure_development_catalog
 from app.db.catalog_indexes import ensure_catalog_indexes
 from app.db.mongo import close_mongo_client, get_database
 from app.db.redis import close_redis
+from app.db.startup import wait_for_database
 from app.routes.advisor import router as advisor_router
 from app.routes.auth import router as auth_router
 from app.routes.catalog import router as catalog_router
@@ -33,6 +34,9 @@ async def lifespan(_app: FastAPI):
     settings = get_settings()
     settings.validate_production_settings()
     database = await get_database()
+    # Nothing guarantees MongoDB is listening before this process starts --
+    # see app/db/startup.py -- and everything below this line needs it.
+    await wait_for_database(database)
     await ensure_development_catalog(database, settings)
     await ensure_catalog_indexes(database, settings=settings)
     yield

@@ -33,7 +33,7 @@ mkdir -p "$LOG_DIR"
 RUN_LOG="$LOG_DIR/promote_all_$(date -u +%Y%m%dT%H%M%SZ).log"
 
 run_de() {
-  docker compose run --rm --no-TTY data-engineering python -m app.main "$@"
+  docker compose -f docker-compose.dev.yml run --rm --no-TTY data-engineering python -m app.main "$@"
 }
 
 started=false

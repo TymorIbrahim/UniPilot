@@ -264,7 +264,7 @@ jobs:
           echo "E2E_GOOGLE_OAUTH_STUB=true" >> .env
           echo "AUTH_RATE_LIMIT_MAX=120" >> .env
       - name: Start Docker stack
-        run: docker compose up --build -d
+        run: docker compose -f docker-compose.dev.yml up --build -d
       - name: Wait for web UI
         run: |
           for attempt in $(seq 1 60); do
@@ -275,8 +275,8 @@ jobs:
             echo "Waiting for web UI (${attempt}/60)..."
             sleep 5
           done
-          docker compose ps
-          docker compose logs --tail=80 web api transcript-parser
+          docker compose -f docker-compose.dev.yml ps
+          docker compose -f docker-compose.dev.yml logs --tail=80 web api transcript-parser
           exit 1
       - uses: actions/setup-node@v4
         with:
@@ -311,4 +311,4 @@ jobs:
           retention-days: 14
       - name: Dump Docker logs on failure
         if: failure()
-        run: docker compose logs --tail=120
+        run: docker compose -f docker-compose.dev.yml logs --tail=120

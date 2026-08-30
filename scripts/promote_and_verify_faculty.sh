@@ -17,7 +17,7 @@ else
 fi
 
 run_de() {
-  docker compose run --rm --no-TTY data-engineering python -m app.main "$@"
+  docker compose -f docker-compose.dev.yml run --rm --no-TTY data-engineering python -m app.main "$@"
 }
 
 echo "========== promote ${FACULTY} =========="
