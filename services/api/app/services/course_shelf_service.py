@@ -164,9 +164,12 @@ def _unlocks_within(
     return unlocks
 
 
-async def _no_offerings() -> dict[str, Any]:
-    """Stand-in so the candidate fetches can be gathered as one batch."""
-    return {}
+CONFLICT_CHECK_HEAD = OPEN_SHELF_LIMIT * 3
+"""How far down an open row's ranking a timetable is fetched.
+
+The row shows `OPEN_SHELF_LIMIT`; checking three times that leaves room for
+clashing entries to drop out and the row still to fill.
+"""
 
 
 def _card(
@@ -314,7 +317,6 @@ async def build_course_shelves_for_user(
         history_ratings,
         planned_documents,
         planned_ratings,
-        candidate_offerings,
     ) = await asyncio.gather(
         catalog_repository.find_planning_courses_by_numbers(database, needed_numbers),
         catalog_repository.find_course_ratings(database, needed_numbers),
@@ -329,23 +331,6 @@ async def build_course_shelves_for_user(
             database, sorted(planned_numbers)
         ),
         catalog_repository.find_course_ratings(database, sorted(planned_numbers)),
-        (
-            # Every candidate, not a bounded head of them. This is the slowest
-            # query in the batch (~750ms for a term's 1,256 courses) and an open
-            # row only renders 24 of them, so it is tempting to fetch fewer --
-            # but the ranking that decides WHICH 24 runs after this, and a
-            # course fetched without a timetable is treated as not clashing.
-            # Trimming here would quietly let clashing courses back onto the
-            # rows. Narrowing it needs the ranking moved ahead of the fetch.
-            load_exact_term_offerings(
-                database,
-                sorted(planned_numbers | set(needed_numbers)),
-                academic_year=academic_year,
-                semester_code=term_semester_code,
-            )
-            if planned_numbers
-            else _no_offerings()
-        ),
     )
     courses_by_number = {
         str(document.get("courseNumber")): document for document in course_documents
@@ -432,12 +417,7 @@ async def build_course_shelves_for_user(
         (progress_result.get("progress") or {}).get("creditsRemaining") or 0.0
     )
 
-    # An empty draft clashes with nothing, so its offerings are never fetched.
-    occupied = build_occupied_schedule(
-        candidate_offerings, planned_course_numbers=planned_numbers
-    )
-
-    payload_shelves: list[dict[str, Any]] = []
+    prepared: list[dict[str, Any]] = []
     for shelf in shelves:
         reasons_by_number: dict[str, tuple[str, ...]] = {}
 
@@ -458,24 +438,12 @@ async def build_course_shelves_for_user(
             dropped_not_offered = 0
             dropped_ineligible = 0
             dropped_no_credit = 0
-            dropped_conflicting = 0
             dropped_wrong_level = 0
             later_numbers = []
         else:
             pool = list(open_candidates) if shelf.kind == OPEN else list(shelf.course_numbers)
             candidate_count = len(pool)
             selectable_here = [number for number in pool if number in selectable]
-            # A course that cannot coexist with the draft is not a weaker
-            # suggestion either -- same reason "not offered" is filtered.
-            actionable = [
-                number
-                for number in selectable_here
-                if can_schedule_alongside(
-                    candidate_offerings.get(number),
-                    course_number=number,
-                    occupied=occupied,
-                )
-            ]
             dropped_not_offered = sum(
                 1 for number in pool if number not in offered_numbers
             )
@@ -491,7 +459,6 @@ async def build_course_shelves_for_user(
                 for number in pool
                 if number in offered_numbers and _wrong_degree_level(number)
             )
-            dropped_conflicting = len(selectable_here) - len(actionable)
             later_numbers = [
                 number
                 for number in pool
@@ -506,7 +473,11 @@ async def build_course_shelves_for_user(
             )
 
             ranked = rank_candidates(
-                [courses_by_number[number] for number in actionable if number in courses_by_number],
+                [
+                    courses_by_number[number]
+                    for number in selectable_here
+                    if number in courses_by_number
+                ],
                 ratings=ratings,
                 credits_remaining_overall=credits_remaining_overall,
                 credits_remaining_in_bucket=shelf.credits_remaining,
@@ -525,11 +496,91 @@ async def build_course_shelves_for_user(
             reasons_by_number = {entry.course_number: entry.reasons for entry in ranked}
             ordered_numbers = [entry.course_number for entry in ranked]
 
+        prepared.append(
+            {
+                "shelf": shelf,
+                "ordered": ordered_numbers,
+                "reasons": reasons_by_number,
+                "candidateCount": candidate_count,
+                "notOffered": dropped_not_offered,
+                "ineligible": dropped_ineligible,
+                "noCredit": dropped_no_credit,
+                "wrongLevel": dropped_wrong_level,
+                "later": later_numbers,
+            }
+        )
+
+    # Only courses that could actually be rendered need a timetable. A curated
+    # row is small enough to check whole; an open row draws on the term and
+    # shows `OPEN_SHELF_LIMIT`, so a head of its ranking is checked with room
+    # for clashing entries to drop out and the row still to fill. Fetching all
+    # ~1,256 was the slowest query in the request, and it could not be narrowed
+    # until the ranking moved ahead of it.
+    candidate_offerings: dict[str, dict[str, Any]] = {}
+    occupied = build_occupied_schedule({}, planned_course_numbers=())
+    if planned_numbers:
+        checkable: set[str] = set(planned_numbers)
+        for entry in prepared:
+            ordered = entry["ordered"]
+            checkable |= set(
+                ordered[:CONFLICT_CHECK_HEAD] if entry["shelf"].kind == OPEN else ordered
+            )
+        candidate_offerings = await load_exact_term_offerings(
+            database,
+            sorted(checkable),
+            academic_year=academic_year,
+            semester_code=term_semester_code,
+        )
+        occupied = build_occupied_schedule(
+            candidate_offerings, planned_course_numbers=planned_numbers
+        )
+
+    payload_shelves: list[dict[str, Any]] = []
+    for entry in prepared:
+        shelf = entry["shelf"]
+        reasons_by_number = entry["reasons"]
+        ordered_numbers = entry["ordered"]
+        candidate_count = entry["candidateCount"]
+        dropped_not_offered = entry["notOffered"]
+        dropped_ineligible = entry["ineligible"]
+        dropped_no_credit = entry["noCredit"]
+        dropped_wrong_level = entry["wrongLevel"]
+        later_numbers = entry["later"]
+        dropped_conflicting = 0
+
+        if shelf.kind != MANDATORY:
+            if shelf.kind == OPEN:
+                # Never render past the window whose timetables were fetched.
+                # `diversify_by_faculty` scans in order until the row is full,
+                # so a run of same-faculty courses could otherwise carry it
+                # beyond the checked head and show an unchecked course.
+                ordered_numbers = ordered_numbers[:CONFLICT_CHECK_HEAD]
+            # A course that cannot coexist with the draft is not a weaker
+            # suggestion either -- same reason "not offered" is filtered.
+            kept = [
+                number
+                for number in ordered_numbers
+                if can_schedule_alongside(
+                    candidate_offerings.get(number),
+                    course_number=number,
+                    occupied=occupied,
+                )
+            ]
+            dropped_conflicting = len(ordered_numbers) - len(kept)
+            ordered_numbers = kept
+
             if shelf.kind == OPEN:
                 ordered_numbers = [
                     course["courseNumber"]
                     for course in diversify_by_faculty(
-                        [courses_by_number[number] for number in ordered_numbers],
+                        # `.get`: a number that normalises differently from its
+                        # catalog key would otherwise raise here rather than
+                        # simply not being shown.
+                        [
+                            courses_by_number[number]
+                            for number in ordered_numbers
+                            if number in courses_by_number
+                        ],
                         limit=OPEN_SHELF_LIMIT,
                         per_faculty=OPEN_SHELF_PER_FACULTY,
                     )

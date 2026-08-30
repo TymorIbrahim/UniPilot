@@ -675,3 +675,26 @@ def test_the_planning_projection_covers_every_field_a_card_reads() -> None:
     # `_id` is what the planner adds a course by, and Mongo includes it unless
     # it is explicitly excluded.
     assert "_id" not in PLANNING_COURSE_FIELDS
+
+
+@pytest.mark.asyncio
+async def test_an_open_row_never_renders_past_the_conflict_checked_window(stub) -> None:
+    """Timetables are fetched only for a head of the ranking, so anything shown
+    beyond it would be a course nobody checked against the draft -- which is how
+    clashing courses would quietly return to the rows."""
+    numbers = [f"0094{index:04d}" for index in range(200)]
+    stub["requirementProgress"] = [_bucket("p:free", "Free electives", credits_remaining=2.0)]
+    # One faculty throughout, so the diversity cap keeps skipping and the scan
+    # runs as far down the ranking as it is allowed to.
+    courses = []
+    for number in numbers:
+        course = _course(number)
+        course["faculty"] = "Civil"
+        courses.append(course)
+    stub["courses"] = courses
+    stub["offered"] = set(numbers)
+
+    shelf = (await _build())["shelves"][0]
+
+    shown = {c["courseNumber"] for c in shelf["courses"]}
+    assert shown <= set(numbers[: course_shelf_service.CONFLICT_CHECK_HEAD])
