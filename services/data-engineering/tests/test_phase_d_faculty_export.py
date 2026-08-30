@@ -567,6 +567,103 @@ def test_a_credit_table_still_wins_over_the_distribution_line() -> None:
     assert [credits for *_, credits in parse_credit_buckets_from_page(page)] == [120.0]
 
 
+def _hebrew_table_page(rows: str, code: str = "021095-1-000") -> WikiPage:
+    return WikiPage(
+        slug="track-test",
+        path=Path("/tmp/track-test.md"),
+        frontmatter={},
+        body="",
+        english_body=(
+            f"**Program code:** {code}\n**Total Credits:** 155.0\n\n"
+            "| Category | Credits |\n|----------|---------|\n" + rows
+        ),
+    )
+
+
+def _buckets_by_slug(program: dict) -> dict[str, float]:
+    return {
+        group["groupId"].split(":", 1)[-1]: float(group.get("minCredits") or 0)
+        for group in program["requirementGroups"]
+        if (group.get("ruleExpression") or {}).get("type") == "credit_bucket"
+    }
+
+
+def test_a_technion_wide_row_beside_itemised_parts_is_the_free_elective() -> None:
+    """The four education teaching tracks list enrichment and PE as their own
+    rows, so their 4.0 "בחירה כלל טכניונית" row is the remainder, not the whole
+    block. Splitting it as the whole block gave them a 0.0-credit free elective."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 106.5 |\n"
+        "| מקצועות בחירה מומלצת | 36.5 |\n"
+        "| מקצועות העשרה | 6.0 |\n"
+        "| מקצועות בחירה כלל טכניונית | 4.0 |\n"
+        "| חינוך גופני | 2.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+    buckets = _buckets_by_slug(program)
+
+    assert buckets["free-elective"] == 4.0
+    assert buckets["enrichment"] == 6.0
+    assert buckets["physical-education"] == 2.0
+    assert round(sum(buckets.values()), 2) == 155.0
+
+
+def test_a_technion_wide_row_alone_is_still_split_into_the_three_buckets() -> None:
+    """Without itemised parts the row IS the whole block, and must still split."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 143.0 |\n| מקצועות בחירה כלל טכניונית | 12.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+    buckets = _buckets_by_slug(program)
+
+    assert (buckets["enrichment"], buckets["free-elective"], buckets["physical-education"]) == (
+        6.0,
+        4.0,
+        2.0,
+    )
+    assert round(sum(buckets.values()), 2) == 155.0
+
+
+def test_itemised_parts_without_a_technion_wide_row_are_left_alone() -> None:
+    """No aggregate row means nothing to reinterpret; the missing free elective
+    still comes from the default block rather than from a phantom remainder."""
+    page = _hebrew_table_page(
+        "| מקצועות חובה | 147.0 |\n| מקצועות העשרה | 6.0 |\n| חינוך גופני | 2.0 |\n"
+    )
+
+    program = build_generic_program(page, faculty_id="education-science-technology", pages={})
+    assert program is not None
+
+    assert _buckets_by_slug(program)["free-elective"] == 4.0
+
+
+@pytest.mark.parametrize(
+    "slug",
+    [
+        "track-education-chemistry",
+        "track-education-physics",
+        "track-education-computer-science",
+        "track-education-biology",
+    ],
+)
+def test_education_teaching_tracks_reconcile(slug: str) -> None:
+    """Each was exactly 4.0 short: a free-elective bucket promoted at 0.0."""
+    from app.paths import catalog_vault_root
+    from app.vault.loader import load_pages_by_slug, wiki_root
+
+    pages = load_pages_by_slug(wiki_root(catalog_vault_root()))
+    program = build_generic_program(
+        pages[slug], faculty_id="education-science-technology", pages=pages
+    )
+    assert program is not None
+
+    assert round(sum(_buckets_by_slug(program).values()), 2) == program["totalCredits"]
+
+
 @pytest.mark.parametrize(
     "slug",
     ["track-education-electronics-electricity", "track-education-technology-machines"],

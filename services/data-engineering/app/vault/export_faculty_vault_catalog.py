@@ -18,6 +18,8 @@ from app.vault.export_dds_catalog import (
     CATALOG_YEAR,
     INSTITUTION_ID,
     DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL,
+    TECHNION_WIDE_ENRICHMENT_CREDITS,
+    TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS,
     _general_technion_credit_bucket_groups,
     _general_technion_elective_groups,
     _merge_unique_course_refs,
@@ -162,6 +164,10 @@ _TECHNION_WIDE_AGGREGATE_PREFIXES = (
 # are a breakdown, not three further requirements, and promoting them added a
 # second copy of the same 12 credits.
 _BUCKET_BREAKDOWN_PREFIX = "of-which"
+
+# The two parts of the university-wide block a track's own table may state
+# separately, leaving its "Technion-wide electives" row as the remainder.
+_ENRICHMENT_AND_PE_SLUGS = frozenset({"enrichment", "physical-education"})
 
 
 def _is_technion_wide_aggregate_slug(slug: str) -> bool:
@@ -550,6 +556,7 @@ def build_generic_program(
 
     requirement_groups = _credit_bucket_groups(program_code, parse_credit_buckets_from_page(page))
     technion_wide_total = DEFAULT_TECHNION_WIDE_ELECTIVE_TOTAL
+    stated_technion_wide_total: float | None = None
     filtered_groups: list[dict[str, Any]] = []
     existing_bucket_slugs: set[str] = set()
     for group in requirement_groups:
@@ -557,7 +564,8 @@ def build_generic_program(
         slug = group_id.split(":", 1)[-1] if ":" in group_id else group_id
         if _is_technion_wide_aggregate_slug(slug):
             if group.get("minCredits") is not None:
-                technion_wide_total = float(group["minCredits"])
+                stated_technion_wide_total = float(group["minCredits"])
+                technion_wide_total = stated_technion_wide_total
             continue
         if _is_bucket_breakdown_slug(slug):
             continue
@@ -566,7 +574,21 @@ def build_generic_program(
             existing_bucket_slugs.add(slug)
     requirement_groups = filtered_groups
 
-    standard_technion_buckets = _STANDARD_TECHNION_BUCKET_SLUGS
+    # A table that already lists enrichment and physical education as their own
+    # rows is not describing the whole university-wide block in its "Technion-wide
+    # electives" row -- that row is what is LEFT after them, the free elective.
+    # Splitting it as though it were the whole block gave the four education
+    # teaching tracks a 0.0-credit free elective and left each 4.0 short of its
+    # own stated total. Restoring the itemised parts recovers the block the split
+    # expects, and the parts already present are not added twice.
+    if stated_technion_wide_total is not None and _ENRICHMENT_AND_PE_SLUGS <= {
+        _canonical_bucket_slug(slug) for slug in existing_bucket_slugs
+    }:
+        technion_wide_total = (
+            stated_technion_wide_total
+            + TECHNION_WIDE_ENRICHMENT_CREDITS
+            + TECHNION_WIDE_PHYSICAL_EDUCATION_CREDITS
+        )
     missing_standard_buckets = _missing_standard_technion_bucket_slugs(existing_bucket_slugs)
     if missing_standard_buckets:
         for group in _general_technion_credit_bucket_groups(
