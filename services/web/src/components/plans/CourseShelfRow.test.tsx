@@ -159,3 +159,22 @@ describe('CourseShelfRow empty state', () => {
     expect(screen.getByText(/3\.5 credits left/i)).toBeInTheDocument()
   })
 })
+
+describe('CourseShelfRow filter breakdown', () => {
+  beforeEach(() => {
+    localStorage.setItem('unipilot_locale', 'en')
+  })
+
+  it('explains why the row is short, reachable without a pointer', async () => {
+    const user = userEvent.setup()
+    renderRow(shelf({ candidateCount: 11, notOfferedCount: 7, ineligibleCount: 3 }))
+
+    const toggle = screen.getByRole('button', { name: /showing 1 of 11/i })
+    expect(screen.queryByText(/7 not offered/i)).not.toBeInTheDocument()
+
+    await user.click(toggle)
+
+    expect(screen.getByText(/7 not offered/i)).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+})

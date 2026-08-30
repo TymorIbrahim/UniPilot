@@ -36,6 +36,7 @@ export function CourseShelfRow({
 }: CourseShelfRowProps) {
   const { t } = useTranslation()
   const [laterOpen, setLaterOpen] = useState(false)
+  const [breakdownOpen, setBreakdownOpen] = useState(false)
   const filtered = filteredCount(shelf)
 
   const isEmpty = shelf.courses.length === 0
@@ -96,22 +97,32 @@ export function CourseShelfRow({
           </span>
         ) : null}
         {shelf.courses.length > 0 && filtered > 0 ? (
-          <span
-            className="text-xs text-[var(--color-text-muted)]"
-            title={t('planner.shelves.filteredDetail', {
-              notOffered: shelf.notOfferedCount,
-              ineligible: shelf.ineligibleCount,
-              noCredit: shelf.noAdditionalCreditCount,
-              clash: shelf.conflictsWithDraftCount,
-            })}
+          // "showing 3 of 11" raises "why only 3?", and the answer used to live
+          // in a `title` tooltip that touch and keyboard users never reach.
+          <button
+            type="button"
+            onClick={() => setBreakdownOpen((open) => !open)}
+            aria-expanded={breakdownOpen}
+            className="text-xs text-[var(--color-text-muted)] underline decoration-dotted underline-offset-2 hover:text-[var(--color-text)]"
           >
             {t('planner.shelves.showing', {
               shown: shelf.courses.length,
               total: shelf.candidateCount,
             })}
-          </span>
+          </button>
         ) : null}
       </header>
+
+      {breakdownOpen && filtered > 0 ? (
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {t('planner.shelves.filteredDetail', {
+            notOffered: shelf.notOfferedCount,
+            ineligible: shelf.ineligibleCount,
+            noCredit: shelf.noAdditionalCreditCount,
+            clash: shelf.conflictsWithDraftCount,
+          })}
+        </p>
+      ) : null}
 
       {shelf.courses.length > 0 ? (
         <ShelfScroller label={shelfTitle(shelf, t)}>
