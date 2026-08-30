@@ -65,14 +65,14 @@ export function DraftSummaryBar({ summary }: DraftSummaryBarProps) {
       ) : null}
 
       {difficulty?.heavierThanUsual ? (
-        <span className="flex items-center gap-1.5 text-[var(--color-warning)]">
+        <span className="flex items-center gap-1.5 text-[var(--color-warning-text)]">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {t('planner.shelves.draft.heavier')}
         </span>
       ) : null}
 
       {exams && exams.tightestGapDays != null && exams.tightestPair ? (
-        <span className="flex items-center gap-1.5 text-[var(--color-warning)]">
+        <span className="flex items-center gap-1.5 text-[var(--color-warning-text)]">
           <CalendarClock className="h-3.5 w-3.5 shrink-0" />
           {t('planner.shelves.draft.examTight', {
             days: exams.tightestGapDays,

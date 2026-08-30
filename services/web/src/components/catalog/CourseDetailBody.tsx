@@ -66,7 +66,7 @@ export function CourseDetailBody({ course }: CourseDetailBodyProps) {
               <div>
                 <dt className="text-xs font-medium text-[var(--color-text-muted)]">{t('planner.prerequisites')}</dt>
                 <dd className="whitespace-pre-wrap">{course.prerequisitesText}</dd>
-                <p className="mt-1 text-xs text-[var(--color-warning)]">{t('planner.prereqManualVerify')}</p>
+                <p className="mt-1 text-xs text-[var(--color-warning-text)]">{t('planner.prereqManualVerify')}</p>
               </div>
             ) : null}
             {course.corequisitesText ? (

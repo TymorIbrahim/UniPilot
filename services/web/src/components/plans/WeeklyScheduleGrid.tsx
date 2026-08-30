@@ -91,7 +91,7 @@ export function WeeklyScheduleGrid({
     <div className={cn('space-y-3', className)} data-testid="weekly-schedule-grid">
       {conflicts.length ? (
         <div className="rounded-xl border border-[var(--color-warning)]/40 bg-amber-50/80 p-3">
-          <p className="mb-2 text-xs font-semibold text-[var(--color-warning)]">
+          <p className="mb-2 text-xs font-semibold text-[var(--color-warning-text)]">
             {t('planner.scheduleConflictHint')}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -107,7 +107,7 @@ export function WeeklyScheduleGrid({
                   onBlur={() => onConflictHover?.(null)}
                   className="inline-flex max-w-full items-center gap-2 rounded-lg border border-[var(--color-warning)]/50 bg-white px-2.5 py-1.5 text-start text-xs shadow-sm transition hover:border-[var(--color-warning)] hover:bg-amber-50"
                 >
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--color-warning)]" aria-hidden />
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--color-warning-text)]" aria-hidden />
                   <span className="font-medium text-[var(--color-text)]">
                     {conflict.day} {conflict.timeRange}
                   </span>

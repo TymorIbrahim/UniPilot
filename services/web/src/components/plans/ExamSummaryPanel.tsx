@@ -192,9 +192,9 @@ export function ExamSummaryPanel({
 
       {conflictWarnings.length ? (
         <div className="mb-4 rounded-lg border border-[var(--color-warning)]/40 bg-amber-50 px-3 py-2">
-          <p className="text-xs font-medium text-[var(--color-warning)]">{t('planner.examConflictTitle')}</p>
+          <p className="text-xs font-medium text-[var(--color-warning-text)]">{t('planner.examConflictTitle')}</p>
           {conflictWarnings.map((warning, index) => (
-            <p key={index} className="mt-0.5 text-xs text-[var(--color-warning)]">
+            <p key={index} className="mt-0.5 text-xs text-[var(--color-warning-text)]">
               {warning.message ??
                 `${t('planner.examSameDayConflict')} ${warning.date ?? ''}: ${(warning.courseNumbers ?? []).join(', ')}`}
             </p>

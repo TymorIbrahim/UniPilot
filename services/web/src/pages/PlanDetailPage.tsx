@@ -91,7 +91,7 @@ export function PlanDetailPage() {
 
       {plan.plannerInsights?.creditsWarning ? (
         <Card className="border-[var(--color-warning)]/30 bg-[var(--color-warning)]/5">
-          <p className="text-sm text-[var(--color-warning)]">{plan.plannerInsights.creditsWarning.message}</p>
+          <p className="text-sm text-[var(--color-warning-text)]">{plan.plannerInsights.creditsWarning.message}</p>
         </Card>
       ) : null}
 

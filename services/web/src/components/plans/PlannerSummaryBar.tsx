@@ -44,7 +44,7 @@ export function PlannerSummaryBar({
       </span>
       <span>
         <span className="text-[var(--color-text-muted)]">{t('plans.totalCredits')}:</span>{' '}
-        <strong className={overMax ? 'text-[var(--color-warning)]' : 'text-[var(--color-primary)]'}>
+        <strong className={overMax ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-primary)]'}>
           {formatCredits(activeCredits)}
         </strong>
         {maxCredits != null ? (
@@ -53,7 +53,7 @@ export function PlannerSummaryBar({
       </span>
       <span>
         <span className="text-[var(--color-text-muted)]">{t('planner.conflicts')}:</span>{' '}
-        <strong className={conflictCount ? 'text-[var(--color-warning)]' : ''}>{conflictCount}</strong>
+        <strong className={conflictCount ? 'text-[var(--color-warning-text)]' : ''}>{conflictCount}</strong>
       </span>
       <span>
         <span className="text-[var(--color-text-muted)]">{t('planner.examsCount')}:</span>{' '}
@@ -62,13 +62,13 @@ export function PlannerSummaryBar({
       {missingLessonCount > 0 ? (
         <span>
           <span className="text-[var(--color-text-muted)]">{t('planner.missingLessons')}:</span>{' '}
-          <strong className="text-[var(--color-warning)]">{missingLessonCount}</strong>
+          <strong className="text-[var(--color-warning-text)]">{missingLessonCount}</strong>
         </span>
       ) : null}
       {changesCount > 0 ? (
         <span>
           <span className="text-[var(--color-text-muted)]">{t('planner.changes')}:</span>{' '}
-          <strong className="text-[var(--color-warning)]">{changesCount}</strong>
+          <strong className="text-[var(--color-warning-text)]">{changesCount}</strong>
         </span>
       ) : null}
     </div>

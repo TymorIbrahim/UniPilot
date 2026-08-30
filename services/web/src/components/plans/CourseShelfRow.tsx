@@ -68,14 +68,14 @@ export function CourseShelfRow({
           className={cn(
             'rounded-full px-2 py-0.5 text-[10px] font-medium',
             shelf.kind === 'mandatory'
-              ? 'bg-[var(--color-warning)]/15 text-[var(--color-warning)]'
+              ? 'bg-[var(--color-warning)]/15 text-[var(--color-warning-text)]'
               : 'bg-[var(--color-border)] text-[var(--color-text-muted)]',
           )}
         >
           {shelfKindLabel(shelf.kind, t)}
         </span>
         {shelf.isRequiredPool ? (
-          <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-warning)]">
+          <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-warning-text)]">
             {t('planner.shelves.requiredPool')}
           </span>
         ) : null}

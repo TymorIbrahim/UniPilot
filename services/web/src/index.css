@@ -25,6 +25,14 @@
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
+
+  /* Amber-500 is a fill, not a text colour: on white it is 2.15:1 and on its own
+     15% tint 1.83:1, so every warning we have ever written in it has been below
+     AA. Amber-800 clears AA on both (7.09:1 and 6.07:1) and still reads amber.
+     Use --color-warning for backgrounds, borders and rings; use this for
+     anything a person has to read, icons included -- a 3:1 graphical-object
+     floor applies to those too. */
+  --color-warning-text: #92400e;
   
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;

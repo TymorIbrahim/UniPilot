@@ -54,7 +54,7 @@ export function SharedPlanPage() {
     <div className="min-h-screen bg-[var(--color-surface-muted)] px-4 py-8 print:bg-white print:px-0">
       <div className="mx-auto max-w-6xl space-y-6 animate-fade-in">
         <div className="rounded-xl border border-[var(--color-warning)] bg-[var(--color-warning)]/10 px-4 py-3 print:hidden">
-          <p className="flex items-center gap-2 text-sm font-medium text-[var(--color-warning)]">
+          <p className="flex items-center gap-2 text-sm font-medium text-[var(--color-warning-text)]">
             <Eye className="h-4 w-4 shrink-0" />
             {t('planner.sharedReadOnlyBanner')}
           </p>

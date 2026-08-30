@@ -77,49 +77,45 @@ export function ShelfCourseCard({
       ) : null}
 
       {isMandatory && course.deferral ? (
-        <dl className="space-y-1 text-[11px] text-[var(--color-text-muted)]">
-          <div className="flex items-center gap-1.5">
+        <ul className="space-y-1 text-[11px] text-[var(--color-text-muted)]">
+          <li className="flex items-center gap-1.5">
             <Calendar className="h-3 w-3 shrink-0" />
-            <dd>
-              {course.deferral.nextOffering
-                ? t('planner.shelves.nextRuns', {
-                    term: semesterLabel(course.deferral.nextOffering, t),
-                  })
-                : t('planner.shelves.nextUnknown')}
-            </dd>
-          </div>
+            {course.deferral.nextOffering
+              ? t('planner.shelves.nextRuns', {
+                  term: semesterLabel(course.deferral.nextOffering, t),
+                })
+              : t('planner.shelves.nextUnknown')}
+          </li>
           {course.deferral.dependentCount > 0 ? (
-            <div className="flex items-center gap-1.5">
+            <li className="flex items-center gap-1.5">
               <Lock className="h-3 w-3 shrink-0" />
-              <dd>
-                {course.deferral.dependentCount === 1
-                  ? t('planner.shelves.gatesOne')
-                  : t('planner.shelves.gates', { count: course.deferral.dependentCount })}
-              </dd>
-            </div>
+              {course.deferral.dependentCount === 1
+                ? t('planner.shelves.gatesOne')
+                : t('planner.shelves.gates', { count: course.deferral.dependentCount })}
+            </li>
           ) : null}
-        </dl>
+        </ul>
       ) : (
-        <dl className="space-y-1 text-[11px] text-[var(--color-text-muted)]">
+        <ul className="space-y-1 text-[11px] text-[var(--color-text-muted)]">
           {reviews ? (
-            <dd>
+            <li>
               {t('planner.shelves.reviewsShort', {
                 score: reviews.meanGeneralRank,
                 max: reviews.scaleMax,
                 count: reviews.responseCount,
               })}
-            </dd>
+            </li>
           ) : null}
           {published ? (
-            <dd className="tabular-nums">
+            <li className="tabular-nums">
               {t('planner.shelves.passRateShort', {
                 rate: Math.round(published.passRate * 100),
                 average: Math.round(published.averageGrade),
               })}
-            </dd>
+            </li>
           ) : null}
-          {!reviews && !published ? <dd>{t('planner.shelves.noSignal')}</dd> : null}
-        </dl>
+          {!reviews && !published ? <li>{t('planner.shelves.noSignal')}</li> : null}
+        </ul>
       )}
 
       {course.unlocks.count > 0 && !isMandatory ? (
@@ -130,7 +126,7 @@ export function ShelfCourseCard({
       ) : null}
 
       {course.readiness ? (
-        <p className="flex items-start gap-1.5 text-[11px] text-[var(--color-warning)]">
+        <p className="flex items-start gap-1.5 text-[11px] text-[var(--color-warning-text)]">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
           {t('planner.shelves.readiness', {
             course: course.readiness.weakestPrerequisiteCourse,
@@ -140,7 +136,7 @@ export function ShelfCourseCard({
       ) : null}
 
       {course.requiresManualRegistration ? (
-        <p className="flex items-start gap-1.5 text-[11px] text-[var(--color-warning)]">
+        <p className="flex items-start gap-1.5 text-[11px] text-[var(--color-warning-text)]">
           <Mail className="mt-0.5 h-3 w-3 shrink-0" />
           {t('planner.shelves.manualRegistration')}
         </p>
@@ -154,7 +150,7 @@ export function ShelfCourseCard({
       ) : null}
 
       {!course.catalogKnown ? (
-        <p className="text-[11px] text-[var(--color-warning)]">
+        <p className="text-[11px] text-[var(--color-warning-text)]">
           {t('planner.shelves.notInCatalog')}
         </p>
       ) : null}

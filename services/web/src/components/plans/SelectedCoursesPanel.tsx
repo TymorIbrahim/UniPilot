@@ -33,7 +33,7 @@ export function SelectedCoursesPanel({
       </div>
 
       {creditsWarning ? (
-        <p className="mb-2 flex shrink-0 items-start gap-2 text-xs text-[var(--color-warning)]">
+        <p className="mb-2 flex shrink-0 items-start gap-2 text-xs text-[var(--color-warning-text)]">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {creditsWarning}
         </p>
