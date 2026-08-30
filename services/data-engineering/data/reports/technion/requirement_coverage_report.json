@@ -1,0 +1,990 @@
+{
+  "status": "fail",
+  "generatedAt": "2026-08-30T13:58:02.503892+00:00",
+  "counts": {
+    "structural": 14,
+    "under": 7,
+    "over": 15,
+    "covered": 21,
+    "unknown": 0
+  },
+  "ruleTypes": {
+    "course_pool": 619,
+    "semester_matrix": 374,
+    "track_requirement": 2
+  },
+  "recurringGaps": [
+    {
+      "gapCredits": -12.0,
+      "programCodes": [
+        "001401-1-000",
+        "006006-1-000",
+        "020028-1-000",
+        "020220-1-000",
+        "027197-1-000",
+        "033033-1-000",
+        "033133-1-000"
+      ]
+    },
+    {
+      "gapCredits": 143.0,
+      "programCodes": [
+        "011155-1-000",
+        "021025-1-000",
+        "021026-1-000",
+        "027280-1-000",
+        "034034-2-000"
+      ]
+    },
+    {
+      "gapCredits": -2.0,
+      "programCodes": [
+        "013043-1-000",
+        "031131-1-000",
+        "031249-1-000",
+        "034034-1-000"
+      ]
+    },
+    {
+      "gapCredits": 4.0,
+      "programCodes": [
+        "021095-1-000",
+        "021111-1-000",
+        "021143-1-000",
+        "021239-1-000"
+      ]
+    },
+    {
+      "gapCredits": 148.0,
+      "programCodes": [
+        "031286-1-000",
+        "031313-1-000"
+      ]
+    }
+  ],
+  "duplicateProgramCodes": [
+    "012124-1-000",
+    "023323-1-000",
+    "023325-1-000",
+    "027394-1-000"
+  ],
+  "programs": [
+    {
+      "programCode": "001024-1-000",
+      "name": "הנדסת מיפוי וגיאו-אינפורמציה (ארבע שנתי)",
+      "totalCredits": 157.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 145.0,
+      "coverageRatio": 0.0764,
+      "status": "structural",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "001046-1-000",
+      "name": "מיפוי וגיאו-אינפורמציה (תלת שנתי)",
+      "totalCredits": 120.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 108.0,
+      "coverageRatio": 0.1,
+      "status": "structural",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "001101-1-000",
+      "name": "מסלול הנדסה סביבתית",
+      "totalCredits": 156.5,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 144.5,
+      "coverageRatio": 0.0767,
+      "status": "structural",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "001201-1-000",
+      "name": "מסלול הנדסה אזרחית – הנדסת מים או הנדסת תחבורה",
+      "totalCredits": 157.5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 157.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "001401-1-000",
+      "name": "מסלול הנדסה אזרחית – מבנים",
+      "totalCredits": 158.5,
+      "promotedGroupCount": 7,
+      "promotedCredits": 170.5,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.0757,
+      "status": "over",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "001404-1-000",
+      "name": "הנדסה אזרחית — מסלול ניהול ובנייה",
+      "totalCredits": 159.5,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 147.5,
+      "coverageRatio": 0.0752,
+      "status": "structural",
+      "quarantinedPoolCount": 4,
+      "quarantinedOperators": {
+        "choose_n": 1,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 1
+    },
+    {
+      "programCode": "004004-1-000",
+      "name": "מסלול הנדסת חשמל",
+      "totalCredits": 157.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 157.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 18,
+      "quarantinedOperators": {
+        "choose_n": 15,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 15
+    },
+    {
+      "programCode": "004114-1-000",
+      "name": "מסלול הנדסת מחשבים ותוכנה",
+      "totalCredits": 159.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 159.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 14,
+      "quarantinedOperators": {
+        "choose_n": 11,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 11
+    },
+    {
+      "programCode": "004141-1-000",
+      "name": "מסלול הנדסת חשמל ופיזיקה",
+      "totalCredits": 162.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 162.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 25,
+      "quarantinedOperators": {
+        "choose_n": 22,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 22
+    },
+    {
+      "programCode": "004414-1-000",
+      "name": "מסלול הנדסת חשמל ומתמטיקה",
+      "totalCredits": 162.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 162.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 25,
+      "quarantinedOperators": {
+        "choose_n": 22,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 22
+    },
+    {
+      "programCode": "005005-1-000",
+      "name": "מסלול הנדסה כימית",
+      "totalCredits": 158.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 158.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 10,
+      "quarantinedOperators": {
+        "choose_n": 7,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 7
+    },
+    {
+      "programCode": "005205-1-000",
+      "name": "מסלול הנדסה ביוכימית",
+      "totalCredits": 164.75,
+      "promotedGroupCount": 6,
+      "promotedCredits": 176.5,
+      "gapCredits": -11.75,
+      "coverageRatio": 1.0713,
+      "status": "over",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "006006-1-000",
+      "name": "מסלול הנדסת ביוטכנולוגיה ומזון",
+      "totalCredits": 161.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 173.0,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.0745,
+      "status": "over",
+      "quarantinedPoolCount": 13,
+      "quarantinedOperators": {
+        "choose_n": 10,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 10
+    },
+    {
+      "programCode": "008008-1-000",
+      "name": "מגמת אוירונוטיקה/אסטרונוטיקה",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 7,
+      "promotedCredits": 160.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 3,
+      "quarantinedOperators": {
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 0
+    },
+    {
+      "programCode": "008181-1-000",
+      "name": "מגמת אוירונוטיקה/אסטרונוטיקה ופיסיקה",
+      "totalCredits": 178.0,
+      "promotedGroupCount": 9,
+      "promotedCredits": 189.0,
+      "gapCredits": -11.0,
+      "coverageRatio": 1.0618,
+      "status": "over",
+      "quarantinedPoolCount": 3,
+      "quarantinedOperators": {
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 0
+    },
+    {
+      "programCode": "009009-1-000",
+      "name": "הנדסת תעשייה וניהול",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 15,
+      "quarantinedOperators": {
+        "choose_chain": 8,
+        "choose_n": 2,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 12
+    },
+    {
+      "programCode": "009118-1-000",
+      "name": "הנדסת מערכות מידע",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 9,
+      "quarantinedOperators": {
+        "choose_chain": 3,
+        "choose_n": 1,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 6
+    },
+    {
+      "programCode": "009216-1-000",
+      "name": "הנדסת נתונים ומידע",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 8,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 6
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "010040-1-000",
+      "name": "תוכנית תלת-שנתית במתמטיקה",
+      "totalCredits": 120.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 120.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_chain": 1,
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "010088-1-000",
+      "name": "תוכנית תלת-שנתית לתואר משולב במתמטיקה-פיזיקה",
+      "totalCredits": 124.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 124.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 6,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 3
+    },
+    {
+      "programCode": "011041-1-000",
+      "name": "תוכנית תלת-שנתית לקראת התואר \"בוגר למדעים בפיזיקה\"",
+      "totalCredits": 119.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 119.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 9,
+      "quarantinedOperators": {
+        "choose_n": 6,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 6
+    },
+    {
+      "programCode": "011087-1-000",
+      "name": "תואר משולב במתמטיקה-פיזיקה",
+      "totalCredits": 124.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 124.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_n": 4,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "011142-1-000",
+      "name": "פיזיקה + הנדסת חשמל — מסלול משולב",
+      "totalCredits": 168.5,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 156.5,
+      "coverageRatio": 0.0712,
+      "status": "structural",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_n": 4,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "011155-1-000",
+      "name": "פיזיקה — מגמת אופטיקה שימושית",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 143.0,
+      "coverageRatio": 0.0774,
+      "status": "structural",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_n": 4,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "012042-1-000",
+      "name": "מסלול כימיה — תואר בוגר בכימיה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 124.0,
+      "gapCredits": 31.0,
+      "coverageRatio": 0.8,
+      "status": "under",
+      "quarantinedPoolCount": 6,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 3
+    },
+    {
+      "programCode": "012124-1-000",
+      "name": "מסלול דו-חוגי ביולוגיה-כימיה",
+      "totalCredits": 135.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 123.0,
+      "coverageRatio": 0.0889,
+      "status": "structural",
+      "quarantinedPoolCount": 12,
+      "quarantinedOperators": {
+        "choose_n": 6,
+        "min_credits": 6
+      },
+      "quarantinedWithCourseRefs": 6
+    },
+    {
+      "programCode": "012154-1-000",
+      "name": "תוכנית הזנק — מסלול ישיר לתואר שני בכימיה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 7,
+      "promotedCredits": 154.0,
+      "gapCredits": 1.0,
+      "coverageRatio": 0.9935,
+      "status": "under",
+      "quarantinedPoolCount": 4,
+      "quarantinedOperators": {
+        "choose_n": 1,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 1
+    },
+    {
+      "programCode": "013043-1-000",
+      "name": "מגמת מיקרוביולוגיה, אקולוגיה וסביבה",
+      "totalCredits": 126.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 128.5,
+      "gapCredits": -2.0,
+      "coverageRatio": 1.0158,
+      "status": "over",
+      "quarantinedPoolCount": 8,
+      "quarantinedOperators": {
+        "choose_n": 5,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 5
+    },
+    {
+      "programCode": "020028-1-000",
+      "name": "תוכנית לאדריכלות נוף — מוסמך לאדריכלות נוף",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 172.0,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.075,
+      "status": "over",
+      "quarantinedPoolCount": 3,
+      "quarantinedOperators": {
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 0
+    },
+    {
+      "programCode": "020220-1-000",
+      "name": "תוכנית לארכיטקטורה — מוסמך למדעים במדעי הארכיטקטורה",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 172.0,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.075,
+      "status": "over",
+      "quarantinedPoolCount": 3,
+      "quarantinedOperators": {
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 0
+    },
+    {
+      "programCode": "021025-1-000",
+      "name": "הוראת אלקטרוניקה-חשמל",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 143.0,
+      "coverageRatio": 0.0774,
+      "status": "structural",
+      "quarantinedPoolCount": 18,
+      "quarantinedOperators": {
+        "choose_n": 15,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 15
+    },
+    {
+      "programCode": "021026-1-000",
+      "name": "הוראת טכנולוגיה-מכונות",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 143.0,
+      "coverageRatio": 0.0774,
+      "status": "structural",
+      "quarantinedPoolCount": 14,
+      "quarantinedOperators": {
+        "choose_n": 11,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 11
+    },
+    {
+      "programCode": "021095-1-000",
+      "name": "מסלול הוראת כימיה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 151.0,
+      "gapCredits": 4.0,
+      "coverageRatio": 0.9742,
+      "status": "under",
+      "quarantinedPoolCount": 6,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 3
+    },
+    {
+      "programCode": "021111-1-000",
+      "name": "מסלול הוראת פיזיקה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 151.0,
+      "gapCredits": 4.0,
+      "coverageRatio": 0.9742,
+      "status": "under",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_n": 4,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "021121-1-000",
+      "name": "מסלול הוראת מתמטיקה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 6,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 3
+    },
+    {
+      "programCode": "021143-1-000",
+      "name": "מסלול הוראת מדעי המחשב",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 151.0,
+      "gapCredits": 4.0,
+      "coverageRatio": 0.9742,
+      "status": "under",
+      "quarantinedPoolCount": 10,
+      "quarantinedOperators": {
+        "choose_n": 7,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 7
+    },
+    {
+      "programCode": "021239-1-000",
+      "name": "מסלול הוראת ביולוגיה-מדעי הסביבה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 151.0,
+      "gapCredits": 4.0,
+      "coverageRatio": 0.9742,
+      "status": "under",
+      "quarantinedPoolCount": 7,
+      "quarantinedOperators": {
+        "choose_n": 4,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 4
+    },
+    {
+      "programCode": "023015-1-000",
+      "name": "מסלול הנדסת מחשבים",
+      "totalCredits": 158.5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 158.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 21,
+      "quarantinedOperators": {
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 16
+    },
+    {
+      "programCode": "023023-1-000",
+      "name": "מסלול כללי ארבע-שנתי במדעי המחשב",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 155.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 21,
+      "quarantinedOperators": {
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 16
+    },
+    {
+      "programCode": "023044-1-000",
+      "name": "מסלול כללי תלת-שנתי במדעי המחשב",
+      "totalCredits": 118.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 118.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 21,
+      "quarantinedOperators": {
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 16
+    },
+    {
+      "programCode": "023115-1-000",
+      "name": "מסלול הנדסת תוכנה",
+      "totalCredits": 159.5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 159.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 21,
+      "quarantinedOperators": {
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 5
+      },
+      "quarantinedWithCourseRefs": 16
+    },
+    {
+      "programCode": "023323-1-000",
+      "name": "מסלול מדעי המחשב ומתמטיקה",
+      "totalCredits": 152.0,
+      "promotedGroupCount": 5,
+      "promotedCredits": 152.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 40,
+      "quarantinedOperators": {
+        "choose_chain": 10,
+        "choose_n": 22,
+        "min_credits": 8
+      },
+      "quarantinedWithCourseRefs": 32
+    },
+    {
+      "programCode": "023325-1-000",
+      "name": "מסלול מדעי המחשב ופיזיקה",
+      "totalCredits": 163.5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 163.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 42,
+      "quarantinedOperators": {
+        "choose_chain": 10,
+        "choose_n": 24,
+        "min_credits": 8
+      },
+      "quarantinedWithCourseRefs": 34
+    },
+    {
+      "programCode": "027027-1-000",
+      "name": "תכנית לימודים לתואר MD — שנים קליניות",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 7,
+      "promotedCredits": 140.5,
+      "gapCredits": 14.5,
+      "coverageRatio": 0.9065,
+      "status": "under",
+      "quarantinedPoolCount": 3,
+      "quarantinedOperators": {
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 0
+    },
+    {
+      "programCode": "027197-1-000",
+      "name": "תכנית לימודים לתואר בוגר למדעים במדעי הרפואה",
+      "totalCredits": 157.5,
+      "promotedGroupCount": 7,
+      "promotedCredits": 169.5,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.0762,
+      "status": "over",
+      "quarantinedPoolCount": 4,
+      "quarantinedOperators": {
+        "choose_n": 1,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 1
+    },
+    {
+      "programCode": "027280-1-000",
+      "name": "מסלול ריפוי בעיסוק",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 143.0,
+      "coverageRatio": 0.0774,
+      "status": "structural",
+      "quarantinedPoolCount": 4,
+      "quarantinedOperators": {
+        "choose_n": 1,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 1
+    },
+    {
+      "programCode": "027394-1-000",
+      "name": "תוכנית הכפולה מדעי המחשב ומדעי הרפואה",
+      "totalCredits": 223.5,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 211.5,
+      "coverageRatio": 0.0537,
+      "status": "structural",
+      "quarantinedPoolCount": 42,
+      "quarantinedOperators": {
+        "choose_chain": 10,
+        "choose_n": 22,
+        "min_credits": 10
+      },
+      "quarantinedWithCourseRefs": 32
+    },
+    {
+      "programCode": "027396-1-000",
+      "name": "מסלול משולב רפואה + הנדסת נתונים ומידע",
+      "totalCredits": 241.5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 247.5,
+      "gapCredits": -6.0,
+      "coverageRatio": 1.0248,
+      "status": "over",
+      "quarantinedPoolCount": 9,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 6
+      },
+      "quarantinedWithCourseRefs": 5
+    },
+    {
+      "programCode": "027399-1-000",
+      "name": "מסלול לתואר כפול בהנדסה ביו-רפואית ורפואה",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 8,
+      "promotedCredits": 246.0,
+      "gapCredits": -91.0,
+      "coverageRatio": 1.5871,
+      "status": "over",
+      "quarantinedPoolCount": 6,
+      "quarantinedOperators": {
+        "choose_n": 3,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 3
+    },
+    {
+      "programCode": "031131-1-000",
+      "name": "מסלול הנדסת חומרים (תכנית חד-חוגית)",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 6,
+      "promotedCredits": 162.0,
+      "gapCredits": -2.0,
+      "coverageRatio": 1.0125,
+      "status": "over",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "031249-1-000",
+      "name": "מסלול הנדסת חומרים ופיזיקה (תכנית משולבת)",
+      "totalCredits": 179.5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 181.5,
+      "gapCredits": -2.0,
+      "coverageRatio": 1.0111,
+      "status": "over",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "031286-1-000",
+      "name": "מסלול משולב הנדסת חומרים-כימיה",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 148.0,
+      "coverageRatio": 0.075,
+      "status": "structural",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "031313-1-000",
+      "name": "מסלול משולב הנדסת חומרים-ביולוגיה",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 148.0,
+      "coverageRatio": 0.075,
+      "status": "structural",
+      "quarantinedPoolCount": 5,
+      "quarantinedOperators": {
+        "choose_n": 2,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 2
+    },
+    {
+      "programCode": "033033-1-000",
+      "name": "מסלול הנדסה ביו-רפואית",
+      "totalCredits": 160.0,
+      "promotedGroupCount": 8,
+      "promotedCredits": 172.0,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.075,
+      "status": "over",
+      "quarantinedPoolCount": 9,
+      "quarantinedOperators": {
+        "choose_n": 6,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 6
+    },
+    {
+      "programCode": "033133-1-000",
+      "name": "מסלול משולב בהנדסה ביו-רפואית ובפיזיקה",
+      "totalCredits": 178.0,
+      "promotedGroupCount": 8,
+      "promotedCredits": 190.0,
+      "gapCredits": -12.0,
+      "coverageRatio": 1.0674,
+      "status": "over",
+      "quarantinedPoolCount": 4,
+      "quarantinedOperators": {
+        "choose_n": 1,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 1
+    },
+    {
+      "programCode": "034034-1-000",
+      "name": "מסלול הנדסת מכונות",
+      "totalCredits": 157.5,
+      "promotedGroupCount": 7,
+      "promotedCredits": 159.5,
+      "gapCredits": -2.0,
+      "coverageRatio": 1.0127,
+      "status": "over",
+      "quarantinedPoolCount": 14,
+      "quarantinedOperators": {
+        "choose_n": 11,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 11
+    },
+    {
+      "programCode": "034034-2-000",
+      "name": "הנדסת מכונות — מסלול ברק (עתודה)",
+      "totalCredits": 155.0,
+      "promotedGroupCount": 3,
+      "promotedCredits": 12.0,
+      "gapCredits": 143.0,
+      "coverageRatio": 0.0774,
+      "status": "structural",
+      "quarantinedPoolCount": 14,
+      "quarantinedOperators": {
+        "choose_n": 11,
+        "min_credits": 3
+      },
+      "quarantinedWithCourseRefs": 11
+    }
+  ]
+}
