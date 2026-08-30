@@ -283,6 +283,8 @@ export const he = {
       scrollBack: 'גלילה אחורה',
       scrollForward: 'גלילה קדימה',
       updating: 'מתעדכן…',
+      requiredPool: 'נדרש',
+      coursesLeft: 'נדרש עוד {count} קורס מהקבוצה',
       nextRuns: 'ייפתח ב{term}',
       nextUnknown: 'לא מופיע סמסטר עתידי',
       empty: {

@@ -33,6 +33,9 @@ function shelf(overrides: Partial<CourseShelf> = {}): CourseShelf {
     isChoice: true,
     startedCount: 0,
     poolSize: 0,
+    isRequiredPool: false,
+    stepsRequired: null,
+    stepsCompleted: null,
     courses: [course()],
     laterCourses: [],
     candidateCount: 1,
@@ -176,5 +179,33 @@ describe('CourseShelfRow filter breakdown', () => {
 
     expect(screen.getByText(/7 not offered/i)).toBeInTheDocument()
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+
+
+describe('CourseShelfRow required pools', () => {
+  beforeEach(() => {
+    localStorage.setItem('unipilot_locale', 'en')
+  })
+
+  it('marks a pool the requirement cannot be satisfied without', () => {
+    // With the bucket's credits complete, only this row can still advance it;
+    // the sibling chains cannot contribute at all.
+    renderRow(shelf({ isRequiredPool: true, creditsRemaining: 0 }))
+
+    expect(screen.getByText(/^required$/i)).toBeInTheDocument()
+  })
+
+  it('counts courses, not credits, for a chain that asks for one', () => {
+    renderRow(shelf({ stepsRequired: 1, stepsCompleted: 0, creditsRemaining: 3.5 }))
+
+    expect(screen.getByText(/1 more course/i)).toBeInTheDocument()
+    expect(screen.queryByText(/3\.5 credits left/i)).not.toBeInTheDocument()
+  })
+
+  it('falls back to credits when the pool is not counted in courses', () => {
+    renderRow(shelf({ stepsRequired: null, creditsRemaining: 3.5 }))
+
+    expect(screen.getByText(/3\.5 credits left/i)).toBeInTheDocument()
   })
 })

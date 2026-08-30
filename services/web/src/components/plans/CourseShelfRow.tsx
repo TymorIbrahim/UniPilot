@@ -74,7 +74,20 @@ export function CourseShelfRow({
         >
           {shelfKindLabel(shelf.kind, t)}
         </span>
-        {shelf.creditsRemaining > 0 ? (
+        {shelf.isRequiredPool ? (
+          <span className="rounded-full bg-[var(--color-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--color-warning)]">
+            {t('planner.shelves.requiredPool')}
+          </span>
+        ) : null}
+        {/* A chain asks for a course, not credits; saying "3.5 credits left"
+            there describes the bucket, not what would finish the chain. */}
+        {shelf.stepsRequired ? (
+          <span className="text-xs text-[var(--color-text-muted)]">
+            {t('planner.shelves.coursesLeft', {
+              count: Math.max(0, shelf.stepsRequired - (shelf.stepsCompleted ?? 0)),
+            })}
+          </span>
+        ) : shelf.creditsRemaining > 0 ? (
           <span className="text-xs tabular-nums text-[var(--color-text-muted)]">
             {t('planner.shelves.creditsLeft', {
               credits: formatCredits(shelf.creditsRemaining),

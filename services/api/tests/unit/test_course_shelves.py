@@ -370,3 +370,164 @@ class TestObligationsAreNotAlsoChoices:
 
         pool = next(shelf for shelf in shelves if shelf.kind == "pool")
         assert pool.pool_size == 2
+
+
+def _bucket_with_pools(group_id, title, *, constraints, credits_remaining=3.5):
+    entry = _bucket(group_id, title, credits_remaining=credits_remaining)
+    entry["poolConstraints"] = constraints
+    return entry
+
+
+class TestPoolsCarryTheirOwnRequirement:
+    def test_a_pool_row_shows_the_pool_s_credits_not_the_bucket_s(self) -> None:
+        """Every pool under a bucket displayed the bucket's remainder, so four
+        chains all read "3.5 credits left" and the science supplement showed 5.0
+        when the pool itself needs 5.5."""
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:core",
+                    "Required",
+                    credits_remaining=5.0,
+                    constraints={
+                        "constraintsSatisfied": False,
+                        "allPools": [
+                            {
+                                "requirementGroupId": "p:science",
+                                "creditsRequired": 5.5,
+                                "creditsCompleted": 0.0,
+                                "satisfied": False,
+                            }
+                        ],
+                    },
+                )
+            ],
+            pool_documents=[_pool("p:science", "p:core", "Science supplement", "00940111")],
+        )
+
+        assert shelves[0].credits_remaining == 5.5
+
+    def test_partial_progress_in_the_pool_is_subtracted(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:core",
+                    "Required",
+                    constraints={
+                        "allPools": [
+                            {
+                                "requirementGroupId": "p:science",
+                                "creditsRequired": 5.5,
+                                "creditsCompleted": 2.0,
+                                "satisfied": False,
+                            }
+                        ]
+                    },
+                )
+            ],
+            pool_documents=[_pool("p:science", "p:core", "Science supplement", "00940111")],
+        )
+
+        assert shelves[0].credits_remaining == 3.5
+
+    def test_a_pool_the_constraints_do_not_mention_falls_back_to_the_bucket(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:core", "Required", credits_remaining=4.0, constraints={"allPools": []}
+                )
+            ],
+            pool_documents=[_pool("p:other", "p:core", "Other", "00940111")],
+        )
+
+        assert shelves[0].credits_remaining == 4.0
+
+    def test_a_pool_the_student_must_still_draw_from_is_marked_and_leads(self) -> None:
+        """With the bucket's credits complete, only the mandatory chain can
+        satisfy what is left -- the others cannot contribute at all, and showing
+        four equal choices was misleading."""
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:elective",
+                    "Faculty electives",
+                    credits_remaining=0.0,
+                    constraints={
+                        "constraintsSatisfied": False,
+                        "mandatoryPools": [
+                            {
+                                "requirementGroupId": "p:behaviour",
+                                "stepsCompleted": 0,
+                                "stepsRequired": 1,
+                                "satisfied": False,
+                            }
+                        ],
+                        "allPools": [],
+                    },
+                )
+            ],
+            pool_documents=[
+                _pool("p:chain-a", "p:elective", "A chain", "00960111"),
+                _pool("p:behaviour", "p:elective", "Behaviour chain", "00960222"),
+            ],
+        )
+
+        assert shelves[0].shelf_id == "p:behaviour"
+        assert shelves[0].is_required_pool is True
+        assert shelves[1].is_required_pool is False
+
+    def test_a_satisfied_mandatory_pool_is_not_marked_required(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:elective",
+                    "Faculty electives",
+                    constraints={
+                        "mandatoryPools": [
+                            {"requirementGroupId": "p:behaviour", "satisfied": True}
+                        ],
+                        "allPools": [],
+                    },
+                )
+            ],
+            pool_documents=[_pool("p:behaviour", "p:elective", "Behaviour", "00960222")],
+        )
+
+        assert shelves[0].is_required_pool is False
+
+
+    def test_a_choose_n_pool_reports_courses_rather_than_credits(self) -> None:
+        """A chain asks for one COURSE. Reporting the bucket's credits instead
+        says nothing about what would finish it."""
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools(
+                    "p:elective",
+                    "Faculty electives",
+                    constraints={
+                        "mandatoryPools": [
+                            {
+                                "requirementGroupId": "p:behaviour",
+                                "stepsCompleted": 0,
+                                "stepsRequired": 1,
+                                "satisfied": False,
+                            }
+                        ],
+                        "allPools": [],
+                    },
+                )
+            ],
+            pool_documents=[_pool("p:behaviour", "p:elective", "Behaviour", "00960222")],
+        )
+
+        assert (shelves[0].steps_completed, shelves[0].steps_required) == (0, 1)
+
+    def test_a_pool_with_no_step_count_reports_none(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket_with_pools("p:core", "Required", constraints={"allPools": []})
+            ],
+            pool_documents=[_pool("p:science", "p:core", "Science", "00940111")],
+        )
+
+        assert shelves[0].steps_required is None

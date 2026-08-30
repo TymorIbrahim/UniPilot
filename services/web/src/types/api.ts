@@ -713,6 +713,11 @@ export type CourseShelf = {
   isChoice: boolean
   startedCount: number
   poolSize: number
+  /** The bucket cannot be satisfied without drawing from this pool. */
+  isRequiredPool: boolean
+  /** For a `choose_n` pool, courses needed rather than credits. */
+  stepsRequired: number | null
+  stepsCompleted: number | null
   courses: ShelfCourse[]
   laterCourses: ShelfLaterCourse[]
   candidateCount: number

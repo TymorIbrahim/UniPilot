@@ -283,6 +283,8 @@ export const en: TranslationTree = {
       scrollBack: 'Scroll back',
       scrollForward: 'Scroll forward',
       updating: 'Updating…',
+      requiredPool: 'Required',
+      coursesLeft: '{count} more course(s) from this group',
       nextRuns: 'Next runs {term}',
       nextUnknown: 'No upcoming term listed',
       empty: {

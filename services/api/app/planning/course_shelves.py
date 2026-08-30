@@ -72,6 +72,13 @@ class CourseShelf:
     course_numbers: tuple[str, ...]
     started_count: int = 0
     pool_size: int = 0
+    is_required_pool: bool = False
+    """The bucket cannot be satisfied without drawing from this pool."""
+    steps_required: int | None = None
+    steps_completed: int | None = None
+    """For a `choose_n` pool, courses needed rather than credits: a chain asks
+    for one course, and reporting its bucket's credits instead says nothing
+    about what would finish it."""
 
     @property
     def is_choice(self) -> bool:
@@ -91,6 +98,9 @@ class CourseShelf:
             # "3 of 19 taken" -- a share alone cannot tell 1-of-2 from 10-of-20.
             "startedCount": self.started_count,
             "poolSize": self.pool_size,
+            "isRequiredPool": self.is_required_pool,
+            "stepsRequired": self.steps_required,
+            "stepsCompleted": self.steps_completed,
         }
 
 
@@ -109,6 +119,50 @@ def _normalized_numbers(
         seen.add(number)
         numbers.append(number)
     return tuple(numbers)
+
+
+def _pool_state(entry: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each linked pool's OWN requirement, keyed by its group id.
+
+    A bucket's remainder is not a pool's remainder. Four chains under one bucket
+    all reported the bucket's figure, and the science supplement showed the
+    bucket's 5.0 credits where the pool itself needs 5.5.
+    """
+    constraints = entry.get("poolConstraints") or {}
+    states: dict[str, dict[str, Any]] = {}
+    for pool in constraints.get("allPools") or []:
+        group_id = str((pool or {}).get("requirementGroupId") or "")
+        if group_id:
+            states[group_id] = pool
+    for pool in constraints.get("mandatoryPools") or []:
+        group_id = str((pool or {}).get("requirementGroupId") or "")
+        if not group_id:
+            continue
+        states.setdefault(group_id, pool)
+        # A pool the bucket cannot be satisfied without. When the bucket's
+        # credits are already complete this is the ONLY row that can still
+        # advance it, and the others cannot contribute at all.
+        states[group_id] = {**states[group_id], "isRequired": not pool.get("satisfied", False)}
+    return states
+
+
+def _step_count(state: dict[str, Any] | None, key: str) -> int | None:
+    value = (state or {}).get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _pool_credits_remaining(state: dict[str, Any] | None, fallback: float) -> float:
+    if not state:
+        return fallback
+    required = state.get("creditsRequired")
+    if not isinstance(required, (int, float)) or isinstance(required, bool):
+        return fallback
+    completed = state.get("creditsCompleted")
+    if not isinstance(completed, (int, float)) or isinstance(completed, bool):
+        completed = 0.0
+    return max(0.0, float(required) - float(completed))
 
 
 def _credits_remaining(entry: dict[str, Any]) -> float:
@@ -201,6 +255,7 @@ def build_course_shelves(
         # has to "because you watched that", so it leads the bucket's rows.
         # Bucket order itself is left alone: it is the curriculum's own
         # sequence, and reordering it would be a surprise, not a personalisation.
+        pool_states = _pool_state(entry)
         pool_shelves = []
         for pool in pools_by_bucket.get(bucket_id, []):
             references = pool.get("courseReferences") or []
@@ -211,20 +266,29 @@ def build_course_shelves(
                 [(reference or {}).get("courseNumber") for reference in references],
                 completed=completed,
             )
+            pool_id = str(pool.get("requirementGroupId") or bucket_id)
+            state = pool_states.get(pool_id)
             pool_shelves.append(
                 CourseShelf(
-                    shelf_id=str(pool.get("requirementGroupId") or bucket_id),
+                    shelf_id=pool_id,
                     title=str(pool.get("title") or bucket_title),
                     kind=POOL,
                     requirement_group_id=bucket_id,
                     requirement_title=bucket_title,
-                    credits_remaining=credits_remaining,
+                    credits_remaining=_pool_credits_remaining(state, credits_remaining),
                     course_numbers=numbers,
                     started_count=started,
                     pool_size=size,
+                    is_required_pool=bool((state or {}).get("isRequired")),
+                    steps_required=_step_count(state, "stepsRequired"),
+                    steps_completed=_step_count(state, "stepsCompleted"),
                 )
             )
-        pool_shelves.sort(key=lambda shelf: (-shelf.started_count, shelf.title))
+        # A pool the bucket cannot be satisfied without leads it, whatever the
+        # student has started elsewhere.
+        pool_shelves.sort(
+            key=lambda shelf: (not shelf.is_required_pool, -shelf.started_count, shelf.title)
+        )
         shelves.extend(pool_shelves)
 
         # Nothing enumerable anywhere, but the requirement still wants credits:
