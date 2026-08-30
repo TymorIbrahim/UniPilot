@@ -114,13 +114,28 @@ class ExistingPlannedCourseInput(BaseModel):
         return validate_credit_load(value)
 
 
+class DraftCourseNumberInput(BaseModel):
+    """A course already in the draft, as much of it as the shelves need.
+
+    Deliberately not `ExistingPlannedCourseInput`, which requires `courseId` and
+    `credits` because it is shaped for SAVING a plan. The shelves only need to
+    know which numbers are spoken for, and demanding the rest rejected every
+    non-empty draft the planner sent.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    courseNumber: str = Field(min_length=1, max_length=32)
+    isActive: bool = True
+
+
 class CourseShelvesRequest(BaseModel):
     """Rows for building `semesterCode` by hand."""
 
     model_config = ConfigDict(extra="forbid")
 
     semesterCode: str
-    existingPlannedCourses: list[ExistingPlannedCourseInput] = Field(default_factory=list)
+    existingPlannedCourses: list[DraftCourseNumberInput] = Field(default_factory=list)
 
     @field_validator("semesterCode")
     @classmethod

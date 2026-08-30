@@ -21,17 +21,20 @@ def stub(monkeypatch):
         "published": {},
         "prerequisiteTexts": [],
         "offerings": {},
-        "profile": {"programType": "BSc"},
+        "profile": {"programType": "BSc", "degreeId": "deg-1"},
     }
 
-    async def _context(database, user_id):
-        return {
-            "status": "ok",
-            "profile": state["profile"],
-            "poolDocuments": state["poolDocuments"],
-            "completedCourseRecords": state["completedCourseRecords"],
-            "graduationProgress": {},
-        }
+    async def _profile(database, user_id):
+        return state["profile"]
+
+    async def _degree(database, degree_id):
+        return {"programCode": "009118-1-000"}
+
+    async def _pools(database, program_code):
+        return state["poolDocuments"]
+
+    async def _completed(database, user_id):
+        return state["completedCourseRecords"]
 
     async def _progress(database, user_id):
         return {"status": "ok", "progress": {"requirementProgress": state["requirementProgress"]}}
@@ -59,7 +62,14 @@ def stub(monkeypatch):
     async def _statistics(database):
         return []
 
-    monkeypatch.setattr(course_shelf_service, "load_planning_context", _context)
+    monkeypatch.setattr(course_shelf_service, "find_student_profile_by_user_id", _profile)
+    monkeypatch.setattr(course_shelf_service, "find_all_completed_courses_by_user_id", _completed)
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository, "find_degree_program_by_id", _degree
+    )
+    monkeypatch.setattr(
+        course_shelf_service.catalog_repository, "list_course_pools_for_program", _pools
+    )
     monkeypatch.setattr(course_shelf_service, "get_graduation_progress_for_user", _progress)
     monkeypatch.setattr(course_shelf_service, "find_completed_courses_for_statistics", _statistics)
     monkeypatch.setattr(
@@ -479,16 +489,7 @@ async def test_chain_sequencing_does_not_apply_to_an_anything_counts_row(stub) -
 async def test_an_undergraduate_is_not_offered_graduate_courses(stub, monkeypatch) -> None:
     """197 graduate courses sat in one term's undergraduate candidate pool, and
     108 state no prerequisites, so eligibility filtering did not exclude them."""
-    async def _context(database, user_id):
-        return {
-            "status": "ok",
-            "profile": {"programType": "BSc"},
-            "poolDocuments": [],
-            "completedCourseRecords": [],
-            "graduationProgress": {},
-        }
-
-    monkeypatch.setattr(course_shelf_service, "load_planning_context", _context)
+    stub["profile"] = {"programType": "BSc", "degreeId": "deg-1"}
     stub["requirementProgress"] = [
         _bucket("p:elective", "Electives", remaining=("00940111", "00980610"))
     ]

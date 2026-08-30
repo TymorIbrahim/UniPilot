@@ -282,6 +282,7 @@ export const en: TranslationTree = {
       },
       scrollBack: 'Scroll back',
       scrollForward: 'Scroll forward',
+      updating: 'Updating…',
       nextRuns: 'Next runs {term}',
       nextUnknown: 'No upcoming term listed',
       empty: {

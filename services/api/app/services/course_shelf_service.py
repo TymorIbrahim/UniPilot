@@ -25,6 +25,7 @@ so the count is not mistaken for the whole field.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Iterable
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -70,7 +71,10 @@ from app.services.catalog_overlap_groups import (
 )
 from app.services.course_outcome_stats import CourseSignal, build_course_outcomes
 from app.services.graduation_progress_service import get_graduation_progress_for_user
-from app.services.semester_plan_service import load_planning_context
+from app.repositories.completed_course_repository import (
+    find_all_completed_courses_by_user_id,
+)
+from app.repositories.student_profile_repository import find_student_profile_by_user_id
 from app.services.semester_plan_suggestion_service import load_exact_term_offerings
 
 LATER_COURSES_LIMIT = 12
@@ -160,6 +164,11 @@ def _unlocks_within(
     return unlocks
 
 
+async def _no_offerings() -> dict[str, Any]:
+    """Stand-in so the candidate fetches can be gathered as one batch."""
+    return {}
+
+
 def _card(
     course: dict[str, Any],
     *,
@@ -209,9 +218,35 @@ async def build_course_shelves_for_user(
     existing_planned_courses: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """The rows a student should see when building `semester_code` by hand."""
-    context = await load_planning_context(database, user_id)
-    if context["status"] != "ok":
-        return context
+    # Deliberately NOT `load_planning_context`. It computes a full graduation
+    # progress of its own -- 2.9s of the endpoint's 7.4s -- and this service
+    # then discards it in favour of `get_graduation_progress_for_user`, whose
+    # numbers match the Progress page. Only three of its outputs are wanted, and
+    # each is a single query.
+    profile = await find_student_profile_by_user_id(database, user_id)
+    if not profile:
+        return {"status": "profile_not_found"}
+    degree_id = profile.get("degreeId")
+    if not degree_id:
+        return {"status": "degree_not_selected"}
+    degree_program = await catalog_repository.find_degree_program_by_id(
+        database, str(degree_id)
+    )
+    if not degree_program:
+        return {"status": "degree_not_found"}
+
+    pool_documents, completed_records = await asyncio.gather(
+        catalog_repository.list_course_pools_for_program(
+            database, str(degree_program["programCode"])
+        ),
+        find_all_completed_courses_by_user_id(database, user_id),
+    )
+    context = {
+        "status": "ok",
+        "profile": profile,
+        "poolDocuments": pool_documents,
+        "completedCourseRecords": completed_records,
+    }
 
     offering_keys = plan_semester_to_offering_keys(semester_code)
     if offering_keys is None:
@@ -235,7 +270,21 @@ async def build_course_shelves_for_user(
     # catalog documents only for completed courses -- and its credit remainders
     # differ from the ones the Progress page shows. A row header that
     # contradicts the progress screen is worse than no row header.
-    progress_result = await get_graduation_progress_for_user(database, user_id)
+    # These four do not depend on each other, and awaiting them in sequence was
+    # most of the endpoint's wall time.
+    (
+        progress_result,
+        offered_numbers,
+        prerequisite_texts,
+        statistics_records,
+    ) = await asyncio.gather(
+        get_graduation_progress_for_user(database, user_id),
+        catalog_repository.list_course_numbers_with_semester_offerings(
+            database, academic_year=academic_year, semester_code=term_semester_code
+        ),
+        catalog_repository.list_course_prerequisite_texts(database),
+        find_completed_courses_for_statistics(database),
+    )
     if progress_result.get("status") != "ok":
         return progress_result
     requirement_progress = (progress_result.get("progress") or {}).get(
@@ -249,10 +298,6 @@ async def build_course_shelves_for_user(
         planned_course_numbers=planned_numbers,
     )
 
-    offered_numbers = await catalog_repository.list_course_numbers_with_semester_offerings(
-        database, academic_year=academic_year, semester_code=term_semester_code
-    )
-
     # An "anything counts" row draws on the term itself, minus everything a more
     # specific row already claims -- a course shown twice invites planning it twice.
     claimed = {number for shelf in shelves for number in shelf.course_numbers}
@@ -261,14 +306,40 @@ async def build_course_shelves_for_user(
     )
 
     needed_numbers = sorted(claimed | set(open_candidates))
-    course_documents = await catalog_repository.find_courses_by_numbers(database, needed_numbers)
+    (
+        course_documents,
+        ratings,
+        published,
+        completed_documents,
+        history_ratings,
+        planned_documents,
+        planned_ratings,
+        candidate_offerings,
+    ) = await asyncio.gather(
+        catalog_repository.find_courses_by_numbers(database, needed_numbers),
+        catalog_repository.find_course_ratings(database, needed_numbers),
+        catalog_repository.find_course_grade_stats(database, needed_numbers),
+        # Their own past choices and their draft are both outside the candidate
+        # set, so each needs its own lookup -- see the notes at the use sites.
+        catalog_repository.find_courses_by_numbers(database, sorted(completed_numbers)),
+        catalog_repository.find_course_ratings(database, sorted(completed_numbers)),
+        catalog_repository.find_courses_by_numbers(database, sorted(planned_numbers)),
+        catalog_repository.find_course_ratings(database, sorted(planned_numbers)),
+        (
+            load_exact_term_offerings(
+                database,
+                sorted(planned_numbers | set(needed_numbers)),
+                academic_year=academic_year,
+                semester_code=term_semester_code,
+            )
+            if planned_numbers
+            else _no_offerings()
+        ),
+    )
     courses_by_number = {
         str(document.get("courseNumber")): document for document in course_documents
     }
-
-    ratings = await catalog_repository.find_course_ratings(database, needed_numbers)
-    published = await catalog_repository.find_course_grade_stats(database, needed_numbers)
-    outcomes = build_course_outcomes(await find_completed_courses_for_statistics(database))
+    outcomes = build_course_outcomes(statistics_records)
     signals = {
         number: CourseSignal(
             course_number=number,
@@ -280,9 +351,7 @@ async def build_course_shelves_for_user(
         if number in outcomes or number in ratings or number in published
     }
 
-    dependent_index = build_dependent_index(
-        await catalog_repository.list_course_prerequisite_texts(database)
-    )
+    dependent_index = build_dependent_index(prerequisite_texts)
 
     # What the student could actually add to THIS semester. On a choice row a
     # course that is not offered, or whose prerequisites are unmet, is not a
@@ -341,12 +410,6 @@ async def build_course_shelves_for_user(
         and not isinstance(grade, bool)
         and grade > 0
     }
-    # Their OWN past choices, which are by definition not candidates -- so
-    # their faculties have to be looked up separately. Reusing
-    # `courses_by_number` here silently yields an empty affinity.
-    completed_documents = await catalog_repository.find_courses_by_numbers(
-        database, sorted(completed_numbers)
-    )
     faculty_affinity = build_elective_affinity(
         requirement_progress,
         faculties_by_number={
@@ -358,23 +421,10 @@ async def build_course_shelves_for_user(
         (progress_result.get("progress") or {}).get("creditsRemaining") or 0.0
     )
 
-    # What the draft semester already commits. Loading offerings is only worth
-    # it once something is planned -- an empty draft clashes with nothing.
-    occupied = build_occupied_schedule({}, planned_course_numbers=())
-    candidate_offerings: dict[str, dict[str, Any]] = {}
-    if planned_numbers:
-        # NOT `list_offerings_for_courses_in_semester`: that returns a summary
-        # (slot types, instructors) with no `scheduleGroups` or `examDates`, so
-        # every conflict check silently passed.
-        candidate_offerings = await load_exact_term_offerings(
-            database,
-            sorted(planned_numbers | set(needed_numbers)),
-            academic_year=academic_year,
-            semester_code=term_semester_code,
-        )
-        occupied = build_occupied_schedule(
-            candidate_offerings, planned_course_numbers=planned_numbers
-        )
+    # An empty draft clashes with nothing, so its offerings are never fetched.
+    occupied = build_occupied_schedule(
+        candidate_offerings, planned_course_numbers=planned_numbers
+    )
 
     payload_shelves: list[dict[str, Any]] = []
     for shelf in shelves:
@@ -568,20 +618,6 @@ async def build_course_shelves_for_user(
         )
         payload_shelves.append(payload)
 
-    # Ratings for the student's own completed courses too, so the difficulty
-    # comparison has their history to compare against.
-    history_ratings = await catalog_repository.find_course_ratings(
-        database, sorted(completed_numbers)
-    )
-    # Planned courses are excluded from every shelf, so they are absent from
-    # `courses_by_number` and from `ratings` -- reusing either silently yields a
-    # draft with no credits and no difficulty.
-    planned_documents = await catalog_repository.find_courses_by_numbers(
-        database, sorted(planned_numbers)
-    )
-    planned_ratings = await catalog_repository.find_course_ratings(
-        database, sorted(planned_numbers)
-    )
     draft_summary = build_draft_summary(
         planned_documents,
         ratings={**history_ratings, **ratings, **planned_ratings},

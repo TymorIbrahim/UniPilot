@@ -282,6 +282,7 @@ export const he = {
       },
       scrollBack: 'גלילה אחורה',
       scrollForward: 'גלילה קדימה',
+      updating: 'מתעדכן…',
       nextRuns: 'ייפתח ב{term}',
       nextUnknown: 'לא מופיע סמסטר עתידי',
       empty: {
