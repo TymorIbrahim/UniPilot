@@ -102,6 +102,8 @@ class RankedCourse:
     """How many structural reasons favour taking this course now (0-3)."""
     reasons: tuple[str, ...]
     matches_interest: bool = False
+    overshoot: float | None = None
+    """Credits beyond the requirement, when the course closes it."""
 
 
 def shrunk_rating(
@@ -144,14 +146,23 @@ def _is_once_a_year(course: dict[str, Any]) -> bool:
     return len(terms) == 1
 
 
-def _closes_requirement(course: dict[str, Any], credits_remaining_in_bucket: float) -> bool:
+def _overshoot(course: dict[str, Any], credits_remaining_in_bucket: float) -> float | None:
+    """Credits beyond what the requirement still needs, or None if it falls short.
+
+    None doubles as "does not close it". Among courses that DO close it the
+    excess is wasted effort: a 6-credit course against a 4-credit remainder
+    finishes the requirement and costs half again as much as one that fits, and
+    since both "close" it the band alone cannot tell them apart.
+    """
     if credits_remaining_in_bucket <= 0:
-        return False
+        return None
     try:
         credits = float(course.get("credits") or 0.0)
     except (TypeError, ValueError):
-        return False
-    return credits >= credits_remaining_in_bucket
+        return None
+    if credits < credits_remaining_in_bucket:
+        return None
+    return credits - credits_remaining_in_bucket
 
 
 def rank_candidates(
@@ -194,7 +205,8 @@ def rank_candidates(
         )
 
         reasons: list[str] = []
-        closes = _closes_requirement(course, credits_remaining_in_bucket)
+        overshoot = _overshoot(course, credits_remaining_in_bucket)
+        closes = overshoot is not None
         scarce = _is_once_a_year(course)
 
         unlocks = int((unlocks_within_shelf or {}).get(number, 0))
@@ -224,14 +236,19 @@ def rank_candidates(
                 course_number=number,
                 score=score,
                 band=urgency,
+                overshoot=overshoot,
                 reasons=tuple(reasons),
                 matches_interest=matches_interest,
             )
         )
 
+    # Overshoot ranks only among courses that close the requirement, and only
+    # after the structural count: below the remainder every course leaves the
+    # requirement open, so its credits say nothing about which to take.
     ranked.sort(
         key=lambda entry: (
             -entry.band,
+            entry.overshoot if entry.overshoot is not None else 0.0,
             not entry.matches_interest,
             -entry.score,
             entry.course_number,

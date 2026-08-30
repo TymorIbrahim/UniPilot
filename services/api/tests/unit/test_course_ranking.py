@@ -344,3 +344,63 @@ class TestUnlocking:
         # closes + scarce + unlocks against closes + scarce
         assert ranked[0].band == 3
         assert ranked[1].band == 2
+
+
+class TestOvershoot:
+    def _courses(self):
+        return [
+            {"courseNumber": "00940111", "credits": 6.0, "semestersOffered": [200]},
+            {"courseNumber": "00940222", "credits": 4.0, "semestersOffered": [200]},
+        ]
+
+    def test_among_courses_that_close_it_the_least_wasteful_leads(self) -> None:
+        """A 6-credit course against a 4-credit remainder closes the
+        requirement and wastes two credits doing it. Both "close" it, so the
+        band cannot separate them and the bigger one led the row purely on
+        review score."""
+        ranked = rank_candidates(
+            self._courses(),
+            ratings={"00940111": {"meanGeneralRank": 5.0, "responseCount": 60}},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=4.0,
+        )
+
+        assert ranked[0].course_number == "00940222"
+
+    def test_overshoot_only_separates_courses_that_actually_close_it(self) -> None:
+        """Below the remainder every course leaves the requirement open, so
+        credits say nothing about which to take and opinion should decide."""
+        ranked = rank_candidates(
+            [
+                {"courseNumber": "00940111", "credits": 1.0, "semestersOffered": [200, 201]},
+                {"courseNumber": "00940222", "credits": 2.0, "semestersOffered": [200, 201]},
+            ],
+            ratings={"00940111": {"meanGeneralRank": 4.5, "responseCount": 60}},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=4.0,
+        )
+
+        assert ranked[0].course_number == "00940111"
+
+    def test_an_exact_fit_beats_a_larger_one_even_when_less_reviewed(self) -> None:
+        ranked = rank_candidates(
+            [
+                {"courseNumber": "00940111", "credits": 3.0, "semestersOffered": [200]},
+                {"courseNumber": "00940222", "credits": 3.5, "semestersOffered": [200]},
+            ],
+            ratings={"00940222": {"meanGeneralRank": 4.8, "responseCount": 80}},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=3.0,
+        )
+
+        assert ranked[0].course_number == "00940111"
+
+    def test_a_requirement_with_nothing_left_does_not_rank_on_overshoot(self) -> None:
+        ranked = rank_candidates(
+            self._courses(),
+            ratings={"00940111": {"meanGeneralRank": 5.0, "responseCount": 60}},
+            credits_remaining_overall=20.0,
+            credits_remaining_in_bucket=0.0,
+        )
+
+        assert ranked[0].course_number == "00940111"

@@ -309,3 +309,64 @@ class TestPlannedCourses:
         )
 
         assert shelves[0].started_count == 0
+
+
+class TestObligationsAreNotAlsoChoices:
+    def test_a_required_course_is_not_offered_again_as_an_elective(self) -> None:
+        """`00940704` is an outstanding core requirement AND a member of the
+        faculty-elective pool. Listed in both, it read as a choice the student
+        could weigh, when in fact they must take it either way -- and its
+        credits count once."""
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket(
+                    "p:core",
+                    "Required courses",
+                    remaining=("00940704",),
+                    requirement_type="core",
+                ),
+                _bucket("p:elective-faculty", "Faculty electives"),
+            ],
+            pool_documents=[
+                _pool(
+                    "p:pool", "p:elective-faculty", "Faculty pool", "00940704", "00960222"
+                )
+            ],
+        )
+
+        mandatory = next(shelf for shelf in shelves if shelf.kind == "mandatory")
+        pool = next(shelf for shelf in shelves if shelf.kind == "pool")
+        assert "00940704" in mandatory.course_numbers
+        assert "00940704" not in pool.course_numbers
+        assert pool.course_numbers == ("00960222",)
+
+    def test_an_obligation_from_one_bucket_is_hidden_across_all_of_them(self) -> None:
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket(
+                    "p:core", "Required", remaining=("00940704",), requirement_type="core"
+                ),
+                _bucket("p:free", "Free electives", remaining=("00940704", "00960222")),
+            ],
+            pool_documents=[],
+        )
+
+        free = next(shelf for shelf in shelves if shelf.requirement_group_id == "p:free")
+        assert free.course_numbers == ("00960222",)
+
+    def test_the_obligation_still_counts_toward_its_pool_momentum(self) -> None:
+        """Hiding it from the row does not mean it stopped being a member."""
+        shelves = build_course_shelves(
+            requirement_progress=[
+                _bucket(
+                    "p:core", "Required", remaining=("00940704",), requirement_type="core"
+                ),
+                _bucket("p:elective-faculty", "Faculty electives"),
+            ],
+            pool_documents=[
+                _pool("p:pool", "p:elective-faculty", "Pool", "00940704", "00960222")
+            ],
+        )
+
+        pool = next(shelf for shelf in shelves if shelf.kind == "pool")
+        assert pool.pool_size == 2

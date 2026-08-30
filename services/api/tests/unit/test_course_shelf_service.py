@@ -698,3 +698,23 @@ async def test_an_open_row_never_renders_past_the_conflict_checked_window(stub) 
 
     shown = {c["courseNumber"] for c in shelf["courses"]}
     assert shown <= set(numbers[: course_shelf_service.CONFLICT_CHECK_HEAD])
+
+
+@pytest.mark.asyncio
+async def test_two_anything_counts_rows_do_not_offer_the_same_course(stub) -> None:
+    """Both draw on the whole term, but taking a course can only advance one
+    requirement -- showing it twice implies more room than the student has."""
+    numbers = [f"0094{index:04d}" for index in range(30)]
+    stub["requirementProgress"] = [
+        _bucket("p:enrichment", "Enrichment", credits_remaining=4.0),
+        _bucket("p:free", "Free electives", credits_remaining=2.0),
+    ]
+    stub["courses"] = [_course(number) for number in numbers]
+    stub["offered"] = set(numbers)
+
+    shelves = (await _build())["shelves"]
+
+    first = {c["courseNumber"] for c in shelves[0]["courses"]}
+    second = {c["courseNumber"] for c in shelves[1]["courses"]}
+    assert first and second
+    assert first & second == set()

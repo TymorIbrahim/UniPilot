@@ -153,6 +153,18 @@ def build_course_shelves(
         if entry.get("status") != "satisfied" and entry.get("requirementGroupId")
     ]
 
+    # A course the student must take anyway is not a choice. `00940704` is an
+    # outstanding core requirement and also sits in the faculty-elective pool;
+    # listed in both it read as something to weigh, when taking it is settled
+    # and its credits count once. Obligations win the course, and the choice
+    # rows yield it -- the same precedence the auto-planner uses.
+    obligations: frozenset[str] = frozenset(
+        number
+        for entry in unsatisfied
+        if str(entry.get("requirementType") or "") in OBLIGATION_REQUIREMENT_TYPES
+        for number in _normalized_numbers(entry.get("remainingCourses") or [], exclude=hidden)
+    )
+
     pools_by_bucket: dict[str, list[dict[str, Any]]] = {}
     for document in pool_documents or []:
         bucket_id = document.get("linkedCreditBucketId")
@@ -165,13 +177,14 @@ def build_course_shelves(
         bucket_title = str(entry.get("title") or bucket_id)
         credits_remaining = _credits_remaining(entry)
 
+        names_obligations = (
+            str(entry.get("requirementType") or "") in OBLIGATION_REQUIREMENT_TYPES
+        )
         remaining = _normalized_numbers(
-            entry.get("remainingCourses") or [], exclude=hidden
+            entry.get("remainingCourses") or [],
+            exclude=hidden if names_obligations else hidden | obligations,
         )
         if remaining:
-            names_obligations = (
-                str(entry.get("requirementType") or "") in OBLIGATION_REQUIREMENT_TYPES
-            )
             shelves.append(
                 CourseShelf(
                     shelf_id=bucket_id,
@@ -191,7 +204,7 @@ def build_course_shelves(
         pool_shelves = []
         for pool in pools_by_bucket.get(bucket_id, []):
             references = pool.get("courseReferences") or []
-            numbers = _normalized_numbers(references, exclude=hidden)
+            numbers = _normalized_numbers(references, exclude=hidden | obligations)
             if not numbers:
                 continue
             started, size = pool_momentum(

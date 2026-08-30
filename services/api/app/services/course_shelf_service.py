@@ -535,6 +535,12 @@ async def build_course_shelves_for_user(
             candidate_offerings, planned_course_numbers=planned_numbers
         )
 
+    # Both "anything counts" rows draw on the whole term, so the same course
+    # surfaced on each -- but taking it can only ever advance one requirement.
+    # The first row to show it claims it, the way curated rows already claim
+    # theirs out of the open pool.
+    claimed_by_open: set[str] = set()
+
     payload_shelves: list[dict[str, Any]] = []
     for entry in prepared:
         shelf = entry["shelf"]
@@ -550,6 +556,9 @@ async def build_course_shelves_for_user(
 
         if shelf.kind != MANDATORY:
             if shelf.kind == OPEN:
+                ordered_numbers = [
+                    number for number in ordered_numbers if number not in claimed_by_open
+                ]
                 # Never render past the window whose timetables were fetched.
                 # `diversify_by_faculty` scans in order until the row is full,
                 # so a run of same-faculty courses could otherwise carry it
@@ -585,6 +594,9 @@ async def build_course_shelves_for_user(
                         per_faculty=OPEN_SHELF_PER_FACULTY,
                     )
                 ]
+
+        if shelf.kind == OPEN:
+            claimed_by_open |= set(ordered_numbers)
 
         cards = []
         for number in ordered_numbers:
