@@ -1,38 +1,25 @@
 {
   "status": "fail",
-  "generatedAt": "2026-08-30T17:14:43.988341+00:00",
+  "generatedAt": "2026-08-30T17:37:28.988589+00:00",
   "counts": {
     "structural": 12,
-    "under": 3,
-    "over": 15,
-    "covered": 27,
+    "under": 4,
+    "over": 7,
+    "covered": 34,
     "unknown": 0
   },
   "ruleTypes": {
-    "course_pool": 626,
-    "semester_matrix": 374,
+    "course_pool": 519,
+    "semester_matrix": 353,
     "track_requirement": 2
   },
   "recurringGaps": [
     {
-      "gapCredits": -12.0,
-      "programCodes": [
-        "001401-1-000",
-        "006006-1-000",
-        "020028-1-000",
-        "020220-1-000",
-        "027197-1-000",
-        "033033-1-000",
-        "033133-1-000"
-      ]
-    },
-    {
       "gapCredits": -2.0,
       "programCodes": [
-        "013043-1-000",
+        "006006-1-000",
         "031131-1-000",
-        "031249-1-000",
-        "034034-1-000"
+        "031249-1-000"
       ]
     },
     {
@@ -41,6 +28,20 @@
         "011155-1-000",
         "027280-1-000",
         "034034-2-000"
+      ]
+    },
+    {
+      "gapCredits": -8.0,
+      "programCodes": [
+        "020028-1-000",
+        "020220-1-000"
+      ]
+    },
+    {
+      "gapCredits": 1.0,
+      "programCodes": [
+        "008181-1-000",
+        "012154-1-000"
       ]
     },
     {
@@ -53,8 +54,6 @@
   ],
   "duplicateProgramCodes": [
     "012124-1-000",
-    "023323-1-000",
-    "023325-1-000",
     "027394-1-000"
   ],
   "programs": [
@@ -67,12 +66,13 @@
       "gapCredits": 145.0,
       "coverageRatio": 0.0764,
       "status": "structural",
-      "quarantinedPoolCount": 5,
+      "quarantinedPoolCount": 6,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 2,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 2
+      "quarantinedWithCourseRefs": 3
     },
     {
       "programCode": "001046-1-000",
@@ -99,12 +99,13 @@
       "gapCredits": 144.5,
       "coverageRatio": 0.0767,
       "status": "structural",
-      "quarantinedPoolCount": 5,
+      "quarantinedPoolCount": 6,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 2,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 2
+      "quarantinedWithCourseRefs": 3
     },
     {
       "programCode": "001201-1-000",
@@ -115,28 +116,30 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 5,
+      "quarantinedPoolCount": 6,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 2,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 2
+      "quarantinedWithCourseRefs": 3
     },
     {
       "programCode": "001401-1-000",
       "name": "מסלול הנדסה אזרחית – מבנים",
       "totalCredits": 158.5,
-      "promotedGroupCount": 7,
-      "promotedCredits": 170.5,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.0757,
-      "status": "over",
-      "quarantinedPoolCount": 5,
+      "promotedGroupCount": 6,
+      "promotedCredits": 158.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 6,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 2,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 2
+      "quarantinedWithCourseRefs": 3
     },
     {
       "programCode": "001404-1-000",
@@ -227,44 +230,47 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 10,
+      "quarantinedPoolCount": 11,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 7,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 7
+      "quarantinedWithCourseRefs": 8
     },
     {
       "programCode": "005205-1-000",
       "name": "מסלול הנדסה ביוכימית",
       "totalCredits": 164.75,
-      "promotedGroupCount": 6,
-      "promotedCredits": 176.5,
-      "gapCredits": -11.75,
-      "coverageRatio": 1.0713,
-      "status": "over",
-      "quarantinedPoolCount": 5,
+      "promotedGroupCount": 5,
+      "promotedCredits": 164.5,
+      "gapCredits": 0.25,
+      "coverageRatio": 0.9985,
+      "status": "covered",
+      "quarantinedPoolCount": 6,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 2,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 2
+      "quarantinedWithCourseRefs": 3
     },
     {
       "programCode": "006006-1-000",
       "name": "מסלול הנדסת ביוטכנולוגיה ומזון",
       "totalCredits": 161.0,
-      "promotedGroupCount": 6,
-      "promotedCredits": 173.0,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.0745,
+      "promotedGroupCount": 5,
+      "promotedCredits": 163.0,
+      "gapCredits": -2.0,
+      "coverageRatio": 1.0124,
       "status": "over",
-      "quarantinedPoolCount": 13,
+      "quarantinedPoolCount": 14,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 10,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 10
+      "quarantinedWithCourseRefs": 11
     },
     {
       "programCode": "008008-1-000",
@@ -275,26 +281,30 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 3,
+      "quarantinedPoolCount": 12,
       "quarantinedOperators": {
+        "all_of": 1,
+        "choose_n": 8,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 0
+      "quarantinedWithCourseRefs": 9
     },
     {
       "programCode": "008181-1-000",
       "name": "מגמת אוירונוטיקה/אסטרונוטיקה ופיסיקה",
       "totalCredits": 178.0,
-      "promotedGroupCount": 9,
-      "promotedCredits": 189.0,
-      "gapCredits": -11.0,
-      "coverageRatio": 1.0618,
-      "status": "over",
-      "quarantinedPoolCount": 3,
+      "promotedGroupCount": 8,
+      "promotedCredits": 177.0,
+      "gapCredits": 1.0,
+      "coverageRatio": 0.9944,
+      "status": "under",
+      "quarantinedPoolCount": 8,
       "quarantinedOperators": {
+        "all_of": 1,
+        "choose_n": 4,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 0
+      "quarantinedWithCourseRefs": 5
     },
     {
       "programCode": "009009-1-000",
@@ -463,17 +473,18 @@
       "programCode": "012124-1-000",
       "name": "מסלול דו-חוגי ביולוגיה-כימיה",
       "totalCredits": 135.0,
-      "promotedGroupCount": 3,
-      "promotedCredits": 12.0,
-      "gapCredits": 123.0,
-      "coverageRatio": 0.0889,
+      "promotedGroupCount": 6,
+      "promotedCredits": 24.0,
+      "gapCredits": 111.0,
+      "coverageRatio": 0.1778,
       "status": "structural",
-      "quarantinedPoolCount": 12,
+      "quarantinedPoolCount": 13,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 6,
         "min_credits": 6
       },
-      "quarantinedWithCourseRefs": 6
+      "quarantinedWithCourseRefs": 7
     },
     {
       "programCode": "012154-1-000",
@@ -493,49 +504,54 @@
     },
     {
       "programCode": "013043-1-000",
-      "name": "מגמת מיקרוביולוגיה, אקולוגיה וסביבה",
-      "totalCredits": 126.5,
+      "name": "המגמה הכללית בביולוגיה",
+      "totalCredits": 124.0,
       "promotedGroupCount": 5,
-      "promotedCredits": 128.5,
-      "gapCredits": -2.0,
-      "coverageRatio": 1.0158,
-      "status": "over",
-      "quarantinedPoolCount": 8,
+      "promotedCredits": 124.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 9,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 5,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 5
+      "quarantinedWithCourseRefs": 6
     },
     {
       "programCode": "020028-1-000",
       "name": "תוכנית לאדריכלות נוף — מוסמך לאדריכלות נוף",
       "totalCredits": 160.0,
-      "promotedGroupCount": 6,
-      "promotedCredits": 172.0,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.075,
+      "promotedGroupCount": 5,
+      "promotedCredits": 168.0,
+      "gapCredits": -8.0,
+      "coverageRatio": 1.05,
       "status": "over",
-      "quarantinedPoolCount": 3,
+      "quarantinedPoolCount": 8,
       "quarantinedOperators": {
+        "all_of": 1,
+        "choose_n": 4,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 0
+      "quarantinedWithCourseRefs": 5
     },
     {
       "programCode": "020220-1-000",
       "name": "תוכנית לארכיטקטורה — מוסמך למדעים במדעי הארכיטקטורה",
       "totalCredits": 160.0,
-      "promotedGroupCount": 6,
-      "promotedCredits": 172.0,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.075,
+      "promotedGroupCount": 5,
+      "promotedCredits": 168.0,
+      "gapCredits": -8.0,
+      "coverageRatio": 1.05,
       "status": "over",
-      "quarantinedPoolCount": 3,
+      "quarantinedPoolCount": 8,
       "quarantinedOperators": {
+        "all_of": 1,
+        "choose_n": 4,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 0
+      "quarantinedWithCourseRefs": 5
     },
     {
       "programCode": "021025-1-000",
@@ -665,13 +681,9 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 21,
-      "quarantinedOperators": {
-        "choose_chain": 5,
-        "choose_n": 11,
-        "min_credits": 5
-      },
-      "quarantinedWithCourseRefs": 16
+      "quarantinedPoolCount": 0,
+      "quarantinedOperators": {},
+      "quarantinedWithCourseRefs": 0
     },
     {
       "programCode": "023023-1-000",
@@ -682,13 +694,9 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 21,
-      "quarantinedOperators": {
-        "choose_chain": 5,
-        "choose_n": 11,
-        "min_credits": 5
-      },
-      "quarantinedWithCourseRefs": 16
+      "quarantinedPoolCount": 0,
+      "quarantinedOperators": {},
+      "quarantinedWithCourseRefs": 0
     },
     {
       "programCode": "023044-1-000",
@@ -699,13 +707,9 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 21,
-      "quarantinedOperators": {
-        "choose_chain": 5,
-        "choose_n": 11,
-        "min_credits": 5
-      },
-      "quarantinedWithCourseRefs": 16
+      "quarantinedPoolCount": 0,
+      "quarantinedOperators": {},
+      "quarantinedWithCourseRefs": 0
     },
     {
       "programCode": "023115-1-000",
@@ -716,13 +720,9 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 21,
-      "quarantinedOperators": {
-        "choose_chain": 5,
-        "choose_n": 11,
-        "min_credits": 5
-      },
-      "quarantinedWithCourseRefs": 16
+      "quarantinedPoolCount": 0,
+      "quarantinedOperators": {},
+      "quarantinedWithCourseRefs": 0
     },
     {
       "programCode": "023323-1-000",
@@ -733,13 +733,13 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 40,
+      "quarantinedPoolCount": 19,
       "quarantinedOperators": {
-        "choose_chain": 10,
-        "choose_n": 22,
-        "min_credits": 8
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 32
+      "quarantinedWithCourseRefs": 16
     },
     {
       "programCode": "023325-1-000",
@@ -750,13 +750,13 @@
       "gapCredits": 0.0,
       "coverageRatio": 1.0,
       "status": "covered",
-      "quarantinedPoolCount": 42,
+      "quarantinedPoolCount": 21,
       "quarantinedOperators": {
-        "choose_chain": 10,
-        "choose_n": 24,
-        "min_credits": 8
+        "choose_chain": 5,
+        "choose_n": 13,
+        "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 34
+      "quarantinedWithCourseRefs": 18
     },
     {
       "programCode": "027027-1-000",
@@ -777,11 +777,11 @@
       "programCode": "027197-1-000",
       "name": "תכנית לימודים לתואר בוגר למדעים במדעי הרפואה",
       "totalCredits": 157.5,
-      "promotedGroupCount": 7,
-      "promotedCredits": 169.5,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.0762,
-      "status": "over",
+      "promotedGroupCount": 6,
+      "promotedCredits": 157.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
       "quarantinedPoolCount": 4,
       "quarantinedOperators": {
         "choose_n": 1,
@@ -814,13 +814,14 @@
       "gapCredits": 211.5,
       "coverageRatio": 0.0537,
       "status": "structural",
-      "quarantinedPoolCount": 42,
+      "quarantinedPoolCount": 22,
       "quarantinedOperators": {
-        "choose_chain": 10,
-        "choose_n": 22,
-        "min_credits": 10
+        "all_of": 1,
+        "choose_chain": 5,
+        "choose_n": 11,
+        "min_credits": 5
       },
-      "quarantinedWithCourseRefs": 32
+      "quarantinedWithCourseRefs": 17
     },
     {
       "programCode": "027396-1-000",
@@ -831,28 +832,30 @@
       "gapCredits": -6.0,
       "coverageRatio": 1.0248,
       "status": "over",
-      "quarantinedPoolCount": 9,
+      "quarantinedPoolCount": 10,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 3,
         "min_credits": 6
       },
-      "quarantinedWithCourseRefs": 5
+      "quarantinedWithCourseRefs": 6
     },
     {
       "programCode": "027399-1-000",
       "name": "מסלול לתואר כפול בהנדסה ביו-רפואית ורפואה",
       "totalCredits": 155.0,
-      "promotedGroupCount": 8,
-      "promotedCredits": 246.0,
-      "gapCredits": -91.0,
-      "coverageRatio": 1.5871,
+      "promotedGroupCount": 6,
+      "promotedCredits": 238.0,
+      "gapCredits": -83.0,
+      "coverageRatio": 1.5355,
       "status": "over",
-      "quarantinedPoolCount": 6,
+      "quarantinedPoolCount": 7,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 3,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 3
+      "quarantinedWithCourseRefs": 4
     },
     {
       "programCode": "031131-1-000",
@@ -922,49 +925,52 @@
       "programCode": "033033-1-000",
       "name": "מסלול הנדסה ביו-רפואית",
       "totalCredits": 160.0,
-      "promotedGroupCount": 8,
-      "promotedCredits": 172.0,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.075,
-      "status": "over",
-      "quarantinedPoolCount": 9,
+      "promotedGroupCount": 5,
+      "promotedCredits": 160.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 10,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 6,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 6
+      "quarantinedWithCourseRefs": 7
     },
     {
       "programCode": "033133-1-000",
       "name": "מסלול משולב בהנדסה ביו-רפואית ובפיזיקה",
       "totalCredits": 178.0,
-      "promotedGroupCount": 8,
-      "promotedCredits": 190.0,
-      "gapCredits": -12.0,
-      "coverageRatio": 1.0674,
-      "status": "over",
-      "quarantinedPoolCount": 4,
+      "promotedGroupCount": 5,
+      "promotedCredits": 178.0,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 5,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 1,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 1
+      "quarantinedWithCourseRefs": 2
     },
     {
       "programCode": "034034-1-000",
       "name": "מסלול הנדסת מכונות",
       "totalCredits": 157.5,
       "promotedGroupCount": 7,
-      "promotedCredits": 159.5,
-      "gapCredits": -2.0,
-      "coverageRatio": 1.0127,
-      "status": "over",
-      "quarantinedPoolCount": 14,
+      "promotedCredits": 157.5,
+      "gapCredits": 0.0,
+      "coverageRatio": 1.0,
+      "status": "covered",
+      "quarantinedPoolCount": 15,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 11,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 11
+      "quarantinedWithCourseRefs": 12
     },
     {
       "programCode": "034034-2-000",
@@ -975,12 +981,13 @@
       "gapCredits": 143.0,
       "coverageRatio": 0.0774,
       "status": "structural",
-      "quarantinedPoolCount": 14,
+      "quarantinedPoolCount": 15,
       "quarantinedOperators": {
+        "all_of": 1,
         "choose_n": 11,
         "min_credits": 3
       },
-      "quarantinedWithCourseRefs": 11
+      "quarantinedWithCourseRefs": 12
     }
   ]
 }
