@@ -464,8 +464,12 @@ def test_catalog_overlap_assigns_all_mandatory_slots_but_counts_credit_once():
     assert overlap_rows == []
 
 
-def test_mandatory_bucket_credits_track_remaining_slot_credits():
-    """Completed + remaining slot credits should sum to the bucket minimum."""
+def test_mandatory_bucket_credits_never_exceed_what_was_earned():
+    """The bucket used to be made to sum to its minimum: completed was derived
+    as `minCredits - remaining`, which here reported 6.5 of 10.0 for a student
+    who had earned 4.0. That is only sound while the remaining courses name
+    everything outstanding, and a "choose one from a list" slot is named
+    nowhere -- so the gap became credit for work not done."""
     completed_id = str(ObjectId())
     remaining_id = str(ObjectId())
     progress = calculate_graduation_progress(
@@ -505,6 +509,6 @@ def test_mandatory_bucket_credits_track_remaining_slot_credits():
         for entry in progress["requirementProgress"]
         if entry["requirementGroupId"].endswith(":core-mandatory")
     )
-    assert core["creditsCompleted"] == 6.5
-    assert core["creditsRemaining"] == 3.5
+    assert core["creditsCompleted"] == 4.0
+    assert core["creditsRemaining"] == 6.0
     assert len(core["remainingCourses"]) == 1

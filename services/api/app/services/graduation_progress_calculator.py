@@ -95,11 +95,76 @@ def pick_latest_records_by_course_id(
     return latest_by_key
 
 
+REPEATABLE_PREFIX_BUCKETS = ("physical-education",)
+"""Requirement buckets whose courses may be taken more than once for credit.
+
+Physical education is satisfied by accumulating activity credits, and one
+activity code covers several levels: `03940803` appears twice on a real
+transcript, a credit each, both inside the Technion's stated total of 98. The
+catalogue says so itself -- the pool is scoped by `allowedPrefixes`
+('039408', '039409'), and the course notes describe its "advanced" variant.
+"""
+
+
+def repeatable_course_prefixes(pool_documents: list[dict[str, Any]] | None) -> tuple[str, ...]:
+    """Course-number prefixes whose courses earn credit on every enrolment.
+
+    Taken from the catalogue rather than assumed: only pools attached to a
+    bucket named in `REPEATABLE_PREFIX_BUCKETS` contribute. Everything else
+    keeps retake semantics, where a second attempt REPLACES the first -- the two
+    are indistinguishable row by row, so the distinction has to come from the
+    requirement the course serves.
+    """
+    prefixes: set[str] = set()
+    for document in pool_documents or []:
+        bucket = str(document.get("linkedCreditBucketId") or "")
+        if not any(bucket.endswith(name) for name in REPEATABLE_PREFIX_BUCKETS):
+            continue
+        rule = document.get("ruleExpression") or {}
+        for prefix in rule.get("allowedPrefixes") or []:
+            if prefix:
+                prefixes.add(str(prefix))
+    return tuple(sorted(prefixes))
+
+
+def _repeat_credits(
+    records: list[dict[str, Any]],
+    latest: dict[str, Any],
+    repeatable_prefixes: tuple[str, ...],
+) -> float:
+    """Credits for one course across every enrolment that earned them.
+
+    Only for a repeatable course. Elsewhere a second attempt replaces the first,
+    and summing would credit a retake twice -- a student who passed with 70 and
+    retook for 82 has earned the credits once.
+    """
+    number = str(latest.get("courseNumber") or "")
+    if not number or not number.startswith(repeatable_prefixes or ("\0",)):
+        return round_credits(latest["creditsEarned"])
+
+    return round_credits(
+        sum(
+            float(record.get("creditsEarned") or 0.0)
+            for record in records
+            if is_passing_grade(record)
+        )
+    )
+
+
 def build_effective_completions(
     completed_course_records: list[dict[str, Any]],
+    *,
+    repeatable_prefixes: tuple[str, ...] = (),
 ) -> dict[str, dict[str, Any]]:
-    """One row per courseId: the latest attempt only; must be passing to count."""
+    """One row per courseId: the latest attempt, with credits from every
+    enrolment that earned them -- see `_repeat_credits`."""
     latest_by_course_id = pick_latest_records_by_course_id(completed_course_records)
+
+    records_by_course_id: dict[str, list[dict[str, Any]]] = {}
+    for record in completed_course_records:
+        course_id = record.get("courseId")
+        if course_id is not None:
+            records_by_course_id.setdefault(str(course_id), []).append(record)
 
     effective: dict[str, dict[str, Any]] = {}
     for course_id, record in latest_by_course_id.items():
@@ -114,7 +179,9 @@ def build_effective_completions(
             # named; the catalog wins wherever it has an entry.
             "courseNumber": record.get("courseNumber") or metadata.get("importedCourseNumber"),
             "courseTitle": metadata.get("importedTitle"),
-            "creditsEarned": round_credits(record["creditsEarned"]),
+            "creditsEarned": _repeat_credits(
+                records_by_course_id.get(course_id, [record]), record, repeatable_prefixes
+            ),
             "grade": numeric_grade if numeric_grade is not None else record.get("grade"),
             "semesterCode": record.get("semesterCode"),
             "recordedAt": record.get("recordedAt"),
@@ -404,7 +471,24 @@ def reconcile_mandatory_bucket_credits(
     completed_courses: list[dict[str, Any]],
     remaining_courses: list[dict[str, Any]],
 ) -> tuple[float, float, str]:
-    """Derive mandatory-bucket credits from remaining matrix slots (sums to minCredits)."""
+    """Derive mandatory-bucket credits from remaining matrix slots.
+
+    The derivation makes the bucket sum to `minCredits`, which is only sound
+    while `remaining_courses` names EVERYTHING still outstanding. It does not
+    always: this track requires "one further mathematics course" chosen from a
+    list of seven, and a slot like that is nowhere in the remaining courses. For
+    one real student the bucket then reported 81.0 of 87.0 complete when their
+    assigned courses came to 70.5 -- the unrepresented slot had turned into
+    10.5 credits of progress they had not earned.
+
+    So the derived figure is clamped to what was actually earned. It may still
+    understate what is left, since a slot we cannot see is a slot we cannot
+    count, but it can no longer credit a student for work they have not done.
+    """
+    completed_credit_sum = round_credits(
+        sum(_progress_entry_credits(entry) for entry in completed_courses)
+    )
+
     if not remaining_courses:
         return round_credits(min_credits), 0.0, "satisfied"
 
@@ -412,13 +496,11 @@ def reconcile_mandatory_bucket_credits(
         sum(_progress_entry_credits(entry) for entry in remaining_courses)
     )
     if remaining_credit_sum > 0:
-        credits_remaining = remaining_credit_sum
-        credits_completed = round_credits(max(0.0, min_credits - remaining_credit_sum))
+        derived_completed = round_credits(max(0.0, min_credits - remaining_credit_sum))
+        credits_completed = min(derived_completed, completed_credit_sum)
+        credits_remaining = round_credits(max(0.0, min_credits - credits_completed))
         return credits_completed, credits_remaining, "in_progress"
 
-    completed_credit_sum = round_credits(
-        sum(_progress_entry_credits(entry) for entry in completed_courses)
-    )
     credits_completed = round_credits(min(min_credits, completed_credit_sum))
     credits_remaining = round_credits(max(0.0, min_credits - credits_completed))
     status = "satisfied" if credits_completed >= min_credits else "in_progress"
@@ -499,7 +581,10 @@ def calculate_graduation_progress(
         if number:
             catalog_courses_by_number[str(number)] = (course_id, catalog_course)
 
-    effective_completions = build_effective_completions(completed_course_records)
+    effective_completions = build_effective_completions(
+        completed_course_records,
+        repeatable_prefixes=repeatable_course_prefixes(pool_documents),
+    )
     latest_records_by_course_id = pick_latest_records_by_course_id(completed_course_records)
     transcript_passing_keys: set[str] = set()
     for course_id in effective_completions:

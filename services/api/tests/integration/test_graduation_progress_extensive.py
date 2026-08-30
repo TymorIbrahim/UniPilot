@@ -100,7 +100,9 @@ async def test_phase_15_0_full_dds_scenario(auth_client, mongo_database):
     assert ds["eligibilityEnforcement"] == "strict_pool"
     assert faculty["creditsCompleted"] == 3.0
     # Mandatory bucket credits = minCredits - remaining matrix slot credits (108 - 7).
-    assert core["creditsCompleted"] == 101.0
+    # Was 101.0, derived as `minCredits - remaining`, for a student who had
+    # earned 4.0. A bucket may no longer report more than was actually earned.
+    assert core["creditsCompleted"] == 4.0
     assert any(course["courseNumber"] == "00940345" for course in core["completedCourses"])
 
 
@@ -217,7 +219,9 @@ async def test_non_pool_course_not_counted_in_ds_bucket(auth_client, mongo_datab
     core = next(r for r in progress["requirementProgress"] if r["requirementGroupId"].endswith(":core-mandatory"))
     assert ds["creditsCompleted"] == 0
     # Mandatory bucket credits = minCredits - remaining matrix slot credits (108 - 7).
-    assert core["creditsCompleted"] == 101.0
+    # Was 101.0, derived as `minCredits - remaining`, for a student who had
+    # earned 4.0. A bucket may no longer report more than was actually earned.
+    assert core["creditsCompleted"] == 4.0
     assert progress["completedCredits"] == 4.0
     assert any(course["courseNumber"] == "00940345" for course in core["completedCourses"])
     assert not any(item["courseNumber"] == "00940345" for item in progress["ineligibleCredits"])
