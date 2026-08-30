@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     service_name: str = "api"
     environment: str = "development"
     auto_seed_catalog: bool = False
+    # Seed the real DDS catalog instead of the small CI/E2E fixture. Only the
+    # gallery demo sets this: the E2E suite asserts against specific course
+    # numbers in `catalog_bootstrap`, so flipping it there would break them.
+    seed_demo_catalog: bool = False
     api_port: int = 8000
     mongo_uri: str | None = None
     mongo_root_password: str | None = None
