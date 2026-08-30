@@ -249,8 +249,8 @@ describe('AdvisorPage', () => {
   })
 
   it('shows the latest progress phrase while the answer is still pending', async () => {
-    // The answer arrives in one piece at the end, so during a 190s planning
-    // question this is the only thing on screen that changes.
+    // The answer arrives in one piece at the end, so during a long planning
+    // question the accumulating activity list is what changes on screen.
     const { response, release } = gatedStream(
       [progressEvent('Reading your academic record'), progressEvent('Checking your eligibility')],
       [CHUNK_EVENT, FINAL_EVENT],
@@ -259,9 +259,10 @@ describe('AdvisorPage', () => {
 
     await ask()
 
-    // Mid-stream: latest phrase wins, and no answer has landed yet.
-    expect(await screen.findByText('Checking your eligibility')).toBeInTheDocument()
-    expect(screen.queryByText('Reading your academic record')).not.toBeInTheDocument()
+    // Mid-stream: earlier phrases stay on the trace, and no answer has landed yet.
+    const activity = await screen.findByTestId('advisor-activity')
+    expect(activity).toHaveTextContent('Checking your eligibility')
+    expect(activity).toHaveTextContent('Reading your academic record')
     expect(screen.queryByText(ADVISOR_REPLY.answer)).not.toBeInTheDocument()
 
     release()

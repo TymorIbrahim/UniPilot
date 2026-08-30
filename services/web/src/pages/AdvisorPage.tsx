@@ -4,8 +4,16 @@ import { useMutation } from '@tanstack/react-query'
 import { Bot, Send, Sparkles, MessageSquare, BookOpen, ChevronDown, CheckCircle2, AlertCircle, Info } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { advisorApi } from '../api/endpoints'
+import { AgentActivity } from '../components/advisor/AgentActivity'
 import { SourcesPanel } from '../components/advisor/SourcesPanel'
 import { countSources, sourceGroups } from '../components/advisor/sourceGroups'
+import {
+  applyAgentStep,
+  completeRunningSteps,
+  isAgentStep,
+  stepFromProgressPhrase,
+  type AgentStep,
+} from '../components/advisor/agentSteps'
 import { PageHeader } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { useTranslation } from '../i18n'
@@ -13,7 +21,7 @@ import type { AdvisorReply } from '../types/api'
 
 type ChatMessage =
   | { id: string; role: 'user'; content: string }
-  | { id: string; role: 'assistant'; content: string; reply?: AdvisorReply }
+  | { id: string; role: 'assistant'; content: string; reply?: AdvisorReply; steps?: AgentStep[] }
 
 /* ── Helpers ── */
 
@@ -150,6 +158,8 @@ function AssistantMessage({
 }) {
   const displayContent = useMemo(() => stripJsonEnvelope(message.content), [message.content])
   const isThinking = isCurrentlyStreaming && !displayContent
+  const steps = message.steps ?? []
+  const hasTrace = steps.length > 0
 
   return (
     <div className="flex items-start gap-3 advisor-msg-in">
@@ -157,38 +167,37 @@ function AssistantMessage({
         <Bot />
       </div>
       <div className="advisor-bubble-assistant rounded-2xl rounded-tl-md px-5 py-4 max-w-[85%] min-w-0">
-        {isThinking ? (
-          <div className="flex items-center gap-3">
-            <div className="advisor-thinking-dots flex gap-1.5">
-              <span />
-              <span />
-              <span />
+        <div className="space-y-3">
+          {hasTrace ? (
+            <AgentActivity steps={steps} isLive={isCurrentlyStreaming} />
+          ) : isThinking ? (
+            <div className="flex items-center gap-3">
+              <div className="advisor-thinking-dots flex gap-1.5">
+                <span />
+                <span />
+                <span />
+              </div>
+              <span dir="auto" className="text-sm text-[var(--color-text-muted)]" data-testid="advisor-progress">
+                {progress ?? 'Analyzing your question…'}
+              </span>
             </div>
-            <span dir="auto" className="text-sm text-[var(--color-text-muted)]" data-testid="advisor-progress">
-              {progress ?? 'Analyzing your question…'}
-            </span>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {/* No `advisor-stream-cursor` here: the answer is composed after the
-                loop concludes and arrives in one `chunk`, so content goes empty ->
-                whole in a single setState. The typing cursor was never on screen
-                for a frame -- it read as a working feature and was not one. */}
+          ) : null}
+
+          {displayContent ? (
             <div dir="auto" className="advisor-prose text-sm text-[var(--color-text)]">
               <ReactMarkdown>{displayContent}</ReactMarkdown>
             </div>
+          ) : null}
 
-            {/* Show metadata only after streaming is done */}
-            {!isCurrentlyStreaming && message.reply && (
-              <div className="space-y-3 animate-fade-in">
-                <div className="flex items-center gap-2">
-                  <ConfidenceBadge confidence={message.reply.confidence} />
-                </div>
-                <MessageMetadata reply={message.reply} />
+          {!isCurrentlyStreaming && message.reply && displayContent ? (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <ConfidenceBadge confidence={message.reply.confidence} />
               </div>
-            )}
-          </div>
-        )}
+              <MessageMetadata reply={message.reply} />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -206,6 +215,7 @@ export function AdvisorPage() {
   // screen the whole time.
   const [progress, setProgress] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const structuredStepsRef = useRef(false)
 
   const suggestedPrompts = useMemo(
     () => [
@@ -251,6 +261,7 @@ export function AdvisorPage() {
     setInput('')
     setIsStreaming(true)
     setActiveStreamId(assistantMessageId)
+    structuredStepsRef.current = false
 
     try {
       const response = await advisorApi.askStream(trimmed)
@@ -266,8 +277,33 @@ export function AdvisorPage() {
         if (!event.trim() || !event.startsWith('data: ')) return
         try {
           const data = JSON.parse(event.slice(6))
-          if (data.type === 'progress') {
+          if (data.type === 'step' && isAgentStep(data)) {
+            structuredStepsRef.current = true
+            const incoming: AgentStep = {
+              id: data.id,
+              kind: data.kind,
+              label: data.label,
+              status: data.status,
+            }
+            setMessages((current) =>
+              current.map((m) =>
+                m.id === assistantMessageId && m.role === 'assistant'
+                  ? { ...m, steps: applyAgentStep(m.steps ?? [], incoming) }
+                  : m,
+              ),
+            )
+            if (data.status === 'running') setProgress(data.label)
+          } else if (data.type === 'progress') {
             setProgress(data.text)
+            if (!structuredStepsRef.current && typeof data.text === 'string') {
+              setMessages((current) =>
+                current.map((m) =>
+                  m.id === assistantMessageId && m.role === 'assistant'
+                    ? { ...m, steps: stepFromProgressPhrase(data.text, m.steps ?? []) }
+                    : m,
+                ),
+              )
+            }
           } else if (data.type === 'chunk') {
             setMessages((current) =>
               current.map(m => m.id === assistantMessageId
@@ -336,6 +372,13 @@ export function AdvisorPage() {
         )
       )
     } finally {
+      setMessages((current) =>
+        current.map((m) =>
+          m.id === assistantMessageId && m.role === 'assistant' && m.steps
+            ? { ...m, steps: completeRunningSteps(m.steps) }
+            : m,
+        ),
+      )
       setIsStreaming(false)
       setActiveStreamId(null)
       setProgress(null)

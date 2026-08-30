@@ -141,7 +141,7 @@ async def run_loop(
     model: Model,
     context: DispatchContext,
     max_turns: int = MAX_TURNS,
-    on_progress: "Callable[[str], None] | None" = None,
+    on_progress: "Callable[[str | Mapping[str, Any]], None] | None" = None,
     time_budget_s: float | None = None,
     history: "Sequence[Exchange]" = (),
     seeded_facts: "frozenset[str]" = frozenset(),
@@ -149,10 +149,11 @@ async def run_loop(
 ) -> LoopResult:
     """Run until the question is answered, refused, or a budget is spent.
 
-    `on_progress` receives one short, student-facing phrase per turn -- the
-    streaming route forwards these so a long request is not silent. It is
-    advisory: a caller that ignores it sees the same final answer. Nothing
-    grounded flows through it, so it never carries a number or a course code.
+    `on_progress` receives student-facing step events (and, for older callers,
+    may still be given a short phrase). The streaming route forwards these so a
+    long request is not silent. It is advisory: a caller that ignores it sees
+    the same final answer. Nothing grounded flows through it, so it never
+    carries a number or a course code.
 
     `history` is the PRIOR exchanges of a conversation, so a follow-up like
     "continue" resolves against what was already said. It is context, never
@@ -237,11 +238,12 @@ async def run_loop(
 
         result.turns = turn
         turn_started = time.monotonic()
+        thinking_id = f"{turn}-thinking"
+        _emit_step(on_progress, thinking_id, "thinking", "running")
         reply = await model.respond(_prompt(question, context, observations, history))
         longest_turn = max(longest_turn, time.monotonic() - turn_started)
         reply = _lift_answer_call(reply)
-        if on_progress is not None:
-            _report_progress(on_progress, reply)
+        _emit_step(on_progress, thinking_id, "thinking", "done")
 
         if "decline" in reply:
             # A decline is legitimate ONLY for a genuinely out-of-scope question
@@ -373,7 +375,10 @@ async def run_loop(
             continue
 
         gained = 0
-        for call in calls:
+        for call_index, call in enumerate(calls):
+            tool_name = str(call.get("tool") or "unknown")
+            tool_step_id = f"{turn}-{call_index}-{tool_name}"
+            _emit_step(on_progress, tool_step_id, tool_name, "running")
             signatures = _call_signatures(call)
             # A call whose every derivation was already made this run cannot
             # teach the loop anything: nothing writes, so re-running it returns
@@ -408,9 +413,11 @@ async def run_loop(
                         "answer, and a confident invented rule is the one thing worse than "
                         "saying so."
                     )
+                    _emit_step(on_progress, tool_step_id, tool_name, "done")
                     continue
 
             outcome = await dispatch(call, context)
+            _emit_step(on_progress, tool_step_id, tool_name, "done")
             context.facts.update(outcome.facts)
             # Only facts with CONTENT count. Fetching an empty collection over
             # and over is the clearest possible case of busy-but-not-progressing,
@@ -512,6 +519,7 @@ async def run_loop(
 
 
 _PROGRESS_BY_TOOL = {
+    "thinking": "Thinking…",
     "find": "Looking up your records…",
     "search_corpus": "Searching the policies…",
     "interpret": "Reading the relevant policy…",
@@ -523,18 +531,17 @@ _PROGRESS_BY_TOOL = {
 }
 
 
-def _report_progress(on_progress: "Callable[[str], None]", reply: Mapping[str, Any]) -> None:
-    """One reassuring phrase for the turn, from the FIRST tool it reached for.
-
-    Deliberately generic -- it says what KIND of work is happening, never a
-    result, so no grounded value can leak through the advisory channel. A reply
-    that answers or declines needs no phrase; the answer itself is next.
-    """
-    calls = reply.get("calls") or ()
-    tool = calls[0].get("tool") if calls else None
-    phrase = _PROGRESS_BY_TOOL.get(tool) if tool else None
-    if phrase is not None:
-        on_progress(phrase)
+def _emit_step(
+    on_progress: "Callable[[str | Mapping[str, Any]], None] | None",
+    step_id: str,
+    kind: str,
+    status: str,
+) -> None:
+    """One student-facing activity row. Kind + status only -- never a result."""
+    if on_progress is None:
+        return
+    label = _PROGRESS_BY_TOOL.get(kind, "Working…")
+    on_progress({"id": step_id, "kind": kind, "label": label, "status": status})
 
 
 def _is_empty(value: Any) -> bool:

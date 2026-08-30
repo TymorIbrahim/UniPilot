@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -73,7 +73,7 @@ async def run_advice(
     user_id: str,
     *,
     settings: Any | None = None,
-    on_progress: Callable[[str], None] | None = None,
+    on_progress: Callable[[str | Mapping[str, Any]], None] | None = None,
     max_turns: int = MAX_TURNS,
     time_budget_s: float | None = None,
     conversation_id: str | None = None,

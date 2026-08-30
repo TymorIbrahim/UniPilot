@@ -25,7 +25,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -159,12 +159,43 @@ def _to_frontend_advisor_shape(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _sse_payloads_for_progress_item(item: object) -> list[dict[str, Any]]:
+    """Turn one `on_progress` callback into typed SSE events.
+
+    A plain string stays `{type: progress}` for older callers. A step mapping
+    becomes `{type: step}` and, while it is running, also a `progress` phrase
+    so clients that only know that event are not silent.
+    """
+    if isinstance(item, str):
+        return [{"type": "progress", "text": item}]
+    if not isinstance(item, Mapping):
+        return []
+    step_id = item.get("id")
+    kind = item.get("kind")
+    label = item.get("label")
+    status = item.get("status")
+    if not (
+        isinstance(step_id, str)
+        and step_id
+        and isinstance(kind, str)
+        and isinstance(label, str)
+        and status in ("running", "done")
+    ):
+        return []
+    events: list[dict[str, Any]] = [
+        {"type": "step", "id": step_id, "kind": kind, "label": label, "status": status}
+    ]
+    if status == "running":
+        events.append({"type": "progress", "text": label})
+    return events
+
+
 async def _drain_until_done(
-    progress: asyncio.Queue[str],
+    progress: asyncio.Queue[object],
     loop_task: asyncio.Task[LoopResult],
     timeout: float,
-) -> AsyncIterator[str]:
-    """Yield queued progress phrases until the loop task finishes.
+) -> AsyncIterator[object]:
+    """Yield queued progress items until the loop task finishes.
 
     The whole-request ceiling is enforced here rather than by wrapping the loop
     in `asyncio.wait_for`, because the generator has to stay awake forwarding
@@ -175,7 +206,7 @@ async def _drain_until_done(
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise asyncio.TimeoutError
-        getter: asyncio.Task[str] = asyncio.ensure_future(progress.get())
+        getter: asyncio.Task[object] = asyncio.ensure_future(progress.get())
         done, _ = await asyncio.wait(
             {getter, loop_task}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
         )
@@ -196,12 +227,13 @@ async def _drain_until_done(
 async def advise_stream_route(payload: AdviseRequest) -> StreamingResponse:
     """Typed-event SSE. The answer is assembled after the loop concludes (not
     token-by-token from the model), so the stream emits the finished answer as
-    one `chunk` then a `final` event. While the loop runs, it forwards one short
-    progress phrase per turn so a long request is not silent."""
+    one `chunk` then a `final` event. While the loop runs, it forwards each
+    activity as a `step` event (and a `progress` phrase while that step is
+    running) so a long request is not silent."""
     settings = get_settings()
 
     async def _event_generator():
-        progress: asyncio.Queue[str] = asyncio.Queue()
+        progress: asyncio.Queue[object] = asyncio.Queue()
         loop_task = asyncio.create_task(
             run_advice(
                 question=payload.question,
@@ -213,8 +245,9 @@ async def advise_stream_route(payload: AdviseRequest) -> StreamingResponse:
         )
 
         try:
-            async for phrase in _drain_until_done(progress, loop_task, settings.agent_turn_timeout_seconds):
-                yield f"data: {json.dumps({'type': 'progress', 'text': phrase})}\n\n"
+            async for item in _drain_until_done(progress, loop_task, settings.agent_turn_timeout_seconds):
+                for payload_event in _sse_payloads_for_progress_item(item):
+                    yield f"data: {json.dumps(payload_event)}\n\n"
             final_payload = _build_advise_response(payload.question, loop_task.result())
         except asyncio.TimeoutError:
             final_payload = _timeout_response(payload.question)
